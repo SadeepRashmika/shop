@@ -1,0 +1,75 @@
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.input-label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.3px;
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  transition: color var(--transition-fast);
+}
+
+.input-field {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--fs-base);
+  transition: all var(--transition-fast);
+  outline: none;
+}
+
+.input-field.has-icon {
+  padding-left: calc(var(--space-4) + 24px + var(--space-2));
+}
+
+.input-field::placeholder {
+  color: var(--text-muted);
+}
+
+.input-field:focus {
+  border-color: var(--primary-400);
+  box-shadow: 0 0 0 3px rgba(108, 43, 217, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.input-field:focus ~ .input-icon,
+.input-wrapper:focus-within .input-icon {
+  color: var(--primary-400);
+}
+
+/* Error state */
+.input-error .input-field {
+  border-color: var(--error-400);
+}
+
+.input-error .input-field:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.input-error-text {
+  font-size: var(--fs-xs);
+  color: var(--error-400);
+  margin-top: var(--space-1);
+}

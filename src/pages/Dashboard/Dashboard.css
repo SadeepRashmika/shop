@@ -1,0 +1,337 @@
+/* ============================================
+   DASHBOARD PAGE
+   ============================================ */
+
+.dashboard-page {
+  max-width: var(--container-max);
+  margin: 0 auto;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.dashboard-title {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+}
+
+.dashboard-role-badge {
+  padding: 4px 14px;
+  background: var(--gradient-primary);
+  color: white;
+  border-radius: var(--radius-full);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-5);
+  margin-bottom: var(--space-8);
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.stat-icon {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.stat-purple .stat-icon {
+  background: rgba(108, 43, 217, 0.2);
+  color: var(--primary-300);
+}
+
+.stat-cyan .stat-icon {
+  background: rgba(34, 211, 238, 0.15);
+  color: var(--accent-400);
+}
+
+.stat-green .stat-icon {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success-400);
+}
+
+.stat-orange .stat-icon {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--warning-400);
+}
+
+.stat-red .stat-icon {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error-400);
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-value {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  font-family: var(--font-heading);
+}
+
+.stat-label {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Sections */
+.dashboard-section {
+  margin-bottom: var(--space-8);
+}
+
+.section-heading {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  margin-bottom: var(--space-5);
+}
+
+/* Quick Actions */
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-4);
+}
+
+.action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+  cursor: pointer;
+  text-align: center;
+}
+
+.action-emoji {
+  font-size: 32px;
+}
+
+.action-label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.action-card:hover .action-label {
+  color: var(--text-primary);
+}
+
+/* Table & Lists layout */
+.dashboard-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
+}
+
+.section-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-5);
+}
+
+.section-header-flex .section-heading {
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.icon-btn-text {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.icon-btn-text:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--primary-400);
+  color: var(--primary-400);
+}
+
+.dashboard-list-card {
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dashboard-table th,
+.dashboard-table td {
+  padding: var(--space-3) var(--space-2);
+  border-bottom: 1px solid var(--border-color);
+  font-size: var(--fs-sm);
+  text-align: left;
+}
+
+.dashboard-table th {
+  color: var(--text-muted);
+  font-weight: 500;
+  border-bottom-width: 2px;
+}
+
+.dashboard-table tr:last-child td {
+  border-bottom: none;
+}
+
+.stock-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.stock-badge.low-stock {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error-400);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Recent Sales */
+.recent-sales-card {
+  min-height: 200px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-10);
+  color: var(--text-muted);
+}
+
+.empty-icon {
+  font-size: 40px;
+  opacity: 0.5;
+}
+
+/* RESPONSIVE */
+@media (max-width: 1024px) {
+  .dashboard-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-title {
+    font-size: var(--fs-xl);
+  }
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .quick-actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ---- Recent Transactions List ---- */
+.recent-txn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.recent-txn-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.recent-txn-item:last-child {
+  border-bottom: none;
+}
+
+.txn-icon-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: rgba(108, 43, 217, 0.15);
+  color: var(--primary-300);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.txn-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.txn-items-text {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.txn-time {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.txn-amount-badge {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--success-400);
+  white-space: nowrap;
+}
+

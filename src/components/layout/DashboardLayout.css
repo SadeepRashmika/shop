@@ -1,0 +1,27 @@
+.dashboard-layout {
+  min-height: 100vh;
+}
+
+.dashboard-main {
+  padding-top: calc(var(--navbar-height) + var(--space-6));
+  padding-bottom: var(--space-8);
+  padding-right: var(--space-6);
+  padding-left: var(--space-6);
+  min-height: 100vh;
+  transition: margin-left var(--transition-base), padding-left var(--transition-base);
+}
+
+.dashboard-main.sidebar-visible {
+  margin-left: var(--sidebar-width);
+}
+
+.dashboard-main.sidebar-hidden {
+  margin-left: 0;
+}
+
+@media (max-width: 768px) {
+  .dashboard-main {
+    padding: calc(var(--navbar-height) + var(--space-4)) var(--space-4) var(--space-4);
+    margin-left: 0 !important;
+  }
+}
