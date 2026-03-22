@@ -290,12 +290,16 @@ export default function Debtors() {
     }
   };
 
-  const filteredDebtors = debtors.filter(d => 
-    d.name.toLowerCase().includes(search.toLowerCase()) || 
-    d.phone.includes(search) ||
-    d.barcode.includes(search) ||
-    d.debtorNo?.toString().includes(search)
-  );
+  const filteredDebtors = debtors.filter(d => {
+    const s = search.toLowerCase().trim();
+    if (!s) return true;
+    const cleanS = s.replace('#', '').replace('no', '').trim();
+    return d.name.toLowerCase().includes(s) || 
+           d.phone.includes(s) ||
+           d.barcode?.toLowerCase().includes(s) ||
+           d.debtorNo?.toString() === cleanS ||
+           d.debtorNo?.toString().includes(cleanS);
+  });
 
   return (
     <div className="debtors-page fade-in">
@@ -316,7 +320,7 @@ export default function Debtors() {
           <FiSearch className="search-icon" />
           <input 
             type="text" 
-            placeholder="Search by name, phone or barcode..."
+            placeholder="Search name, phone or No..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="search-input"

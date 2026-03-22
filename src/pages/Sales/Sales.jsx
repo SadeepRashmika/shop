@@ -705,11 +705,15 @@ export default function Sales() {
                 />
               </div>
               <div className="debtor-list-mini">
-                {debtors.filter(d => 
-                  d.name.toLowerCase().includes(debtorSearch.toLowerCase()) || 
-                  d.phone.includes(debtorSearch) || 
-                  d.debtorNo?.toString().includes(debtorSearch)
-                ).map(d => (
+                {debtors.filter(d => {
+                  const s = debtorSearch.toLowerCase().trim();
+                  if (!s) return true;
+                  const cleanS = s.replace('#', '').replace('no', '').trim();
+                  return d.name.toLowerCase().includes(s) || 
+                         d.phone.includes(s) || 
+                         d.debtorNo?.toString() === cleanS ||
+                         d.debtorNo?.toString().includes(cleanS);
+                }).map(d => (
                   <div 
                     key={d.id} 
                     className={`debtor-mini-item ${selectedDebtor?.id === d.id ? 'selected' : ''}`}
