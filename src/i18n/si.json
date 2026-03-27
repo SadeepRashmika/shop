@@ -15,7 +15,9 @@
     "orders": "මගේ ඇණවුම්",
     "search": "භාණ්ඩ සෙවීම",
     "profile": "පැතිකඩ",
-    "settings": "සැකසුම්"
+    "settings": "සැකසුම්",
+    "darkMode": "අඳුරු මාදිලිය",
+    "lightMode": "ආලෝක මාදිලිය"
   },
   "home": {
     "welcome": "SmartPOS වෙත සාදරයෙන් පිළිගනිමු",
@@ -108,7 +110,9 @@
     "viewBill": "විස්තර බලන්න",
     "reprintBill": "බිල්පත නැවත මුද්‍රණය",
     "noBillsFound": "එම අංකයෙන් බිල්පත් හමු නොවීය.",
-    "billNumber": "බිල්පත් අංකය"
+    "billNumber": "බිල්පත් අංකය",
+    "tenderedAmount": "දුන් මුදල",
+    "balanceOrDue": "ඉතිරි මුදල හෝ ණය මුදල"
   },
   "debtors": {
     "title": "ණයගැතී කළමනාකරණය",

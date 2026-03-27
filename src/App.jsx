@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import DashboardLayout from './components/layout/DashboardLayout';
 
@@ -22,109 +23,111 @@ import './i18n/i18n';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-          {/* Protected Routes — Dashboard Layout */}
-          <Route
-            element={
-              <ProtectedRoute>
-                <DashboardLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/profile" element={<Profile />} />
+            {/* Protected Routes — Dashboard Layout */}
+            <Route
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/profile" element={<Profile />} />
 
-            {/* Owner Routes */}
-            <Route
-              path="/users"
-              element={
-                <ProtectedRoute allowedRoles={['owner']}>
-                  <Users />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/ads"
-              element={
-                <ProtectedRoute allowedRoles={['owner']}>
-                  <Advertisements />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/inventory"
-              element={
-                <ProtectedRoute allowedRoles={['owner', 'cashier']}>
-                  <Inventory />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/reports"
-              element={
-                <ProtectedRoute allowedRoles={['owner', 'cashier']}>
-                  <Reports />
-                </ProtectedRoute>
-              }
-            />
+              {/* Owner Routes */}
+              <Route
+                path="/users"
+                element={
+                  <ProtectedRoute allowedRoles={['owner']}>
+                    <Users />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/ads"
+                element={
+                  <ProtectedRoute allowedRoles={['owner']}>
+                    <Advertisements />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/inventory"
+                element={
+                  <ProtectedRoute allowedRoles={['owner', 'cashier']}>
+                    <Inventory />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <ProtectedRoute allowedRoles={['owner', 'cashier']}>
+                    <Reports />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Cashier Routes */}
-            <Route
-              path="/items"
-              element={
-                <ProtectedRoute allowedRoles={['cashier', 'owner']}>
-                  <Inventory />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sales"
-              element={
-                <ProtectedRoute allowedRoles={['cashier', 'owner']}>
-                  <Sales />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/debtors"
-              element={
-                <ProtectedRoute allowedRoles={['cashier', 'owner']}>
-                  <Debtors />
-                </ProtectedRoute>
-              }
-            />
+              {/* Cashier Routes */}
+              <Route
+                path="/items"
+                element={
+                  <ProtectedRoute allowedRoles={['cashier', 'owner']}>
+                    <Inventory />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/sales"
+                element={
+                  <ProtectedRoute allowedRoles={['cashier', 'owner']}>
+                    <Sales />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/debtors"
+                element={
+                  <ProtectedRoute allowedRoles={['cashier', 'owner']}>
+                    <Debtors />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Customer Routes */}
-            <Route
-              path="/search"
-              element={
-                <ProtectedRoute allowedRoles={['customer', 'cashier', 'owner']}>
-                  <CustomerSearch />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/orders"
-              element={
-                <ProtectedRoute allowedRoles={['customer', 'cashier', 'owner']}>
-                  <CustomerOrders />
-                </ProtectedRoute>
-              }
-            />
-          </Route>
+              {/* Customer Routes */}
+              <Route
+                path="/search"
+                element={
+                  <ProtectedRoute allowedRoles={['customer', 'cashier', 'owner']}>
+                    <CustomerSearch />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/orders"
+                element={
+                  <ProtectedRoute allowedRoles={['customer', 'cashier', 'owner']}>
+                    <CustomerOrders />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
-    </AuthProvider>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

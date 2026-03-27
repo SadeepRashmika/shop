@@ -120,6 +120,17 @@ function generateBillPDF(billData) {
       <span>TOTAL</span>
       <span>Rs. ${billData.total.toFixed(2)}</span>
     </div>
+    ${billData.tenderedAmount > 0 ? `
+    <div class="divider"></div>
+    <div class="total-row">
+      <span>Tendered (දුන් මුදල)</span>
+      <span>Rs. ${billData.tenderedAmount.toFixed(2)}</span>
+    </div>
+    <div class="total-row">
+      <span>${billData.tenderedAmount >= billData.total ? 'Balance (ඉතිරි මුදල)' : 'Due (ණය)'}</span>
+      <span>Rs. ${Math.abs(billData.tenderedAmount - billData.total).toFixed(2)}</span>
+    </div>
+    ` : ''}
   </div>
 
   <div class="divider"></div>
@@ -195,6 +206,7 @@ export default function Sales() {
   const [lastBillNumber, setLastBillNumber] = useState(null);
   const [lastBillData, setLastBillData] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [tenderedAmount, setTenderedAmount] = useState('');
 
   // Bill Search
   const [billSearchModal, setBillSearchModal] = useState(false);
@@ -427,6 +439,7 @@ export default function Sales() {
         items: cartItems,
         total: subtotal,
         paymentMethod,
+        tenderedAmount: parseFloat(tenderedAmount) || 0,
         cashierName: userData?.name || 'Unknown',
         debtorName: paymentMethod === 'credit' ? selectedDebtor?.name : null,
         date: new Date()
@@ -441,6 +454,7 @@ export default function Sales() {
       setSelectedDebtor(null);
       setPaymentMethod('cash');
       setDebtorSearch('');
+      setTenderedAmount('');
 
       // Refresh data to reflect stock changes
       const itemSnapshot = await getDocs(collection(db, 'items'));
@@ -689,6 +703,32 @@ export default function Sales() {
             >
               <FiCreditCard /> {t('sales.credit')}
             </button>
+          </div>
+
+          <div className="tendered-amount-section mt-4 mb-4">
+            <label className="input-label mb-2 d-block">{t('sales.tenderedAmount')}</label>
+            <div className="search-box glass" style={{ padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)' }}>
+              <FiDollarSign className="search-icon" />
+              <input 
+                 type="number"
+                 placeholder="0.00"
+                 value={tenderedAmount}
+                 onChange={(e) => setTenderedAmount(e.target.value)}
+                 className="search-input"
+                 style={{fontSize: '1.25rem', fontWeight: 'bold', backgroundColor: 'transparent', outline: 'none', border: 'none', color: 'var(--text-primary)', width: '100%'}}
+              />
+            </div>
+            
+            <div style={{ marginTop: '1rem', padding: '1rem', borderRadius: 'var(--radius-md)', background: 'var(--bg-glass)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--border-color)' }}>
+              <span className="text-secondary font-medium">{t('sales.balanceOrDue')}</span>
+              <span style={{ 
+                fontSize: '1.5rem', 
+                fontWeight: 'bold', 
+                color: (parseFloat(tenderedAmount) || 0) >= subtotal ? 'var(--success-500)' : 'var(--error-500)' 
+              }}>
+                Rs. {Math.abs((parseFloat(tenderedAmount) || 0) - subtotal).toFixed(2)}
+              </span>
+            </div>
           </div>
 
           {paymentMethod === 'credit' && (

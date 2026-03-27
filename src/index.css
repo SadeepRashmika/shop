@@ -107,6 +107,41 @@
 }
 
 /* ============================================
+   LIGHT THEME OVERRIDES
+   ============================================ */
+
+[data-theme="light"] {
+  /* — Neutrals (Light theme) — */
+  --bg-primary: #f5f5fa;
+  --bg-secondary: #ebebf3;
+  --bg-tertiary: #dddde8;
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --bg-glass: rgba(255, 255, 255, 0.7);
+  --bg-input: rgba(0, 0, 0, 0.04);
+
+  --text-primary: #1a1a2e;
+  --text-secondary: #4a4a6a;
+  --text-muted: #8888a8;
+  --text-inverse: #f1f1f7;
+
+  --border-color: rgba(0, 0, 0, 0.1);
+  --border-focus: var(--primary-500);
+  --border-glass: rgba(0, 0, 0, 0.08);
+
+  /* — Gradients — */
+  --gradient-card: linear-gradient(135deg, rgba(108, 43, 217, 0.08) 0%, rgba(34, 211, 238, 0.04) 100%);
+  --gradient-hero: linear-gradient(160deg, #f5f5fa 0%, #ebebf3 40%, #e0d6f0 70%, #f5f5fa 100%);
+  --gradient-sidebar: linear-gradient(180deg, #ffffff 0%, #f0f0fa 100%);
+
+  /* — Shadows — */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 20px rgba(108, 43, 217, 0.15);
+  --shadow-glow-accent: 0 0 20px rgba(34, 211, 238, 0.1);
+}
+
+/* ============================================
    RESET & BASE
    ============================================ */
 
@@ -132,6 +167,7 @@ body {
   line-height: 1.6;
   min-height: 100vh;
   overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -252,6 +288,14 @@ ul, ol {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary-500);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: #e8e8f0;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: var(--primary-300);
 }
 
 /* ============================================
@@ -458,4 +502,71 @@ ul, ol {
 .text-secondary { color: var(--text-secondary); }
 .text-error { color: var(--error-400); }
 .font-bold { font-weight: 700; }
+
+/* ============================================
+   LIGHT MODE — GLOBAL OVERRIDES
+   Converts white-alpha overlays (dark mode)
+   to black-alpha overlays (light mode)
+   ============================================ */
+
+[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="light"] .glass-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Sidebar link hovers */
+[data-theme="light"] .sidebar-link:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .sidebar-link.active {
+  background: rgba(108, 43, 217, 0.1);
+}
+
+/* Table rows */
+[data-theme="light"] tr:hover td,
+[data-theme="light"] tbody tr:hover {
+  background: rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Sidebar overlay (mobile) */
+[data-theme="light"] .sidebar-open::after {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Icon buttons */
+[data-theme="light"] .icon-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Loading screen */
+[data-theme="light"] .loading-screen {
+  background: var(--bg-primary);
+}
+
+/* Modal overlay */
+[data-theme="light"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Auth pages (Login/Register) */
+[data-theme="light"] .auth-page {
+  background: var(--gradient-hero);
+}
+
+/* Search input */
+[data-theme="light"] .search-input {
+  color: var(--text-primary);
+}
 

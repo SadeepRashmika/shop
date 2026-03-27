@@ -15,7 +15,9 @@
     "orders": "My Orders",
     "search": "Search Items",
     "profile": "Profile",
-    "settings": "Settings"
+    "settings": "Settings",
+    "darkMode": "Dark Mode",
+    "lightMode": "Light Mode"
   },
   "home": {
     "welcome": "Welcome to SmartPOS",
@@ -108,7 +110,9 @@
     "viewBill": "View Details",
     "reprintBill": "Reprint Bill",
     "noBillsFound": "No bills found with that number.",
-    "billNumber": "Bill Number"
+    "billNumber": "Bill Number",
+    "tenderedAmount": "Tendered Amount",
+    "balanceOrDue": "Balance / Due Amount"
   },
   "debtors": {
     "title": "Debtor Management",

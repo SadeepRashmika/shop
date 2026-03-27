@@ -1,13 +1,15 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import LanguageSwitcher from '../common/LanguageSwitcher';
-import { FiMenu, FiLogOut, FiUser } from 'react-icons/fi';
+import { FiMenu, FiLogOut, FiUser, FiSun, FiMoon } from 'react-icons/fi';
 import './Navbar.css';
 
 export default function Navbar({ onToggleSidebar }) {
   const { t } = useTranslation();
   const { user, userData, logout, isAuthenticated } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -35,6 +37,19 @@ export default function Navbar({ onToggleSidebar }) {
 
       <div className="navbar-right">
         <LanguageSwitcher />
+
+        {/* Theme Toggle Button */}
+        <button
+          className={`theme-toggle-btn ${isDark ? 'is-dark' : 'is-light'}`}
+          onClick={toggleTheme}
+          id="theme-toggle-btn"
+          title={isDark ? t('nav.lightMode', 'Light Mode') : t('nav.darkMode', 'Dark Mode')}
+          aria-label="Toggle theme"
+        >
+          <span className="theme-icon-wrapper">
+            {isDark ? <FiSun className="theme-icon" /> : <FiMoon className="theme-icon" />}
+          </span>
+        </button>
         
         {isAuthenticated ? (
           <div className="navbar-user">

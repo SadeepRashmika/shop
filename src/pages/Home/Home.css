@@ -318,3 +318,15 @@
     padding: 0 var(--space-4);
   }
 }
+
+/* ============================================
+   HOME PAGE — LIGHT MODE OVERRIDES
+   ============================================ */
+
+[data-theme="light"] .hero-orb {
+  opacity: 0.15;
+}
+
+[data-theme="light"] .home-footer {
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
