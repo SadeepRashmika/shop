@@ -7,8 +7,8 @@ import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
-import { 
-  FiSearch, FiShoppingCart, FiPlus, FiMinus, FiTrash2, 
+import {
+  FiSearch, FiShoppingCart, FiPlus, FiMinus, FiTrash2,
   FiCreditCard, FiDollarSign, FiUser, FiMaximize, FiPrinter, FiCheckCircle,
   FiFileText, FiHash
 } from 'react-icons/fi';
@@ -17,16 +17,16 @@ import './Sales.css';
 
 // Shop information
 const SHOP_INFO = {
-  name: 'සුමින්ද ස්ටෝර්ස්ස්',
+  name: 'සුමින්ද ස්ටෝර්ස්',
   phone: '07777640334',
   email: 'sumindapradeep1111@gmail.com',
-  address: 'සුමින්ද ස්ටෝර්ස්ස්, තලහගම, මාකදුර'
+  address: 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
 };
 
 // Generate Bill Receipt - opens in print window (supports Sinhala text)
 function generateBillPDF(billData) {
   const billNum = billData.billNumber ? String(billData.billNumber).padStart(6, '0') : '000000';
-  const dateStr = billData.date instanceof Date 
+  const dateStr = billData.date instanceof Date
     ? billData.date.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' })
     : new Date().toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -165,7 +165,7 @@ function generateBillPDF(billData) {
 async function getNextBillNumber() {
   const counterRef = doc(db, 'counters', 'billNumber');
   const counterSnap = await getDoc(counterRef);
-  
+
   if (counterSnap.exists()) {
     const current = counterSnap.data().current || 0;
     const next = current + 1;
@@ -196,7 +196,7 @@ export default function Sales() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debtorSearch, setDebtorSearch] = useState('');
-  
+
   // Checkout Multi-step
   const [checkoutModal, setCheckoutModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -236,27 +236,27 @@ export default function Sales() {
         const itemSnapshot = await getDocs(collection(db, 'items'));
         const loadedItems = itemSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setItems(loadedItems);
-        
+
         const debtorSnapshot = await getDocs(collection(db, 'debtors'));
         setDebtors(debtorSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        
+
         // Initialize from orders page if navigating from 'Bill It'
         if (location.state?.orderItems) {
-           const initialCart = location.state.orderItems.map(orderItem => {
-              const matchedItem = loadedItems.find(i => i.id === orderItem.id);
-              return {
-                 ...orderItem,
-                 sellPrice: orderItem.price || orderItem.sellPrice || 0,
-                 stock: matchedItem ? matchedItem.stock : 999,
-                 itemNo: matchedItem ? matchedItem.itemNo : null
-              };
-           });
-           setCart(initialCart);
-           
-           // Clear location state to prevent reload loops
-           window.history.replaceState({}, document.title);
+          const initialCart = location.state.orderItems.map(orderItem => {
+            const matchedItem = loadedItems.find(i => i.id === orderItem.id);
+            return {
+              ...orderItem,
+              sellPrice: orderItem.price || orderItem.sellPrice || 0,
+              stock: matchedItem ? matchedItem.stock : 999,
+              itemNo: matchedItem ? matchedItem.itemNo : null
+            };
+          });
+          setCart(initialCart);
+
+          // Clear location state to prevent reload loops
+          window.history.replaceState({}, document.title);
         }
-        
+
       } catch (err) {
         console.error(err);
       } finally {
@@ -363,11 +363,11 @@ export default function Sales() {
   };
 
   const subtotal = cart.reduce((acc, item) => acc + (item.sellPrice * item.quantity), 0);
-  
+
   const filteredItems = search ? items.filter(item => {
     if (search && item.itemNo?.toString() === search.trim()) return true;
-    return item.name.toLowerCase().includes(search.toLowerCase()) || 
-           item.barcode?.toLowerCase().includes(search.toLowerCase());
+    return item.name.toLowerCase().includes(search.toLowerCase()) ||
+      item.barcode?.toLowerCase().includes(search.toLowerCase());
   }) : [];
 
   const handleSearchKeyPress = (e) => {
@@ -383,7 +383,7 @@ export default function Sales() {
     try {
       // Get next bill number
       const billNumber = await getNextBillNumber();
-      
+
       const transactionId = `TXN${Date.now()}`;
       const cartItems = cart.map(item => ({
         id: item.id,
@@ -409,7 +409,7 @@ export default function Sales() {
         if (!selectedDebtor) throw new Error("Please select a debtor for credit sale.");
         transactionData.debtorId = selectedDebtor.id;
         transactionData.debtorName = selectedDebtor.name;
-        
+
         // Update debtor totalOwed
         await updateDoc(doc(db, 'debtors', selectedDebtor.id), {
           totalOwed: increment(subtotal)
@@ -429,7 +429,7 @@ export default function Sales() {
       // if billing from an order, mark it completed
       if (location.state?.orderId) {
         await updateDoc(doc(db, 'orders', location.state.orderId), {
-           status: 'completed'
+          status: 'completed'
         });
       }
 
@@ -481,7 +481,7 @@ export default function Sales() {
     try {
       const transactionsSnapshot = await getDocs(collection(db, 'transactions'));
       const allTransactions = transactionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
+
       const cleanQuery = billSearchQuery.trim();
       const searchNum = parseInt(cleanQuery);
       const results = allTransactions.filter(txn => {
@@ -527,18 +527,18 @@ export default function Sales() {
         {/* Left Side: Items Selection */}
         <div className="sales-left">
           <div className="page-header mb-4">
-             <h1 className="page-title gradient-text">{t('sales.title')}</h1>
-             <button className="bill-search-btn glass" onClick={() => setBillSearchModal(true)} title={t('sales.searchBill')}>
-               <FiFileText /> <span>{t('sales.searchBill')}</span>
-             </button>
+            <h1 className="page-title gradient-text">{t('sales.title')}</h1>
+            <button className="bill-search-btn glass" onClick={() => setBillSearchModal(true)} title={t('sales.searchBill')}>
+              <FiFileText /> <span>{t('sales.searchBill')}</span>
+            </button>
           </div>
-          
+
           <div className="search-section glass-card">
             <div className="search-box">
               <FiSearch className="search-icon" />
-              <input 
+              <input
                 ref={barcodeInputRef}
-                type="text" 
+                type="text"
                 placeholder="Search name, barcode or Item No..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -555,7 +555,7 @@ export default function Sales() {
                   filteredItems.map(item => (
                     <div key={item.id} className="search-result-item" onClick={() => addToCart(item)}>
                       <div className="result-img">
-                         {item.imageUrl ? <img src={item.imageUrl} alt={item.name} /> : <FiSearch />}
+                        {item.imageUrl ? <img src={item.imageUrl} alt={item.name} /> : <FiSearch />}
                       </div>
                       <div className="result-info">
                         <span className="result-name">{item.name}</span>
@@ -574,26 +574,26 @@ export default function Sales() {
           </div>
 
           <div className="quick-categories mt-4">
-             <h3 className="section-title text-sm mb-2">Popular Categories</h3>
-             <div className="category-chips">
-                {['වී කෙටීම', 'පොල් කෙටීම', 'සහල්', 'පොල්තෙල්', 'හාඩ්වයාර්', 'බිස්කට්', 'සබන්', 'කුළුබඩු', 'ඉලෙක්ට්රනික බඩු'].map(cat => (
-                  <button key={cat} className="cat-chip" onClick={() => setSearch(cat)}>{cat}</button>
-                ))}
-             </div>
+            <h3 className="section-title text-sm mb-2">Popular Categories</h3>
+            <div className="category-chips">
+              {['වී කෙටීම', 'පොල් කෙටීම', 'සහල්', 'පොල්තෙල්', 'හාඩ්වයාර්', 'බිස්කට්', 'සබන්', 'කුළුබඩු', 'ඉලෙක්ට්රනික බඩු'].map(cat => (
+                <button key={cat} className="cat-chip" onClick={() => setSearch(cat)}>{cat}</button>
+              ))}
+            </div>
           </div>
-          
+
           <div className="items-grid mt-4">
-             {items.filter(i => search === '' || i.category === search).slice(0, 12).map(item => (
-                <div key={item.id} className="pos-item-card glass-card" onClick={() => addToCart(item)}>
-                  <div className="pos-item-img">
-                     {item.imageUrl ? <img src={item.imageUrl} alt={item.name} /> : <FiSearch />}
-                  </div>
-                  <div className="pos-item-info">
-                     <span className="pos-item-name">{item.name}</span>
-                     <span className="pos-item-price">Rs. {item.sellPrice.toFixed(2)}</span>
-                  </div>
+            {items.filter(i => search === '' || i.category === search).slice(0, 12).map(item => (
+              <div key={item.id} className="pos-item-card glass-card" onClick={() => addToCart(item)}>
+                <div className="pos-item-img">
+                  {item.imageUrl ? <img src={item.imageUrl} alt={item.name} /> : <FiSearch />}
                 </div>
-             ))}
+                <div className="pos-item-info">
+                  <span className="pos-item-name">{item.name}</span>
+                  <span className="pos-item-price">Rs. {item.sellPrice.toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -603,7 +603,7 @@ export default function Sales() {
             <h2 className="cart-title"><FiShoppingCart /> {t('sales.cart')}</h2>
             <div className="cart-header-right">
               {cart.length > 0 && (
-                <button className="clear-cart-btn" onClick={() => { if(window.confirm('Clear entire cart?')) setCart([]); }} title="Clear Cart">
+                <button className="clear-cart-btn" onClick={() => { if (window.confirm('Clear entire cart?')) setCart([]); }} title="Clear Cart">
                   <FiTrash2 /> Clear
                 </button>
               )}
@@ -627,9 +627,9 @@ export default function Sales() {
                   <div className="cart-item-actions">
                     {item.itemType === 'weighed' ? (
                       <div className="weight-input-inline">
-                        <input 
-                          type="number" 
-                          step="0.01" 
+                        <input
+                          type="number"
+                          step="0.01"
                           min="0.01"
                           value={item.quantity}
                           onChange={(e) => updateWeightDirectly(item.cartId, e.target.value)}
@@ -665,12 +665,12 @@ export default function Sales() {
               <span>{t('sales.total')}</span>
               <span className="total-amount">Rs. {subtotal.toFixed(2)}</span>
             </div>
-            <Button 
-                onClick={() => setCheckoutModal(true)} 
-                disabled={cart.length === 0}
-                className="checkout-btn"
-                icon={<FiCheckCircle />}
-                fullWidth
+            <Button
+              onClick={() => setCheckoutModal(true)}
+              disabled={cart.length === 0}
+              className="checkout-btn"
+              icon={<FiCheckCircle />}
+              fullWidth
             >
               {t('sales.checkout')}
             </Button>
@@ -679,26 +679,26 @@ export default function Sales() {
       </div>
 
       {/* Checkout Modal */}
-      <Modal 
-        isOpen={checkoutModal} 
+      <Modal
+        isOpen={checkoutModal}
         onClose={() => setCheckoutModal(false)}
         title={t('sales.checkout')}
       >
         <div className="checkout-form">
           <div className="total-banner">
-             <span>{t('sales.payableAmount')}</span>
-             <h1>Rs. {subtotal.toFixed(2)}</h1>
+            <span>{t('sales.payableAmount')}</span>
+            <h1>Rs. {subtotal.toFixed(2)}</h1>
           </div>
 
           <div className="payment-method-toggle">
-            <button 
-              className={paymentMethod === 'cash' ? 'active' : ''} 
+            <button
+              className={paymentMethod === 'cash' ? 'active' : ''}
               onClick={() => setPaymentMethod('cash')}
             >
               <FiDollarSign /> {t('sales.cash')}
             </button>
-            <button 
-              className={paymentMethod === 'credit' ? 'active' : ''} 
+            <button
+              className={paymentMethod === 'credit' ? 'active' : ''}
               onClick={() => setPaymentMethod('credit')}
             >
               <FiCreditCard /> {t('sales.credit')}
@@ -709,22 +709,22 @@ export default function Sales() {
             <label className="input-label mb-2 d-block">{t('sales.tenderedAmount')}</label>
             <div className="search-box glass" style={{ padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)' }}>
               <FiDollarSign className="search-icon" />
-              <input 
-                 type="number"
-                 placeholder="0.00"
-                 value={tenderedAmount}
-                 onChange={(e) => setTenderedAmount(e.target.value)}
-                 className="search-input"
-                 style={{fontSize: '1.25rem', fontWeight: 'bold', backgroundColor: 'transparent', outline: 'none', border: 'none', color: 'var(--text-primary)', width: '100%'}}
+              <input
+                type="number"
+                placeholder="0.00"
+                value={tenderedAmount}
+                onChange={(e) => setTenderedAmount(e.target.value)}
+                className="search-input"
+                style={{ fontSize: '1.25rem', fontWeight: 'bold', backgroundColor: 'transparent', outline: 'none', border: 'none', color: 'var(--text-primary)', width: '100%' }}
               />
             </div>
-            
+
             <div style={{ marginTop: '1rem', padding: '1rem', borderRadius: 'var(--radius-md)', background: 'var(--bg-glass)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--border-color)' }}>
               <span className="text-secondary font-medium">{t('sales.balanceOrDue')}</span>
-              <span style={{ 
-                fontSize: '1.5rem', 
-                fontWeight: 'bold', 
-                color: (parseFloat(tenderedAmount) || 0) >= subtotal ? 'var(--success-500)' : 'var(--error-500)' 
+              <span style={{
+                fontSize: '1.5rem',
+                fontWeight: 'bold',
+                color: (parseFloat(tenderedAmount) || 0) >= subtotal ? 'var(--success-500)' : 'var(--error-500)'
               }}>
                 Rs. {Math.abs((parseFloat(tenderedAmount) || 0) - subtotal).toFixed(2)}
               </span>
@@ -736,8 +736,8 @@ export default function Sales() {
               <label className="input-label mb-2 d-block">{t('sales.selectDebtor')}</label>
               <div className="search-box mb-2">
                 <FiSearch className="search-icon" />
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="Search by name, phone or No..."
                   value={debtorSearch}
                   onChange={(e) => setDebtorSearch(e.target.value)}
@@ -749,20 +749,20 @@ export default function Sales() {
                   const s = debtorSearch.toLowerCase().trim();
                   if (!s) return true;
                   const cleanS = s.replace('#', '').replace('no', '').trim();
-                  return d.name.toLowerCase().includes(s) || 
-                         d.phone.includes(s) || 
-                         d.debtorNo?.toString() === cleanS ||
-                         d.debtorNo?.toString().includes(cleanS);
+                  return d.name.toLowerCase().includes(s) ||
+                    d.phone.includes(s) ||
+                    d.debtorNo?.toString() === cleanS ||
+                    d.debtorNo?.toString().includes(cleanS);
                 }).map(d => (
-                  <div 
-                    key={d.id} 
+                  <div
+                    key={d.id}
                     className={`debtor-mini-item ${selectedDebtor?.id === d.id ? 'selected' : ''}`}
                     onClick={() => setSelectedDebtor(d)}
                   >
                     <FiUser />
                     <div className="min-info">
-                       <span>#{d.debtorNo || '-'} {d.name}</span>
-                       <small>{d.phone}</small>
+                      <span>#{d.debtorNo || '-'} {d.name}</span>
+                      <small>{d.phone}</small>
                     </div>
                   </div>
                 ))}
@@ -779,24 +779,24 @@ export default function Sales() {
 
       {/* Success Modal / Receipt */}
       <Modal isOpen={isSuccessModal} onClose={() => setIsSuccessModal(false)} title={t('sales.saleSuccessful')}>
-         <div className="success-content">
-            <div className="success-icon-wrapper">
-               <FiCheckCircle className="success-check" />
+        <div className="success-content">
+          <div className="success-icon-wrapper">
+            <FiCheckCircle className="success-check" />
+          </div>
+          <h3>{t('sales.transactionComplete')}</h3>
+          <p className="txn-id-text">ID: {lastTransactionId}</p>
+          {lastBillNumber && (
+            <div className="bill-number-badge">
+              <FiHash />
+              <span>Bill #{String(lastBillNumber).padStart(6, '0')}</span>
             </div>
-            <h3>{t('sales.transactionComplete')}</h3>
-            <p className="txn-id-text">ID: {lastTransactionId}</p>
-            {lastBillNumber && (
-              <div className="bill-number-badge">
-                <FiHash />
-                <span>Bill #{String(lastBillNumber).padStart(6, '0')}</span>
-              </div>
-            )}
-            
-            <div className="receipt-actions mt-6">
-               <Button onClick={handlePrintReceipt} variant="secondary" icon={<FiPrinter />}>{t('sales.printReceipt')}</Button>
-               <Button onClick={() => setIsSuccessModal(false)}>{t('sales.newSale')}</Button>
-            </div>
-         </div>
+          )}
+
+          <div className="receipt-actions mt-6">
+            <Button onClick={handlePrintReceipt} variant="secondary" icon={<FiPrinter />}>{t('sales.printReceipt')}</Button>
+            <Button onClick={() => setIsSuccessModal(false)}>{t('sales.newSale')}</Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Bill Search Modal */}
@@ -819,10 +819,10 @@ export default function Sales() {
               {t('common.search')}
             </Button>
             {isOwner && (
-              <Button 
+              <Button
                 variant="secondary"
                 icon={<FiTrash2 />}
-                style={{color: 'var(--error-400)', borderColor: 'var(--error-400)'}}
+                style={{ color: 'var(--error-400)', borderColor: 'var(--error-400)' }}
                 onClick={async () => {
                   const pw = prompt('Enter owner password to delete ALL bills:');
                   if (pw !== '1972341264123') {
@@ -839,7 +839,7 @@ export default function Sales() {
                     }
                     setBillSearchResults([]);
                     alert(`All ${count} bills deleted successfully.`);
-                  } catch(err) {
+                  } catch (err) {
                     console.error(err);
                     alert('Failed to delete bills: ' + err.message);
                   }
@@ -912,8 +912,8 @@ export default function Sales() {
             <div className="bill-detail-header-banner">
               <h2>Bill #{selectedBill.billNumber ? String(selectedBill.billNumber).padStart(6, '0') : 'N/A'}</h2>
               <span className="bill-detail-date">
-                {selectedBill.timestamp?.toDate 
-                  ? selectedBill.timestamp.toDate().toLocaleString('en-LK', { dateStyle: 'long', timeStyle: 'short' }) 
+                {selectedBill.timestamp?.toDate
+                  ? selectedBill.timestamp.toDate().toLocaleString('en-LK', { dateStyle: 'long', timeStyle: 'short' })
                   : 'N/A'}
               </span>
             </div>
@@ -966,8 +966,8 @@ export default function Sales() {
             <div className="modal-actions mt-6">
               <Button variant="secondary" onClick={() => setBillDetailModal(false)}>{t('common.back')}</Button>
               {isOwner && (
-                <Button 
-                  variant="secondary" 
+                <Button
+                  variant="secondary"
                   onClick={async () => {
                     const pw = prompt('Enter owner password to delete this bill:');
                     if (pw !== '1972341264123') {
@@ -980,13 +980,13 @@ export default function Sales() {
                       setBillSearchResults(billSearchResults.filter(b => b.id !== selectedBill.id));
                       setSelectedBill(null);
                       alert('Bill deleted successfully.');
-                    } catch(err) {
+                    } catch (err) {
                       console.error(err);
                       alert('Failed to delete bill: ' + err.message);
                     }
-                  }} 
+                  }}
                   icon={<FiTrash2 />}
-                  style={{color: 'var(--error-400)', borderColor: 'var(--error-400)'}}
+                  style={{ color: 'var(--error-400)', borderColor: 'var(--error-400)' }}
                 >
                   Delete Bill
                 </Button>
@@ -1006,13 +1006,13 @@ export default function Sales() {
               <span className="weight-price-per-kg">Rs. {weightItem.sellPrice.toFixed(2)} / kg</span>
               <span className="weight-stock-info">{weightItem.stock} kg available</span>
             </div>
-            
+
             <div className="weight-input-group">
               <label className="input-label">Weight (kg)</label>
               <div className="weight-input-row">
-                <input 
-                  type="number" 
-                  step="0.01" 
+                <input
+                  type="number"
+                  step="0.01"
                   min="0.01"
                   max={weightItem.stock}
                   value={weightValue}
@@ -1024,12 +1024,12 @@ export default function Sales() {
                 />
                 <span className="weight-kg-label">kg</span>
               </div>
-              
+
               <div className="weight-quick-btns">
                 {[0.25, 0.5, 1, 2, 5, 10, 25, 50, 100, 500, 1000, 5000].map(w => (
-                  <button 
-                    key={w} 
-                    type="button" 
+                  <button
+                    key={w}
+                    type="button"
                     className="weight-quick-btn"
                     onClick={() => setWeightValue(String(w))}
                   >
@@ -1038,7 +1038,7 @@ export default function Sales() {
                 ))}
               </div>
             </div>
-            
+
             {weightValue && parseFloat(weightValue) > 0 && (
               <div className="weight-total-preview">
                 <span>Total Price:</span>
