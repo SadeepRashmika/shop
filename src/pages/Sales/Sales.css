@@ -179,8 +179,12 @@
 
 .pos-item-price {
   font-size: var(--fs-xs);
-  color: var(--success-400);
+  color: #b91c1c; /* Crimson / Dark Red */
   font-weight: 700;
+}
+
+[data-theme="light"] .pos-item-price {
+  color: #991b1b; /* Darker red for light theme readability */
 }
 
 /* RIGHT SIDE: Cart */

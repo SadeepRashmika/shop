@@ -149,7 +149,22 @@ export default function Debtors() {
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(p => p.debtorId === debtor.id);
 
-       const history = [...loans, ...payments].sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+       let history = [...loans, ...payments].sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+
+       // If no transaction history but debtor has debt, show an opening balance entry
+       if (history.length === 0 && Number(debtor.totalOwed) > 0) {
+         history = [{
+           id: '__opening__',
+           type: 'opening',
+           amount: Number(debtor.totalOwed),
+           debtorId: debtor.id,
+           debtorName: debtor.name,
+           cashierName: 'System',
+           note: 'Opening Balance (set at registration)',
+           timestamp: debtor.createdAt || null,
+         }];
+       }
+
        setLedgerHistory(history);
      } catch (err) {
        console.error(err);
@@ -162,43 +177,75 @@ export default function Debtors() {
     try {
       const headers = type === 'monthly' 
         ? ['Date', 'Type', 'Debtor Name', 'Amount (Rs.)', 'Cashier']
-        : ['Debtor No', 'Name', 'Phone', 'Total Owed (Rs.)'];
+        : ['Debtor No', 'Name', 'Phone', 'Address', 'Total Owed (Rs.)'];
       
       let rows = [];
 
       if (type === 'all') {
         rows = debtors.map(d => [
-          d.debtorNo || '', d.name, d.phone, Number(d.totalOwed).toFixed(2)
+          d.debtorNo || '', d.name, d.phone || '', d.address || '', Number(d.totalOwed).toFixed(2)
         ]);
       } else if (type === 'monthly') {
         const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000;
-        
+        const startOfMonthMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+        const getTimestampMs = (ts) => {
+          if (!ts) return 0;
+          if (ts.seconds) return ts.seconds * 1000;         // Firestore Timestamp
+          if (ts.toDate) return ts.toDate().getTime();       // Firestore Timestamp object
+          if (typeof ts === 'number') return ts;             // already ms
+          return new Date(ts).getTime();
+        };
+
+        const formatDate = (ts) => {
+          const ms = getTimestampMs(ts);
+          return ms ? new Date(ms).toLocaleString() : 'Unknown';
+        };
+
         const paySnapshot = await getDocs(collection(db, 'debtor_payments'));
-        const transactions = await getDocs(collection(db, 'transactions'));
+        const txnSnapshot = await getDocs(collection(db, 'transactions'));
         
         const allActs = [];
-        paySnapshot.forEach(doc => {
-          const d = doc.data();
-          if (d.timestamp?.seconds >= startOfMonth) allActs.push({ ...d, actType: 'Payment' });
-        });
-        
-        transactions.forEach(doc => {
-          const d = doc.data();
-          if (d.paymentMethod === 'credit' && d.timestamp?.seconds >= startOfMonth) {
-            allActs.push({ ...d, amount: d.total, actType: 'Loan (Sale)' });
+
+        // Payments & manual loans from debtor_payments collection
+        paySnapshot.forEach(docSnap => {
+          const d = docSnap.data();
+          const tsMs = getTimestampMs(d.timestamp);
+          if (tsMs >= startOfMonthMs) {
+            const actType = d.type === 'payment' ? 'Payment Received' : 'Manual Loan';
+            allActs.push({ ...d, actType, _tsMs: tsMs, _date: formatDate(d.timestamp) });
           }
         });
 
-        allActs.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+        // Credit sales from transactions collection
+        txnSnapshot.forEach(docSnap => {
+          const d = docSnap.data();
+          const tsMs = getTimestampMs(d.timestamp);
+          if (d.paymentMethod === 'credit' && tsMs >= startOfMonthMs) {
+            allActs.push({
+              ...d,
+              amount: d.creditAmount !== undefined ? d.creditAmount : d.total,
+              actType: 'Credit Sale',
+              _tsMs: tsMs,
+              _date: formatDate(d.timestamp)
+            });
+          }
+        });
+
+        allActs.sort((a, b) => b._tsMs - a._tsMs);
 
         rows = allActs.map(a => [
-          new Date(a.timestamp.seconds * 1000).toLocaleDateString(),
+          a._date,
           a.actType,
           a.debtorName || 'Unknown',
-          Number(a.amount).toFixed(2),
+          Number(a.amount || 0).toFixed(2),
           a.cashierName || 'Unknown'
         ]);
+      }
+
+      if (rows.length === 0) {
+        alert(type === 'monthly' ? 'No transactions found for this month.' : 'No debtor data found.');
+        return;
       }
 
       const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -206,23 +253,50 @@ export default function Debtors() {
       XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
       XLSX.writeFile(workbook, `Debtor_Report_${type}_${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch (e) {
-      console.error(e);
-      alert("Failed to generate report.");
+      console.error('downloadReport error:', e);
+      alert("Failed to generate report: " + e.message);
     }
   };
 
   const downloadSingleLedger = () => {
      if (!ledgerDebtor) return;
-     const headers = ['Date', 'Type', 'Amount (Rs.)', 'Cashier'];
+     if (ledgerHistory.length === 0) {
+       alert('No transaction history to export for this debtor.');
+       return;
+     }
+
+     const getTimestampMs = (ts) => {
+       if (!ts) return 0;
+       if (ts.seconds) return ts.seconds * 1000;
+       if (ts.toDate) return ts.toDate().getTime();
+       if (typeof ts === 'number') return ts;
+       return new Date(ts).getTime();
+     };
+
+     const headers = ['Date', 'Type', 'Amount (Rs.)', 'Note / Bill #', 'Cashier'];
      const rows = ledgerHistory.map(h => {
         const isPayment = h.type === 'payment';
-        const actType = isPayment ? 'Payment Received' : 'New Loan/Credit Sale';
-        const amt = isPayment ? h.amount : (h.total || h.amount);
-        const date = h.timestamp?.seconds ? new Date(h.timestamp.seconds * 1000).toLocaleString() : 'Just now';
-        return [date, actType, Number(amt).toFixed(2), h.cashierName || 'Unknown'];
+        const isLoan = h.type === 'loan';
+        let actType;
+        if (isPayment) actType = 'Payment Received';
+        else if (isLoan) actType = 'Manual Loan Added';
+        else actType = 'Credit Sale';  // from transactions collection
+
+        const amt = h.creditAmount !== undefined ? h.creditAmount : ((h.total || h.amount) || 0);
+        const tsMs = getTimestampMs(h.timestamp);
+        const date = tsMs ? new Date(tsMs).toLocaleString() : 'N/A';
+        const note = h.billNumber ? `Bill #${String(h.billNumber).padStart(6, '0')}` : (h.note || '-');
+        return [date, actType, Number(amt).toFixed(2), note, h.cashierName || 'Unknown'];
      });
+
+     // Summary row
+     const totalOwed = Number(ledgerDebtor.totalOwed || 0).toFixed(2);
+     rows.push([]);
+     rows.push(['', 'Total Outstanding Debt', totalOwed, '', '']);
      
      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+     // Auto column widths
+     worksheet['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 14 }, { wch: 20 }, { wch: 18 }];
      const workbook = XLSX.utils.book_new();
      XLSX.utils.book_append_sheet(workbook, worksheet, "Ledger");
      XLSX.writeFile(workbook, `Ledger_${ledgerDebtor.name}_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -278,6 +352,22 @@ export default function Debtors() {
         const docId = `debtor_${Date.now()}`;
         debtorData.createdAt = serverTimestamp();
         await setDoc(doc(db, 'debtors', docId), debtorData);
+
+        // If initial debt is set, save an opening balance record so it appears in transaction history
+        const initialOwed = Number(formData.totalOwed) || 0;
+        if (initialOwed > 0) {
+          const openingRef = doc(collection(db, 'debtor_payments'));
+          await setDoc(openingRef, {
+            debtorId: docId,
+            debtorName: formData.name,
+            amount: initialOwed,
+            cashierId: userData?.uid || 'unknown',
+            cashierName: userData?.name || 'Unknown',
+            timestamp: serverTimestamp(),
+            type: 'opening',
+            note: 'Opening Balance'
+          });
+        }
       }
 
       setIsModalOpen(false);
@@ -420,8 +510,7 @@ export default function Debtors() {
               icon={<FiPhone/>}
               value={formData.phone}
               onChange={e => setFormData({...formData, phone: e.target.value})}
-              required
-              placeholder="0XXXXXXXXX"
+              placeholder="0XXXXXXXXX (optional)"
             />
             <Input
               label={t('debtors.totalOwed')}
@@ -518,25 +607,52 @@ export default function Debtors() {
              <div className="text-center p-4">Loading history...</div>
            ) : (
              <div className="ledger-list mt-4" style={{ maxHeight: '350px', overflowY: 'auto' }}>
-                {ledgerHistory.length > 0 ? ledgerHistory.map(h => {
+                 {ledgerHistory.length > 0 ? ledgerHistory.map(h => {
                    const isPayment = h.type === 'payment';
-                   const amt = isPayment ? h.amount : (h.total || h.amount);
-                   const date = h.timestamp?.seconds ? new Date(h.timestamp.seconds * 1000).toLocaleString() : 'Just now';
+                   const isOpening = h.type === 'opening';
+                   const amt = h.creditAmount !== undefined ? h.creditAmount : (h.total || h.amount || 0);
+
+                   const getTimestampMs = (ts) => {
+                     if (!ts) return 0;
+                     if (ts.seconds) return ts.seconds * 1000;
+                     if (ts.toDate) return ts.toDate().getTime();
+                     return new Date(ts).getTime();
+                   };
+                   const tsMs = getTimestampMs(h.timestamp);
+                   const date = tsMs ? new Date(tsMs).toLocaleString() : (isOpening ? 'At Registration' : 'Just now');
+
+                   let label, colorClass, prefix;
+                   if (isPayment) {
+                     label = 'Payment Received';
+                     colorClass = 'text-success';
+                     prefix = '+';
+                   } else if (isOpening) {
+                     label = 'Opening Balance';
+                     colorClass = 'text-warning';
+                     prefix = '–';
+                   } else {
+                     label = h.billNumber
+                       ? `Credit Sale — Bill #${String(h.billNumber).padStart(6,'0')}`
+                       : (h.note || 'Manual Loan Added');
+                     colorClass = 'text-error';
+                     prefix = '–';
+                   }
+
                    return (
                      <div key={h.id} className="ledger-item flex items-center justify-between p-3 border-b border-[rgba(255,255,255,0.05)]">
                        <div>
-                          <p className="font-bold text-sm">{isPayment ? 'Payment Received' : 'New Loan/Credit Sale'}</p>
+                          <p className="font-bold text-sm">{label}</p>
                           <p className="text-xs text-secondary">{date} • By: {h.cashierName || 'Cashier'}</p>
                        </div>
-                       <div className={`font-bold ${isPayment ? 'text-success' : 'text-error'}`}>
-                          {isPayment ? '+' : '-'} Rs. {Number(amt).toFixed(2)}
+                       <div className={`font-bold ${colorClass}`}>
+                          {prefix} Rs. {Number(amt).toFixed(2)}
                        </div>
                      </div>
                    );
-                }) : (
-                  <p className="text-secondary text-center p-4">No transaction history found.</p>
-                )}
-             </div>
+                 }) : (
+                   <p className="text-secondary text-center p-4">No transaction history found.</p>
+                 )}
+              </div>
            )}
            <div className="modal-actions mt-6">
              <Button type="button" variant="secondary" onClick={() => setIsLedgerOpen(false)}>Close</Button>

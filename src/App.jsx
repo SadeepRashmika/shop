@@ -18,6 +18,8 @@ import CustomerSearch from './pages/Customer/Search';
 import CustomerOrders from './pages/Customer/Orders';
 import Profile from './pages/Profile/Profile';
 import Advertisements from './pages/Advertisements/Advertisements';
+import CashManager from './pages/CashManager/CashManager';
+import HomeUse from './pages/HomeUse/HomeUse';
 
 import './i18n/i18n';
 
@@ -99,6 +101,22 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['cashier', 'owner']}>
                     <Debtors />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/cash-manager"
+                element={
+                  <ProtectedRoute allowedRoles={['cashier', 'owner']}>
+                    <CashManager />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/home-use"
+                element={
+                  <ProtectedRoute allowedRoles={['cashier', 'owner']}>
+                    <HomeUse />
                   </ProtectedRoute>
                 }
               />

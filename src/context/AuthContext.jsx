@@ -34,7 +34,7 @@ export function AuthProvider({ children }) {
             setUserData(userDoc.data());
           } else {
             // Fallback if document doesn't exist
-            const isOwner = firebaseUser.email === 'suminda@smartpos.com';
+            const isOwner = firebaseUser.email === 'owner@smartpos.com';
             setUserData({ 
               name: isOwner ? 'Suminda' : (firebaseUser.displayName || firebaseUser.email.split('@')[0]), 
               role: isOwner ? 'owner' : 'cashier', 
@@ -44,7 +44,7 @@ export function AuthProvider({ children }) {
         } catch (error) {
           console.error('Error fetching user data:', error);
           // Fallback if read is blocked
-          const isOwner = firebaseUser.email === 'suminda@smartpos.com';
+          const isOwner = firebaseUser.email === 'owner@smartpos.com';
           setUserData({ 
             name: isOwner ? 'Suminda' : (firebaseUser.displayName || firebaseUser.email.split('@')[0]), 
             role: isOwner ? 'owner' : 'cashier', 
@@ -67,7 +67,7 @@ export function AuthProvider({ children }) {
     // Check if user is logging in with a username instead of an email
     if (!email.includes('@')) {
       if (email.toLowerCase() === 'suminda') {
-        email = 'suminda@smartpos.com';
+        email = 'owner@smartpos.com';
       } else {
         try {
           const q = query(collection(db, 'users'), where('name', '==', email));
@@ -89,7 +89,7 @@ export function AuthProvider({ children }) {
           setUserData(userDoc.data());
         } else {
            // Fallback if document doesn't exist but login succeeded
-           const isOwner = result.user.email === 'suminda@smartpos.com';
+           const isOwner = result.user.email === 'owner@smartpos.com';
            setUserData({ 
              name: isOwner ? 'Suminda' : (result.user.displayName || result.user.email.split('@')[0]), 
              role: isOwner ? 'owner' : 'cashier', 
@@ -98,7 +98,7 @@ export function AuthProvider({ children }) {
         }
       } catch (err) {
         console.warn("Firestore read blocked. Setting local fallback state.", err);
-        const isOwner = result.user.email === 'suminda@smartpos.com';
+        const isOwner = result.user.email === 'owner@smartpos.com';
         setUserData({ 
           name: isOwner ? 'Suminda' : (result.user.displayName || result.user.email.split('@')[0]), 
           role: isOwner ? 'owner' : 'cashier', 
@@ -108,7 +108,7 @@ export function AuthProvider({ children }) {
       return result;
     } catch (error) {
       // Auto-create owner account if it doesn't exist
-      if ((error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') && email === 'suminda@smartpos.com' && password.trim() === '200221802060') {
+      if ((error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') && email === 'owner@smartpos.com' && password.trim() === '200221802060') {
         const result = await createUserWithEmailAndPassword(auth, email, password);
         const userProfile = {
           name: 'Suminda',

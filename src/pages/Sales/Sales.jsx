@@ -10,7 +10,7 @@ import Modal from '../../components/ui/Modal';
 import {
   FiSearch, FiShoppingCart, FiPlus, FiMinus, FiTrash2,
   FiCreditCard, FiDollarSign, FiUser, FiMaximize, FiPrinter, FiCheckCircle,
-  FiFileText, FiHash
+  FiFileText, FiHash, FiHome
 } from 'react-icons/fi';
 
 import './Sales.css';
@@ -136,7 +136,7 @@ function generateBillPDF(billData) {
   <div class="divider"></div>
 
   <div class="meta-row" style="justify-content:center;">
-    <span>Payment: ${billData.paymentMethod === 'cash' ? 'CASH' : 'CREDIT'}</span>
+    <span>Payment: ${billData.paymentMethod === 'cash' ? 'CASH' : billData.paymentMethod === 'credit' ? 'CREDIT' : 'HOME USE (නිවසට ගත්)'}</span>
   </div>
 
   <div class="footer">
@@ -184,7 +184,7 @@ async function getNextBillNumber() {
 export default function Sales() {
   const { t } = useTranslation();
   const location = useLocation();
-  const { userData, isOwner } = useAuth();
+  const { user, userData, isOwner } = useAuth();
   const [items, setItems] = useState([]);
   const [debtors, setDebtors] = useState([]);
   const [cart, setCart] = useState(() => {
@@ -410,9 +410,15 @@ export default function Sales() {
         transactionData.debtorId = selectedDebtor.id;
         transactionData.debtorName = selectedDebtor.name;
 
-        // Update debtor totalOwed
+        // Calculate actual credit/loan amount: total amount minus any upfront payment made (tenderedAmount)
+        const upfrontPayment = parseFloat(tenderedAmount) || 0;
+        const creditAmount = Math.max(0, subtotal - upfrontPayment);
+        transactionData.creditAmount = creditAmount;
+        transactionData.upfrontPayment = upfrontPayment;
+
+        // Update debtor totalOwed with only the unpaid balance
         await updateDoc(doc(db, 'debtors', selectedDebtor.id), {
-          totalOwed: increment(subtotal)
+          totalOwed: increment(creditAmount)
         });
       }
 
@@ -425,6 +431,37 @@ export default function Sales() {
 
       // Save Transaction
       await setDoc(doc(db, 'transactions', transactionId), transactionData);
+
+      // Automatically update active cash session for real-time balance update in Cash Manager
+      if (paymentMethod === 'cash') {
+        try {
+          const currentUid = user?.uid || userData?.uid;
+          const qSession = query(
+            collection(db, 'cashSessions'),
+            where('status', '==', 'open')
+          );
+          const sessionSnap = await getDocs(qSession);
+          if (!sessionSnap.empty) {
+            const openDoc = sessionSnap.docs.find(d => d.data().cashierId === currentUid) || sessionSnap.docs[0];
+            const sessData = openDoc.data();
+            const existingEntries = sessData.entries || [];
+            const formattedBillNo = String(billNumber).padStart(6, '0');
+            const saleEntry = {
+              type: 'in',
+              isSale: true,
+              amount: subtotal,
+              note: `Bill #${formattedBillNo}`,
+              billNumber: billNumber,
+              time: new Date().toISOString()
+            };
+            await updateDoc(doc(db, 'cashSessions', openDoc.id), {
+              entries: [...existingEntries, saleEntry]
+            });
+          }
+        } catch (csErr) {
+          console.warn("Could not sync sale with active cash session:", csErr);
+        }
+      }
 
       // if billing from an order, mark it completed
       if (location.state?.orderId) {
@@ -702,6 +739,13 @@ export default function Sales() {
               onClick={() => setPaymentMethod('credit')}
             >
               <FiCreditCard /> {t('sales.credit')}
+            </button>
+            <button
+              className={paymentMethod === 'home_use' ? 'active' : ''}
+              onClick={() => setPaymentMethod('home_use')}
+              style={paymentMethod === 'home_use' ? { background: 'linear-gradient(135deg, #06b6d4, #0891b2)', color: 'white' } : {}}
+            >
+              <FiHome /> {t('sales.homeUse')}
             </button>
           </div>
 
