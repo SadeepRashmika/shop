@@ -134,14 +134,29 @@ function generateBillPDF(billData) {
     ? billData.date.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' })
     : new Date().toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
 
-  const itemsHTML = billData.items.map(item => `
-    <tr>
-      <td style="text-align:left;padding:4px 0;">${item.name}</td>
-      <td style="text-align:center;padding:4px 0;">${item.quantity}</td>
-      <td style="text-align:right;padding:4px 0;">${item.sellPrice.toFixed(2)}</td>
-      <td style="text-align:right;padding:4px 0;">${item.subtotal.toFixed(2)}</td>
-    </tr>
-  `).join('');
+  const totalSavings = billData.items.reduce((sum, item) => {
+    const mPrice = Number(item.markedPrice) || Number(item.sellPrice);
+    const sPrice = Number(item.sellPrice);
+    const qty = Number(item.quantity) || 1;
+    return sum + Math.max(0, (mPrice - sPrice) * qty);
+  }, 0);
+
+  const itemsHTML = billData.items.map(item => {
+    const mPrice = Number(item.markedPrice) || Number(item.sellPrice);
+    const sPrice = Number(item.sellPrice);
+    const subtotal = Number(item.subtotal || (sPrice * item.quantity));
+    return `
+      <tr style="border-top: 1px solid #ddd;">
+        <td colspan="4" style="font-weight: 700; padding: 4px 2px 1px 2px; font-size: 11px;">${item.name}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="text-align:left; padding: 1px 2px 4px 2px; font-size: 10px;">${item.quantity}</td>
+        <td style="text-align:right; padding: 1px 2px 4px 2px; font-size: 10px;">${mPrice.toFixed(2)}</td>
+        <td style="text-align:right; padding: 1px 2px 4px 2px; font-size: 10px;">${sPrice.toFixed(2)}</td>
+        <td style="text-align:right; padding: 1px 2px 4px 2px; font-size: 10px; font-weight: 700;">${subtotal.toFixed(2)}</td>
+      </tr>
+    `;
+  }).join('');
 
   const html = `
 <!DOCTYPE html>
@@ -167,10 +182,12 @@ function generateBillPDF(billData) {
     .bill-number { text-align: center; font-size: 14px; font-weight: 700; margin: 4px 0; }
     .meta-row { display: flex; justify-content: space-between; font-size: 10px; margin: 2px 0; }
     table { width: 100%; border-collapse: collapse; font-size: 10px; }
-    thead th { font-weight: 700; padding: 4px 0; border-bottom: 1px solid #000; font-size: 10px; }
+    thead tr { background-color: #000; color: #fff; }
+    thead th { font-weight: 700; padding: 4px 2px; font-size: 10px; color: #fff; text-align: right; }
+    thead th:first-child { text-align: left; }
     .total-section { margin-top: 6px; }
-    .total-row { display: flex; justify-content: space-between; font-size: 11px; margin: 2px 0; }
-    .grand-total { font-size: 14px; font-weight: 700; margin: 4px 0; }
+    .total-row { display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0; }
+    .grand-total { font-size: 14px; font-weight: 800; margin: 4px 0; }
     .footer { text-align: center; margin-top: 10px; font-size: 11px; }
     .footer .thanks { font-weight: 700; font-size: 12px; }
     @media print {
@@ -202,10 +219,10 @@ function generateBillPDF(billData) {
   <table>
     <thead>
       <tr>
-        <th style="text-align:left;">Item</th>
-        <th style="text-align:center;">Qty</th>
-        <th style="text-align:right;">Price</th>
-        <th style="text-align:right;">Total</th>
+        <th style="text-align:left;">ප්‍රමාණය</th>
+        <th style="text-align:right;">සඳහන් මිල</th>
+        <th style="text-align:right;">අපේ මිල</th>
+        <th style="text-align:right;">එකතුව</th>
       </tr>
     </thead>
     <tbody>
@@ -216,23 +233,24 @@ function generateBillPDF(billData) {
   <div class="divider"></div>
 
   <div class="total-section">
-    <div class="total-row">
-      <span>Subtotal</span>
-      <span>Rs. ${billData.total.toFixed(2)}</span>
-    </div>
     <div class="total-row grand-total">
-      <span>TOTAL</span>
-      <span>Rs. ${billData.total.toFixed(2)}</span>
+      <span>මුළු එකතුව</span>
+      <span>${billData.total.toFixed(2)}</span>
     </div>
-    ${billData.tenderedAmount > 0 ? `
+    <div class="total-row">
+      <span>ගෙවීම් :</span>
+      <span>${(billData.tenderedAmount || 0).toFixed(2)}</span>
+    </div>
+    <div class="total-row font-bold">
+      <span>ඉතිරි:</span>
+      <span>Rs. ${(billData.tenderedAmount ? billData.tenderedAmount - billData.total : -billData.total).toFixed(2)}</span>
+    </div>
+
+    ${totalSavings > 0 ? `
     <div class="divider"></div>
-    <div class="total-row">
-      <span>Tendered (දුන් මුදල)</span>
-      <span>Rs. ${billData.tenderedAmount.toFixed(2)}</span>
-    </div>
-    <div class="total-row">
-      <span>${billData.tenderedAmount >= billData.total ? 'Balance (ඉතිරි මුදල)' : 'Due (ණය)'}</span>
-      <span>Rs. ${Math.abs(billData.tenderedAmount - billData.total).toFixed(2)}</span>
+    <div style="text-align:center; padding: 6px 0;">
+      <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.5px;">ඔබට ලැබුණු ලාභය</div>
+      <div style="font-size: 16px; font-weight: 800; margin-top: 2px;">Rs. ${totalSavings.toFixed(2)}</div>
     </div>
     ` : ''}
   </div>
@@ -365,13 +383,52 @@ export default function Sales() {
   // Custom Item Modal (නොමැති භාණ්ඩ)
   const [customItemModal, setCustomItemModal] = useState(false);
   const [customItemName, setCustomItemName] = useState('');
+  const [customItemMarkedPrice, setCustomItemMarkedPrice] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState('');
   const [customItemQty, setCustomItemQty] = useState('1');
+
+  // Edit Cart Item Price/Discount Modal
+  const [editCartItemModal, setEditCartItemModal] = useState(false);
+  const [editingCartItem, setEditingCartItem] = useState(null);
+  const [editMarkedPrice, setEditMarkedPrice] = useState('');
+  const [editSellPrice, setEditSellPrice] = useState('');
+
+  const handleOpenEditCartItem = (item) => {
+    setEditingCartItem(item);
+    setEditMarkedPrice(item.markedPrice ? String(item.markedPrice) : String(item.sellPrice));
+    setEditSellPrice(String(item.sellPrice));
+    setEditCartItemModal(true);
+  };
+
+  const handleSaveCartItemPrice = () => {
+    if (!editingCartItem) return;
+    const newSellPrice = parseFloat(editSellPrice);
+    if (!newSellPrice || newSellPrice <= 0) {
+      alert('කරුණාකර නිවැරදි විකුණුම් මිලක් ඇතුළත් කරන්න');
+      return;
+    }
+    const newMarkedPrice = editMarkedPrice ? parseFloat(editMarkedPrice) : newSellPrice;
+
+    setCart(cart.map(c => {
+      const match = c.cartId ? c.cartId === editingCartItem.cartId : c.id === editingCartItem.id;
+      if (match) {
+        return {
+          ...c,
+          markedPrice: newMarkedPrice,
+          sellPrice: newSellPrice
+        };
+      }
+      return c;
+    }));
+    setEditCartItemModal(false);
+    setEditingCartItem(null);
+  };
 
   const handleAddCustomItem = () => {
     const name = customItemName.trim() || 'වෙනත් භාණ්ඩ';
     const price = parseFloat(customItemPrice);
     const qty = parseInt(customItemQty) || 1;
+    const markedPrice = customItemMarkedPrice ? parseFloat(customItemMarkedPrice) : price;
 
     if (!price || price <= 0) {
       alert('කරුණාකර නිවැරදි මිලක් ඇතුළත් කරන්න (Enter valid price)');
@@ -383,6 +440,7 @@ export default function Sales() {
       id: cartId,
       cartId,
       name: name,
+      markedPrice: markedPrice,
       sellPrice: price,
       quantity: qty,
       stock: 999999,
@@ -392,6 +450,7 @@ export default function Sales() {
     setCart([customItem, ...cart]);
     setCustomItemModal(false);
     setCustomItemName('');
+    setCustomItemMarkedPrice('');
     setCustomItemPrice('');
     setCustomItemQty('1');
   };
@@ -655,6 +714,8 @@ export default function Sales() {
       return;
     }
 
+    const markedPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
+
     const existingInCart = cart.find(c => c.id === item.id);
     if (existingInCart) {
       if (existingInCart.quantity >= item.stock) {
@@ -663,7 +724,7 @@ export default function Sales() {
       }
       setCart(cart.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c));
     } else {
-      setCart([{ ...item, quantity: 1 }, ...cart]);
+      setCart([{ ...item, markedPrice, quantity: 1 }, ...cart]);
     }
     setSearch('');
   };
@@ -681,7 +742,8 @@ export default function Sales() {
 
     // Always add as new line with unique cartId — at the TOP
     const cartId = `${weightItem.id}_${Date.now()}`;
-    setCart([{ ...weightItem, quantity: weight, cartId }, ...cart]);
+    const markedPrice = weightItem.markedPrice ? Number(weightItem.markedPrice) : Number(weightItem.sellPrice);
+    setCart([{ ...weightItem, markedPrice, quantity: weight, cartId }, ...cart]);
     setWeightModal(false);
     setWeightItem(null);
     setWeightValue('');
@@ -779,9 +841,10 @@ export default function Sales() {
         id: item.id,
         itemNo: item.itemNo || null,
         name: item.name,
-        sellPrice: item.sellPrice,
-        quantity: item.quantity,
-        subtotal: item.sellPrice * item.quantity
+        markedPrice: item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice),
+        sellPrice: Number(item.sellPrice),
+        quantity: Number(item.quantity),
+        subtotal: Number(item.sellPrice) * Number(item.quantity)
       }));
 
       const transactionData = {
@@ -1135,11 +1198,27 @@ export default function Sales() {
                       {item.isReload && <span className="reload-tag" style={{ background: 'rgba(234, 88, 12, 0.2)', color: '#ea580c', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>⚡ Reload</span>}
                       {item.isCustom && <span style={{ background: 'rgba(34, 197, 94, 0.2)', color: '#22c55e', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>✏️ Custom</span>}
                     </span>
-                    <span className="cart-item-price">
-                      Rs. {item.sellPrice.toFixed(2)}{item.itemType === 'weighed' ? '/kg' : ''}
+                    <span className="cart-item-price" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                      {item.markedPrice && Number(item.markedPrice) > Number(item.sellPrice) ? (
+                        <span style={{ fontSize: '11px', color: '#94a3b8', textDecoration: 'line-through' }}>
+                          සඳහන්: Rs. {Number(item.markedPrice).toFixed(2)}
+                        </span>
+                      ) : null}
+                      <span>Rs. {Number(item.sellPrice).toFixed(2)}{item.itemType === 'weighed' ? '/kg' : ''}</span>
                     </span>
                   </div>
                   <div className="cart-item-actions">
+                    {!item.isReload && (
+                      <button 
+                        className="edit-cart-btn" 
+                        onClick={() => handleOpenEditCartItem(item)} 
+                        title="🏷️ මිල / Discount වෙනස් කරන්න"
+                        style={{ background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', color: '#38bdf8', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', marginRight: '4px' }}
+                      >
+                        <FiEdit3 style={{ fontSize: '13px' }} />
+                        <span style={{ fontSize: '11px', fontWeight: 600 }}>මිල</span>
+                      </button>
+                    )}
                     {item.itemType === 'weighed' ? (
                       <div className="weight-input-inline">
                         <input
@@ -2073,10 +2152,29 @@ export default function Sales() {
             </div>
           </div>
 
+          {/* Marked Price (Optional) */}
+          <div className="form-group mb-4">
+            <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              සඳහන් මිල / Marked Price (MRP) <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '12px' }}>(විකල්පයි / Optional)</span>
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="number"
+                step="0.01"
+                placeholder={customItemPrice || "0.00"}
+                value={customItemMarkedPrice}
+                onChange={(e) => setCustomItemMarkedPrice(e.target.value)}
+                className="search-input"
+                style={{ width: '100%', paddingLeft: '40px', fontSize: '1rem', fontWeight: 600 }}
+              />
+              <FiDollarSign style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '18px' }} />
+            </div>
+          </div>
+
           {/* Item Price */}
           <div className="form-group mb-4">
             <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-              විකුණුම් මිල / Sell Price (Rs.)
+              අපේ මිල / Selling Price (Rs.)
             </label>
             <div style={{ position: 'relative' }}>
               <input
@@ -2145,6 +2243,59 @@ export default function Sales() {
               style={{ background: 'var(--success-500)' }}
             >
               🛒 කරත්තයට එකතු කරන්න
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Cart Item Price/Discount Modal */}
+      <Modal isOpen={editCartItemModal} onClose={() => setEditCartItemModal(false)} title="🏷️ මිල / Discount වෙනස් කිරීම">
+        <div style={{ padding: '4px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+            <strong>{editingCartItem?.name}</strong> සඳහා සඳහන් මිල හෝ අපේ විකුණුම් මිල වෙනස් කරන්න.
+          </p>
+          <div className="form-group mb-4">
+            <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              සඳහන් මිල / Marked Price (MRP - Rs.) <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '12px' }}>(විකල්පයි)</span>
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              placeholder={editSellPrice || "0.00"}
+              value={editMarkedPrice}
+              onChange={(e) => setEditMarkedPrice(e.target.value)}
+              className="search-input"
+              style={{ width: '100%', fontSize: '1rem', fontWeight: 600 }}
+            />
+          </div>
+          <div className="form-group mb-4">
+            <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              අපේ මිල / Selling Price (Rs.)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={editSellPrice}
+              onChange={(e) => setEditSellPrice(e.target.value)}
+              className="search-input"
+              style={{ width: '100%', fontSize: '1.2rem', fontWeight: 700, color: 'var(--success-400)' }}
+            />
+          </div>
+          {editMarkedPrice && editSellPrice && parseFloat(editMarkedPrice) > parseFloat(editSellPrice) && (
+            <div style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '8px', padding: '10px', marginBottom: '16px', textAlign: 'center' }}>
+              <span style={{ fontSize: '12px', color: '#60a5fa', display: 'block' }}>පාරිභෝගිකයාට ලැබෙන ලාභය (Discount / Unit)</span>
+              <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#38bdf8' }}>
+                Rs. {(parseFloat(editMarkedPrice) - parseFloat(editSellPrice)).toFixed(2)}
+              </span>
+            </div>
+          )}
+          <div className="modal-actions mt-6" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setEditCartItemModal(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={handleSaveCartItemPrice} style={{ background: 'var(--primary-500)' }}>
+              💾 සුරකින්න (Save)
             </Button>
           </div>
         </div>

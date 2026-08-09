@@ -108,6 +108,7 @@ export default function Inventory() {
     category: '',
     itemType: 'non-weighed', // 'weighed' or 'non-weighed'
     purchasePrice: '',
+    markedPrice: '',
     sellPrice: '',
     stock: '',
     description: '',
@@ -146,7 +147,7 @@ export default function Inventory() {
     const nextNo = maxNo + 1;
 
     setFormData({ 
-      id: '', itemNo: nextNo, name: '', category: 'වී කෙටීම', itemType: 'non-weighed', purchasePrice: '', sellPrice: '', stock: '', description: '', 
+      id: '', itemNo: nextNo, name: '', category: 'වී කෙටීම', itemType: 'non-weighed', purchasePrice: '', markedPrice: '', sellPrice: '', stock: '', description: '', 
       imageUrl: '', imageFile: null, compressedFile: null, barcode: `ITM${nextNo}`, isEdit: false 
     });
     setModalError('');
@@ -158,7 +159,7 @@ export default function Inventory() {
     setFormData({ 
       id: item.id, itemNo: item.itemNo || '', name: item.name, category: item.category, 
       itemType: item.itemType || 'non-weighed',
-      purchasePrice: item.purchasePrice || '', sellPrice: item.sellPrice || item.price || '', 
+      purchasePrice: item.purchasePrice || '', markedPrice: item.markedPrice || '', sellPrice: item.sellPrice || item.price || '', 
       stock: item.stock, description: item.description, 
       imageUrl: item.imageUrl || '', imageFile: null, compressedFile: null, barcode: item.barcode || '', isEdit: true 
     });
@@ -300,9 +301,10 @@ export default function Inventory() {
         name: formData.name,
         category: formData.category,
         itemType: formData.itemType || 'non-weighed',
-        purchasePrice: Number(formData.purchasePrice),
+        purchasePrice: Number(formData.purchasePrice) || 0,
+        markedPrice: formData.markedPrice ? Number(formData.markedPrice) : Number(formData.sellPrice),
         sellPrice: Number(formData.sellPrice),
-        profit: Number(formData.sellPrice) - Number(formData.purchasePrice),
+        profit: Number(formData.sellPrice) - (Number(formData.purchasePrice) || 0),
         stock: Number(formData.stock),
         barcode: formData.barcode || `item_${Date.now()}`,
         description: formData.description,
@@ -538,6 +540,15 @@ export default function Inventory() {
               value={formData.purchasePrice}
               onChange={e => setFormData({...formData, purchasePrice: e.target.value})}
               placeholder="0.00"
+            />
+            <Input
+              label="සඳහන් මිල (MRP - Optional)"
+              icon={<FiDollarSign/>}
+              type="number"
+              step="0.01"
+              value={formData.markedPrice}
+              onChange={e => setFormData({...formData, markedPrice: e.target.value})}
+              placeholder={formData.sellPrice || "0.00"}
             />
             <Input
               label={t('inventory.form.sellPrice')}
