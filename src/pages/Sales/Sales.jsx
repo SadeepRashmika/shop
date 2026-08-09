@@ -72,6 +72,7 @@ function generateReloadReceiptPDF(reloadRecord) {
 </head>
 <body>
   <div class="header">
+    <img src="/logo.png" alt="Logo" style="max-width: 50mm; max-height: 25mm; height: auto; margin-bottom: 6px; display: block; margin-left: auto; margin-right: auto;" onerror="this.style.display='none'" />
     <div class="shop-name">${SHOP_INFO.name}</div>
     <div class="shop-info">${SHOP_INFO.address}</div>
     <div class="shop-info">Tel: ${SHOP_INFO.phone}</div>
@@ -181,6 +182,7 @@ function generateBillPDF(billData) {
 </head>
 <body>
   <div class="header">
+    <img src="/logo.png" alt="Logo" style="max-width: 50mm; max-height: 25mm; height: auto; margin-bottom: 6px; display: block; margin-left: auto; margin-right: auto;" onerror="this.style.display='none'" />
     <div class="shop-name">${SHOP_INFO.name}</div>
     <div class="shop-info">${SHOP_INFO.address}</div>
     <div class="shop-info">Tel: ${SHOP_INFO.phone}</div>
