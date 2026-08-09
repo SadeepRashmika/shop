@@ -358,11 +358,16 @@ export default function Sales() {
     setSearch('');
   };
 
-  const removeFromCart = (itemId, cartId) => {
-    if (cartId) {
-      setCart(cart.filter(item => item.cartId !== cartId));
-    } else {
-      setCart(cart.filter(item => item.id !== itemId));
+  const removeFromCart = (itemId, cartId, itemName) => {
+    const confirmMsg = itemName 
+      ? `"${itemName}" භාණ්ඩය කරත්තයෙන් ඉවත් කිරීමට අවශ්‍යද?`
+      : 'මෙම භාණ්ඩය කරත්තයෙන් ඉවත් කිරීමට අවශ්‍යද?';
+    if (window.confirm(confirmMsg)) {
+      if (cartId) {
+        setCart(cart.filter(item => item.cartId !== cartId));
+      } else {
+        setCart(cart.filter(item => item.id !== itemId));
+      }
     }
   };
 
@@ -786,7 +791,7 @@ export default function Sales() {
                         <button onClick={() => updateQuantity(item.id, 1)}><FiPlus /></button>
                       </div>
                     )}
-                    <button className="remove-cart-btn" onClick={() => removeFromCart(item.id, item.cartId)}><FiTrash2 /></button>
+                    <button className="remove-cart-btn" onClick={() => removeFromCart(item.id, item.cartId, item.name)} title="Remove Item"><FiTrash2 /></button>
                   </div>
                 </div>
               ))
