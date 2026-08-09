@@ -72,7 +72,7 @@ function generateReloadReceiptPDF(reloadRecord) {
 </head>
 <body>
   <div class="header">
-    <img src="/logo.png" alt="Logo" style="max-width: 50mm; max-height: 25mm; height: auto; margin-bottom: 6px; display: block; margin-left: auto; margin-right: auto;" onerror="this.style.display='none'" />
+    <img src="${window.location.origin}/Logo.png" alt="Logo" style="max-width: 55mm; max-height: 28mm; width: auto; height: auto; object-fit: contain; margin-bottom: 6px; display: block; margin-left: auto; margin-right: auto;" onerror="if(this.src.indexOf('Logo.png')!==-1){this.src='${window.location.origin}/logo.png';}else{this.style.display='none';}" />
     <div class="shop-name">${SHOP_INFO.name}</div>
     <div class="shop-info">${SHOP_INFO.address}</div>
     <div class="shop-info">Tel: ${SHOP_INFO.phone}</div>
@@ -115,7 +115,13 @@ function generateReloadReceiptPDF(reloadRecord) {
 
   <script>
     window.onload = function() {
-      window.print();
+      const img = document.querySelector('.header img');
+      if (img && img.style.display !== 'none' && !img.complete) {
+        img.onload = function() { setTimeout(function() { window.print(); }, 200); };
+        img.onerror = function() { window.print(); };
+      } else {
+        setTimeout(function() { window.print(); }, 200);
+      }
     };
   </script>
 </body>
@@ -182,7 +188,7 @@ function generateBillPDF(billData) {
 </head>
 <body>
   <div class="header">
-    <img src="/logo.png" alt="Logo" style="max-width: 50mm; max-height: 25mm; height: auto; margin-bottom: 6px; display: block; margin-left: auto; margin-right: auto;" onerror="this.style.display='none'" />
+    <img src="${window.location.origin}/Logo.png" alt="Logo" style="max-width: 55mm; max-height: 28mm; width: auto; height: auto; object-fit: contain; margin-bottom: 6px; display: block; margin-left: auto; margin-right: auto;" onerror="if(this.src.indexOf('Logo.png')!==-1){this.src='${window.location.origin}/logo.png';}else{this.style.display='none';}" />
     <div class="shop-name">${SHOP_INFO.name}</div>
     <div class="shop-info">${SHOP_INFO.address}</div>
     <div class="shop-info">Tel: ${SHOP_INFO.phone}</div>
@@ -252,7 +258,13 @@ function generateBillPDF(billData) {
 
   <script>
     window.onload = function() {
-      window.print();
+      const img = document.querySelector('.header img');
+      if (img && img.style.display !== 'none' && !img.complete) {
+        img.onload = function() { setTimeout(function() { window.print(); }, 200); };
+        img.onerror = function() { window.print(); };
+      } else {
+        setTimeout(function() { window.print(); }, 200);
+      }
     };
   </script>
 </body>
