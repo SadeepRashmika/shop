@@ -19,7 +19,8 @@
     "darkMode": "අඳුරු මාදිලිය",
     "lightMode": "ආලෝක මාදිලිය",
     "cashManager": "මුදල් කළමනාකරණය",
-    "homeUse": "නිවසට ගත් භාණ්ඩ"
+    "homeUse": "නිවසට ගත් භාණ්ඩ",
+    "reload": "රීලෝඩ් (Reload)"
   },
   "home": {
     "welcome": "SmartPOS වෙත සාදරයෙන් පිළිගනිමු",
@@ -306,5 +307,26 @@
     "noRecords": "තවම නිවසට ගත් භාණ්ඩ වාර්තා කර නැත.",
     "printReport": "PDF වාර්තාව ලබාගන්න",
     "newHomeUseSale": "නව නිවසට ගත් බිල්පත"
+  },
+  "reload": {
+    "title": "රීලෝඩ් සහ බිල්පත් ගෙවීම් (Reload & Bill Pay)",
+    "subtitle": "Dialog, Mobitel, Hutch, Airtel, SLT සහ වෙනත් රීලෝඩ් පහසුවෙන් සටහන් කරන්න",
+    "quickReload": "නව Reload එකක්",
+    "phoneNumber": "දුරකථන අංකය",
+    "selectNetwork": "ජාලය තෝරන්න",
+    "amount": "මුදල (රු.)",
+    "commission": "කොමිස් ප්‍රතිශතය (%)",
+    "calculatedProfit": "ගණනය කළ ලාභය (රු.)",
+    "ussdCode": "දුරකථන Dial Code (USSD)",
+    "dialInstructions": "ඔබගේ රීලෝඩ් ෆෝන් එකෙන් පහත කෝඩ් එක ඩයල් කරන්න:",
+    "copyUssd": "කෝඩ් එක Copy කරන්න",
+    "copied": "Copied!",
+    "processReload": "රීලෝඩ් එක සටහන් කරන්න & Bill එක මුද්‍රණය කරන්න",
+    "todayTotal": "අද රීලෝඩ් මුළු එකතුව",
+    "todayProfit": "අද රීලෝඩ් ලාභය",
+    "history": "රීලෝඩ් ඉතිහාසය",
+    "network": "ජාලය",
+    "date": "දිනය සහ වේලාව",
+    "noHistory": "තවම රීලෝඩ් වාර්තා හමු නොවීය."
   }
 }

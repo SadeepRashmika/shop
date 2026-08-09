@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, getDoc, query, where, orderBy, limit } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
@@ -10,7 +10,7 @@ import Modal from '../../components/ui/Modal';
 import {
   FiSearch, FiShoppingCart, FiPlus, FiMinus, FiTrash2,
   FiCreditCard, FiDollarSign, FiUser, FiMaximize, FiPrinter, FiCheckCircle,
-  FiFileText, FiHash, FiHome, FiStar, FiEye
+  FiFileText, FiHash, FiHome, FiStar, FiEye, FiZap, FiPhoneCall, FiCopy, FiCheck
 } from 'react-icons/fi';
 
 import './Sales.css';
@@ -22,6 +22,110 @@ const SHOP_INFO = {
   email: 'sumindapradeep1111@gmail.com',
   address: 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
 };
+
+// Networks
+const NETWORKS = [
+  { id: 'dialog', name: 'Dialog', color: '#e11d48', ussdPrefix: '*123*' },
+  { id: 'mobitel', name: 'Mobitel', color: '#2563eb', ussdPrefix: '*141*' },
+  { id: 'hutch', name: 'Hutch', color: '#ea580c', ussdPrefix: '*144*' },
+  { id: 'airtel', name: 'Airtel', color: '#dc2626', ussdPrefix: '*432*' },
+  { id: 'slt', name: 'SLT / Broadband', color: '#0d9488', ussdPrefix: '*123*' }
+];
+
+// Generate Reload Receipt PDF
+function generateReloadReceiptPDF(reloadRecord) {
+  const billNum = reloadRecord.billNumber ? String(reloadRecord.billNumber).padStart(6, '0') : '000000';
+  const dateStr = reloadRecord.date instanceof Date
+    ? reloadRecord.date.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' })
+    : new Date().toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Reload Receipt #${billNum}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans Sinhala', 'Segoe UI', Arial, sans-serif;
+      width: 80mm;
+      margin: 0 auto;
+      padding: 5mm;
+      color: #000;
+      font-size: 11px;
+    }
+    .header { text-align: center; margin-bottom: 8px; }
+    .shop-name { font-size: 16px; font-weight: 700; }
+    .shop-info { font-size: 10px; color: #333; }
+    .divider { border-top: 1px dashed #000; margin: 6px 0; }
+    .title { text-align: center; font-size: 14px; font-weight: 700; margin: 4px 0; }
+    .meta-row { display: flex; justify-content: space-between; font-size: 10px; margin: 3px 0; }
+    .amount-box { text-align: center; font-size: 16px; font-weight: 700; margin: 8px 0; padding: 6px; border: 1px solid #000; }
+    .footer { text-align: center; margin-top: 10px; font-size: 11px; }
+    @media print {
+      body { width: 80mm; margin: 0; padding: 3mm; }
+      @page { size: 80mm auto; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="shop-name">${SHOP_INFO.name}</div>
+    <div class="shop-info">${SHOP_INFO.address}</div>
+    <div class="shop-info">Tel: ${SHOP_INFO.phone}</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="title">RELOAD RECEIPT #${billNum}</div>
+
+  <div class="meta-row">
+    <span>Date: ${dateStr}</span>
+    <span>Cashier: ${reloadRecord.cashierName || 'Cashier'}</span>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="meta-row">
+    <span>Network / ජාලය:</span>
+    <span style="font-weight:700;text-transform:uppercase;">${reloadRecord.network}</span>
+  </div>
+  <div class="meta-row">
+    <span>Phone Number / අංකය:</span>
+    <span style="font-weight:700;">${reloadRecord.phone}</span>
+  </div>
+
+  <div class="amount-box">
+    RELOAD: Rs. ${parseFloat(reloadRecord.amount).toFixed(2)}
+  </div>
+
+  <div class="meta-row" style="justify-content:center;">
+    <span>Payment: ${reloadRecord.paymentMethod === 'cash' ? 'CASH' : reloadRecord.paymentMethod === 'credit' ? 'CREDIT' : 'HOME USE'}</span>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="footer">
+    <div style="font-weight:700;">ස්තූතියි! Thank You!</div>
+    <div>SmartPOS Reload Service</div>
+  </div>
+
+  <script>
+    window.onload = function() {
+      window.print();
+    };
+  </script>
+</body>
+</html>`;
+
+  const printWindow = window.open('', '_blank', 'width=400,height=600');
+  if (printWindow) {
+    printWindow.document.write(html);
+    printWindow.document.close();
+  }
+}
 
 // Generate Bill Receipt - opens in print window (supports Sinhala text)
 function generateBillPDF(billData) {
@@ -184,6 +288,7 @@ async function getNextBillNumber() {
 export default function Sales() {
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, userData, isOwner } = useAuth();
   const [items, setItems] = useState([]);
   const [debtors, setDebtors] = useState([]);
@@ -256,6 +361,197 @@ export default function Sales() {
   const [weightModal, setWeightModal] = useState(false);
   const [weightItem, setWeightItem] = useState(null);
   const [weightValue, setWeightValue] = useState('');
+
+  // Reload Modal State on Sales Page
+  const [reloadModal, setReloadModal] = useState(false);
+  const [reloadPhone, setReloadPhone] = useState('');
+  const [reloadNetwork, setReloadNetwork] = useState('dialog');
+  const [reloadAmount, setReloadAmount] = useState('');
+  const [reloadCommissionRate, setReloadCommissionRate] = useState('4.0');
+  const [reloadCopied, setReloadCopied] = useState(false);
+
+  // Reload Search & History in Modal
+  const [reloadTab, setReloadTab] = useState('new');
+  const [reloadModalSearch, setReloadModalSearch] = useState('');
+  const [reloadModalDate, setReloadModalDate] = useState('');
+  const [reloadModalHistory, setReloadModalHistory] = useState([]);
+  const [reloadModalLoading, setReloadModalLoading] = useState(false);
+
+  const fetchReloadModalHistory = async () => {
+    setReloadModalLoading(true);
+    try {
+      const reloadSnap = await getDocs(collection(db, 'reloads'));
+      const history = reloadSnap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+      setReloadModalHistory(history);
+    } catch (err) {
+      console.error("Error fetching reload history for modal:", err);
+    } finally {
+      setReloadModalLoading(false);
+    }
+  };
+
+  const handleOpenReloadModal = () => {
+    setReloadModal(true);
+    fetchReloadModalHistory();
+  };
+
+  const handleReloadPhoneChange = (val) => {
+    setReloadPhone(val);
+    const clean = val.trim();
+    if (clean.startsWith('077') || clean.startsWith('076') || clean.startsWith('074')) {
+      setReloadNetwork('dialog');
+    } else if (clean.startsWith('071') || clean.startsWith('070')) {
+      setReloadNetwork('mobitel');
+    } else if (clean.startsWith('078') || clean.startsWith('072')) {
+      setReloadNetwork('hutch');
+    } else if (clean.startsWith('075')) {
+      setReloadNetwork('airtel');
+    }
+  };
+
+  const selectedNetObj = NETWORKS.find(n => n.id === reloadNetwork) || NETWORKS[0];
+  const ussdCode = reloadPhone && reloadAmount ? `${selectedNetObj.ussdPrefix}${reloadPhone.trim()}*${reloadAmount.trim()}#` : '';
+
+  const handleCopyUSSD = () => {
+    if (!ussdCode) return;
+    navigator.clipboard.writeText(ussdCode);
+    setReloadCopied(true);
+    setTimeout(() => setReloadCopied(false), 2000);
+  };
+
+  const handleAddReloadToCart = () => {
+    const cleanPhone = reloadPhone.trim();
+    const numAmount = parseFloat(reloadAmount);
+
+    if (!cleanPhone || cleanPhone.length < 9) {
+      alert("කරුණාකර නිවැරදි දුරකථන අංකයක් ඇතුළත් කරන්න (Valid Phone Number).");
+      return;
+    }
+    if (!numAmount || numAmount <= 0) {
+      alert("කරුණාකර නිවැරදි මුදලක් ඇතුළත් කරන්න (Valid Amount).");
+      return;
+    }
+
+    const selectedNet = NETWORKS.find(n => n.id === reloadNetwork) || NETWORKS[0];
+    const cartId = `reload_${Date.now()}`;
+    const reloadCartItem = {
+      id: `reload_${reloadNetwork}_${Date.now()}`,
+      cartId,
+      name: `${selectedNet.name} Reload (${cleanPhone})`,
+      sellPrice: numAmount,
+      quantity: 1,
+      subtotal: numAmount,
+      isReload: true,
+      phone: cleanPhone,
+      network: reloadNetwork,
+      amount: numAmount,
+      commissionRate: parseFloat(reloadCommissionRate) || 4.0,
+      profit: numAmount * ((parseFloat(reloadCommissionRate) || 4.0) / 100)
+    };
+
+    setCart([reloadCartItem, ...cart]);
+    setReloadModal(false);
+    setReloadPhone('');
+    setReloadAmount('');
+  };
+
+  const handleDirectQuickReload = async () => {
+    const cleanPhone = reloadPhone.trim();
+    const numAmount = parseFloat(reloadAmount);
+
+    if (!cleanPhone || cleanPhone.length < 9) {
+      alert("කරුණාකර නිවැරදි දුරකථන අංකයක් ඇතුළත් කරන්න (Valid Phone Number).");
+      return;
+    }
+    if (!numAmount || numAmount <= 0) {
+      alert("කරුණාකර නිවැරදි මුදලක් ඇතුළත් කරන්න (Valid Amount).");
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      const billNumber = await getNextBillNumber();
+      const reloadId = `RLD${Date.now()}`;
+      const selectedNet = NETWORKS.find(n => n.id === reloadNetwork) || NETWORKS[0];
+      const commRate = parseFloat(reloadCommissionRate) || 4.0;
+      const profit = numAmount * (commRate / 100);
+
+      const reloadRecord = {
+        billNumber,
+        phone: cleanPhone,
+        network: reloadNetwork,
+        amount: numAmount,
+        commissionRate: commRate,
+        profit,
+        paymentMethod: 'cash',
+        cashierId: userData?.uid || 'unknown',
+        cashierName: userData?.name || 'Cashier',
+        timestamp: serverTimestamp(),
+        date: new Date()
+      };
+
+      await setDoc(doc(db, 'reloads', reloadId), reloadRecord);
+
+      const transactionData = {
+        billNumber,
+        items: [{
+          id: `reload_${reloadNetwork}`,
+          name: `${selectedNet.name} Reload (${cleanPhone})`,
+          sellPrice: numAmount,
+          quantity: 1,
+          subtotal: numAmount,
+          isReload: true
+        }],
+        total: numAmount,
+        paymentMethod: 'cash',
+        cashierId: userData?.uid || 'unknown',
+        cashierName: userData?.name || 'Cashier',
+        timestamp: serverTimestamp(),
+        status: 'completed',
+        isReload: true,
+        reloadPhone: cleanPhone,
+        reloadNetwork: reloadNetwork
+      };
+
+      await setDoc(doc(db, 'transactions', `TXN_RLD_${Date.now()}`), transactionData);
+
+      try {
+        const qSession = query(collection(db, 'cashSessions'), where('status', '==', 'open'));
+        const sessionSnap = await getDocs(qSession);
+        if (!sessionSnap.empty) {
+          const openDoc = sessionSnap.docs[0];
+          const existingEntries = openDoc.data().entries || [];
+          const saleEntry = {
+            type: 'in',
+            isSale: true,
+            isReload: true,
+            amount: numAmount,
+            note: `${selectedNet.name} Reload #${cleanPhone}`,
+            billNumber,
+            time: new Date().toISOString()
+          };
+          await updateDoc(doc(db, 'cashSessions', openDoc.id), {
+            entries: [...existingEntries, saleEntry]
+          });
+        }
+      } catch (csErr) {
+        console.warn("Could not sync reload to cash session:", csErr);
+      }
+
+      setReloadModal(false);
+      setReloadPhone('');
+      setReloadAmount('');
+      generateReloadReceiptPDF(reloadRecord);
+    } catch (err) {
+      console.error("Failed quick reload:", err);
+      alert("රීලෝඩ් එක සටහන් කිරීම අසාර්ථකයි: " + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
 
   // Persist cart to localStorage
   useEffect(() => {
@@ -482,11 +778,39 @@ export default function Sales() {
         });
       }
 
-      // Update Stock for each item
+      // Update Stock for each item & handle Reload records
       for (const item of cart) {
-        await updateDoc(doc(db, 'items', item.id), {
-          stock: increment(-item.quantity)
-        });
+        if (item.isReload) {
+          const reloadId = `RLD${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+          const numAmount = item.sellPrice || item.amount;
+          const commRate = item.commissionRate || 4.0;
+          const profit = item.profit || (numAmount * (commRate / 100));
+
+          const reloadRecord = {
+            billNumber,
+            phone: item.phone,
+            network: item.network || 'dialog',
+            amount: numAmount,
+            commissionRate: commRate,
+            profit,
+            paymentMethod,
+            cashierId: userData?.uid || 'unknown',
+            cashierName: userData?.name || 'Cashier',
+            timestamp: serverTimestamp(),
+            date: new Date()
+          };
+
+          if (paymentMethod === 'credit' && selectedDebtor) {
+            reloadRecord.debtorId = selectedDebtor.id;
+            reloadRecord.debtorName = selectedDebtor.name;
+          }
+
+          await setDoc(doc(db, 'reloads', reloadId), reloadRecord);
+        } else if (item.id) {
+          await updateDoc(doc(db, 'items', item.id), {
+            stock: increment(-item.quantity)
+          });
+        }
       }
 
       // Save Transaction
@@ -625,9 +949,14 @@ export default function Sales() {
         <div className="sales-left">
           <div className="page-header mb-4">
             <h1 className="page-title gradient-text">{t('sales.title')}</h1>
-            <button className="bill-search-btn glass" onClick={() => setBillSearchModal(true)} title={t('sales.searchBill')}>
-              <FiFileText /> <span>{t('sales.searchBill')}</span>
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="bill-search-btn glass" onClick={handleOpenReloadModal} title={t('reload.title')} style={{ borderColor: 'var(--primary-500)', color: 'var(--primary-400)' }}>
+                <FiZap /> <span>{t('reload.quickReload')}</span>
+              </button>
+              <button className="bill-search-btn glass" onClick={() => setBillSearchModal(true)} title={t('sales.searchBill')}>
+                <FiFileText /> <span>{t('sales.searchBill')}</span>
+              </button>
+            </div>
           </div>
 
           <div className="search-section glass-card">
@@ -766,6 +1095,7 @@ export default function Sales() {
                     <span className="cart-item-name">
                       {item.name}
                       {item.itemType === 'weighed' && <span className="weighed-tag"> ⚖️</span>}
+                      {item.isReload && <span className="reload-tag" style={{ background: 'rgba(234, 88, 12, 0.2)', color: '#ea580c', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>⚡ Reload</span>}
                     </span>
                     <span className="cart-item-price">
                       Rs. {item.sellPrice.toFixed(2)}{item.itemType === 'weighed' ? '/kg' : ''}
@@ -783,6 +1113,10 @@ export default function Sales() {
                           className="weight-input-field"
                         />
                         <span className="weight-unit">kg</span>
+                      </div>
+                    ) : item.isReload ? (
+                      <div className="qty-controls">
+                        <span>1</span>
                       </div>
                     ) : (
                       <div className="qty-controls">
@@ -901,6 +1235,72 @@ export default function Sales() {
             </div>
           </div>
 
+          {/* Bill Type Selector */}
+          <div style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'block' }}>
+              බිල්පත වර්ගය තෝරන්න / Select Bill Type:
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+              <button
+                onClick={() => setPaymentMethod('cash')}
+                style={{
+                  padding: '0.6rem 0.5rem',
+                  borderRadius: '10px',
+                  border: paymentMethod === 'cash' ? '2px solid #16a34a' : '1px solid var(--border-color)',
+                  background: paymentMethod === 'cash' ? 'linear-gradient(135deg, rgba(22,163,74,0.15), rgba(74,222,128,0.1))' : 'var(--bg-glass)',
+                  color: paymentMethod === 'cash' ? '#16a34a' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontWeight: paymentMethod === 'cash' ? '700' : '500',
+                  fontSize: '0.8rem',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                  transition: 'all 0.2s',
+                  boxShadow: paymentMethod === 'cash' ? '0 4px 12px rgba(22,163,74,0.2)' : 'none'
+                }}
+              >
+                <FiDollarSign style={{ fontSize: '1.1rem' }} />
+                <span>{t('sales.cash')}</span>
+              </button>
+              <button
+                onClick={() => setPaymentMethod('credit')}
+                style={{
+                  padding: '0.6rem 0.5rem',
+                  borderRadius: '10px',
+                  border: paymentMethod === 'credit' ? '2px solid #f59e0b' : '1px solid var(--border-color)',
+                  background: paymentMethod === 'credit' ? 'linear-gradient(135deg, rgba(245,158,11,0.15), rgba(251,191,36,0.1))' : 'var(--bg-glass)',
+                  color: paymentMethod === 'credit' ? '#f59e0b' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontWeight: paymentMethod === 'credit' ? '700' : '500',
+                  fontSize: '0.8rem',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                  transition: 'all 0.2s',
+                  boxShadow: paymentMethod === 'credit' ? '0 4px 12px rgba(245,158,11,0.2)' : 'none'
+                }}
+              >
+                <FiCreditCard style={{ fontSize: '1.1rem' }} />
+                <span>{t('sales.credit')}</span>
+              </button>
+              <button
+                onClick={() => setPaymentMethod('home_use')}
+                style={{
+                  padding: '0.6rem 0.5rem',
+                  borderRadius: '10px',
+                  border: paymentMethod === 'home_use' ? '2px solid #06b6d4' : '1px solid var(--border-color)',
+                  background: paymentMethod === 'home_use' ? 'linear-gradient(135deg, rgba(6,182,212,0.15), rgba(34,211,238,0.1))' : 'var(--bg-glass)',
+                  color: paymentMethod === 'home_use' ? '#06b6d4' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontWeight: paymentMethod === 'home_use' ? '700' : '500',
+                  fontSize: '0.8rem',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                  transition: 'all 0.2s',
+                  boxShadow: paymentMethod === 'home_use' ? '0 4px 12px rgba(6,182,212,0.2)' : 'none'
+                }}
+              >
+                <FiHome style={{ fontSize: '1.1rem' }} />
+                <span>{t('sales.homeUse')}</span>
+              </button>
+            </div>
+          </div>
+
           {/* Modal Actions */}
           <div className="modal-actions mt-4" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '0.5rem' }}>
             <Button variant="secondary" onClick={() => setPreviewModal(false)}>
@@ -914,7 +1314,7 @@ export default function Sales() {
                   billNumber: 'PREVIEW',
                   items: cart.map(i => ({ ...i, subtotal: i.sellPrice * i.quantity })),
                   total: subtotal,
-                  paymentMethod: 'draft',
+                  paymentMethod: paymentMethod,
                   cashierName: userData?.name || 'Cashier',
                   date: new Date()
                 };
@@ -950,21 +1350,20 @@ export default function Sales() {
 
           <div className="payment-method-toggle">
             <button
-              className={paymentMethod === 'cash' ? 'active' : ''}
+              className={paymentMethod === 'cash' ? 'active cash-active' : ''}
               onClick={() => setPaymentMethod('cash')}
             >
               <FiDollarSign /> {t('sales.cash')}
             </button>
             <button
-              className={paymentMethod === 'credit' ? 'active' : ''}
+              className={paymentMethod === 'credit' ? 'active credit-active' : ''}
               onClick={() => setPaymentMethod('credit')}
             >
               <FiCreditCard /> {t('sales.credit')}
             </button>
             <button
-              className={paymentMethod === 'home_use' ? 'active' : ''}
+              className={paymentMethod === 'home_use' ? 'active homeuse-active' : ''}
               onClick={() => setPaymentMethod('home_use')}
-              style={paymentMethod === 'home_use' ? { background: 'linear-gradient(135deg, #06b6d4, #0891b2)', color: 'white' } : {}}
             >
               <FiHome /> {t('sales.homeUse')}
             </button>
@@ -1317,6 +1716,286 @@ export default function Sales() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Quick Reload Modal */}
+      <Modal isOpen={reloadModal} onClose={() => setReloadModal(false)} title="⚡ Reload කළමනාකරණය / Reload Management" size="lg">
+        <div className="quick-reload-modal-content">
+          {/* Modal Header Tabs */}
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', marginBottom: '16px', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => setReloadTab('new')}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderBottom: reloadTab === 'new' ? '2px solid var(--primary-400)' : '2px solid transparent',
+                background: 'none',
+                color: reloadTab === 'new' ? 'var(--primary-400)' : 'var(--text-muted)',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <FiZap /> ⚡ නව Reload එකක්
+            </button>
+            <button
+              type="button"
+              onClick={() => { setReloadTab('history'); fetchReloadModalHistory(); }}
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                borderBottom: reloadTab === 'history' ? '2px solid var(--primary-400)' : '2px solid transparent',
+                background: 'none',
+                color: reloadTab === 'history' ? 'var(--primary-400)' : 'var(--text-muted)',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <FiSearch /> 🔍 සොයන්න & History ({reloadModalHistory.length})
+            </button>
+          </div>
+
+          {reloadTab === 'new' ? (
+            <div>
+              {/* Network Selection */}
+              <div className="form-group mb-4">
+                <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                  {t('reload.selectNetwork')} / ජාලය තෝරන්න
+                </label>
+                <div className="network-selector-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '8px' }}>
+                  {NETWORKS.map(net => (
+                    <button
+                      key={net.id}
+                      type="button"
+                      className={`network-btn ${net.id} ${reloadNetwork === net.id ? 'active' : ''}`}
+                      onClick={() => setReloadNetwork(net.id)}
+                      style={{
+                        padding: '10px 8px',
+                        borderRadius: '8px',
+                        border: reloadNetwork === net.id ? `2px solid ${net.color}` : '1px solid var(--border-color)',
+                        background: reloadNetwork === net.id ? `${net.color}22` : 'var(--bg-glass)',
+                        color: reloadNetwork === net.id ? net.color : 'var(--text-primary)',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <FiZap style={{ fontSize: '16px', color: net.color }} />
+                      <span>{net.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Phone Number Input */}
+              <div className="form-group mb-4">
+                <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                  {t('reload.phoneNumber')} / දුරකථන අංකය
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="077XXXXXXX"
+                    value={reloadPhone}
+                    onChange={(e) => handleReloadPhoneChange(e.target.value)}
+                    className="search-input"
+                    style={{ width: '100%', paddingLeft: '40px', fontSize: '1.1rem', fontWeight: 600 }}
+                    autoFocus
+                  />
+                  <FiPhoneCall style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-400)', fontSize: '18px' }} />
+                </div>
+              </div>
+
+              {/* Amount Input & Preset Buttons */}
+              <div className="form-group mb-4">
+                <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                  {t('reload.amount')} / මුදල (රු.)
+                </label>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={reloadAmount}
+                  onChange={(e) => setReloadAmount(e.target.value)}
+                  className="search-input mb-2"
+                  style={{ width: '100%', fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary-400)' }}
+                />
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {[50, 100, 200, 500, 1000].map(amt => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setReloadAmount(String(amt))}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '20px',
+                        border: '1px solid var(--border-color)',
+                        background: reloadAmount === String(amt) ? 'var(--primary-500)' : 'rgba(255,255,255,0.05)',
+                        color: reloadAmount === String(amt) ? '#fff' : 'var(--text-secondary)',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Rs. {amt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* USSD Box Preview */}
+              {ussdCode && (
+                <div className="ussd-box-preview" style={{ background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block' }}>USSD Dial Code:</span>
+                    <code style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f59e0b', letterSpacing: '1px' }}>{ussdCode}</code>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyUSSD}
+                    style={{ padding: '6px 12px', background: reloadCopied ? '#22c55e' : 'var(--primary-500)', border: 'none', borderRadius: '6px', color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    {reloadCopied ? <FiCheck /> : <FiCopy />}
+                    <span>{reloadCopied ? 'Copied!' : 'Copy Code'}</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Modal Actions */}
+              <div className="modal-actions mt-6" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <Button variant="secondary" onClick={() => setReloadModal(false)}>
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  onClick={handleDirectQuickReload}
+                  disabled={actionLoading}
+                  variant="secondary"
+                  icon={<FiZap />}
+                  style={{ borderColor: 'var(--primary-500)', color: 'var(--primary-400)' }}
+                >
+                  ⚡ වෙනම Reload කරන්න
+                </Button>
+                <Button
+                  onClick={handleAddReloadToCart}
+                  disabled={actionLoading}
+                  icon={<FiShoppingCart />}
+                >
+                  🛒 කරත්තයට එකතු කරන්න
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* History & Search Tab */
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>දුරකථන අංකය සොයන්න (Phone)</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      placeholder="077XXXXXXX..."
+                      value={reloadModalSearch}
+                      onChange={(e) => setReloadModalSearch(e.target.value)}
+                      className="search-input"
+                      style={{ width: '100%', paddingLeft: '32px', fontSize: '0.9rem' }}
+                    />
+                    <FiSearch style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>දිනය තෝරන්න (Date)</label>
+                  <input
+                    type="date"
+                    value={reloadModalDate}
+                    onChange={(e) => setReloadModalDate(e.target.value)}
+                    className="search-input"
+                    style={{ width: '100%', fontSize: '0.9rem' }}
+                  />
+                </div>
+              </div>
+
+              {/* Summary Bar */}
+              {(() => {
+                const filtered = reloadModalHistory.filter(r => {
+                  if (reloadModalSearch.trim()) {
+                    const cleanS = reloadModalSearch.trim().toLowerCase();
+                    if (!r.phone?.toLowerCase().includes(cleanS) && !String(r.billNumber).includes(cleanS)) return false;
+                  }
+                  if (reloadModalDate) {
+                    const dateObj = r.timestamp?.seconds ? new Date(r.timestamp.seconds * 1000) : (r.date ? new Date(r.date) : null);
+                    if (!dateObj) return false;
+                    const y = dateObj.getFullYear();
+                    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const d = String(dateObj.getDate()).padStart(2, '0');
+                    if (`${y}-${m}-${d}` !== reloadModalDate) return false;
+                  }
+                  return true;
+                });
+                const tot = filtered.reduce((acc, r) => acc + (parseFloat(r.amount) || 0), 0);
+
+                return (
+                  <div>
+                    <div style={{ padding: '8px 12px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '8px', marginBottom: '12px', fontSize: '12px', color: '#60a5fa', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>සොයාගත් Reloads: <strong>{filtered.length}</strong></span>
+                      <span>එකතුව: <strong>Rs. {tot.toFixed(2)}</strong></span>
+                    </div>
+
+                    <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                      {filtered.length > 0 ? (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', color: 'var(--text-muted)' }}>
+                              <th style={{ padding: '6px 4px' }}>දිනය / වේලාව</th>
+                              <th style={{ padding: '6px 4px' }}>ජාලය</th>
+                              <th style={{ padding: '6px 4px' }}>දුරකථන අංකය</th>
+                              <th style={{ padding: '6px 4px', textAlign: 'right' }}>මුදල</th>
+                              <th style={{ padding: '6px 4px', textAlign: 'right' }}>Print</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.map(item => {
+                              const dObj = item.timestamp?.seconds ? new Date(item.timestamp.seconds * 1000) : (item.date ? new Date(item.date) : new Date());
+                              return (
+                                <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                  <td style={{ padding: '6px 4px', color: 'var(--text-muted)', fontSize: '11px' }}>
+                                    {dObj.toLocaleDateString('en-LK', { year: 'numeric', month: 'short', day: 'numeric' })} {dObj.toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' })}
+                                  </td>
+                                  <td style={{ padding: '6px 4px', textTransform: 'capitalize', fontWeight: 600 }}>{item.network}</td>
+                                  <td style={{ padding: '6px 4px', fontWeight: 'bold' }}>{item.phone}</td>
+                                  <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 'bold', color: 'var(--success-400)' }}>Rs. {parseFloat(item.amount || 0).toFixed(2)}</td>
+                                  <td style={{ padding: '6px 4px', textAlign: 'right' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => generateReloadReceiptPDF(item)}
+                                      style={{ background: 'none', border: 'none', color: 'var(--primary-400)', cursor: 'pointer' }}
+                                    >
+                                      <FiPrinter />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>තොරතුරු හමු නොවීය (No matching reload history).</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );

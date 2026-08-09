@@ -19,7 +19,8 @@
     "darkMode": "Dark Mode",
     "lightMode": "Light Mode",
     "cashManager": "Cash Manager",
-    "homeUse": "Home Use Items"
+    "homeUse": "Home Use Items",
+    "reload": "Reload & Bills"
   },
   "home": {
     "welcome": "Welcome to SmartPOS",
@@ -306,5 +307,26 @@
     "noRecords": "No home use items recorded yet.",
     "printReport": "Save PDF Report",
     "newHomeUseSale": "New Home Use Bill"
+  },
+  "reload": {
+    "title": "Reload & Bill Payments",
+    "subtitle": "Process Dialog, Mobitel, Hutch, Airtel, SLT reload transactions",
+    "quickReload": "New Reload",
+    "phoneNumber": "Phone Number",
+    "selectNetwork": "Select Network",
+    "amount": "Amount (Rs.)",
+    "commission": "Commission Rate (%)",
+    "calculatedProfit": "Calculated Profit (Rs.)",
+    "ussdCode": "Phone Dial Code (USSD)",
+    "dialInstructions": "Dial the following code on your reload phone:",
+    "copyUssd": "Copy Dial Code",
+    "copied": "Copied!",
+    "processReload": "Record Reload & Print Receipt",
+    "todayTotal": "Today's Total Reloads",
+    "todayProfit": "Today's Reload Profit",
+    "history": "Reload History",
+    "network": "Network",
+    "date": "Date & Time",
+    "noHistory": "No reload history recorded yet."
   }
 }
