@@ -29,14 +29,16 @@ export default function Reports() {
   const [dailyChartData, setDailyChartData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inventoryItems, setInventoryItems] = useState({});
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'daily', 'monthly', 'item'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'daily', 'monthly', 'yearly', 'item'
   const [itemSearchQuery, setItemSearchQuery] = useState('');
   const [selectedItemForChart, setSelectedItemForChart] = useState(null);
   const [itemChartData, setItemChartData] = useState([]);
+  const [expandedTxnId, setExpandedTxnId] = useState(null);
 
   // Date selection states
   const [selectedDailyDate, setSelectedDailyDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedMonthDate, setSelectedMonthDate] = useState(new Date().toISOString().slice(0, 7));
+  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -352,6 +354,70 @@ export default function Reports() {
   const monthlyTotalSales = filteredMonthlyTxns.reduce((acc, t) => acc + (t.total || 0), 0);
   const monthlyTotalProfit = filteredMonthlyTxns.reduce((acc, t) => acc + (t.profit || 0), 0);
 
+  // Calculations for specific selected year in Yearly tab
+  const filteredYearlyTxns = allTxns.filter(txn => {
+    if (!txn.timestamp?.seconds) return false;
+    const d = new Date(txn.timestamp.seconds * 1000);
+    return String(d.getFullYear()) === selectedYear;
+  });
+  const yearlyTotalSales = filteredYearlyTxns.reduce((acc, t) => acc + (t.total || 0), 0);
+  const yearlyTotalProfit = filteredYearlyTxns.reduce((acc, t) => acc + (t.profit || 0), 0);
+
+  // Get unique years from transactions for dropdown
+  const availableYears = [...new Set(allTxns.filter(t => t.timestamp?.seconds).map(t => new Date(t.timestamp.seconds * 1000).getFullYear()))].sort((a, b) => b - a);
+  if (availableYears.length === 0) availableYears.push(new Date().getFullYear());
+
+  // Helper to render transaction detail row
+  const renderTxnDetailRow = (txn) => (
+    <div key={txn.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '2px' }}>
+      <div 
+        onClick={() => setExpandedTxnId(expandedTxnId === txn.id ? null : txn.id)}
+        style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 10px', cursor: 'pointer', borderRadius: '6px', transition: 'background 0.2s' }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+      >
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 'bold', color: '#cbd5e1', fontSize: '14px' }}>#{txn.billNumber ? String(txn.billNumber).padStart(6,'0') : txn.id.substring(0,8)}</div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{formatDate(txn.timestamp)}</div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+            <span style={{ padding: '2px 8px', borderRadius: '4px', background: txn.paymentMethod === 'CASH' ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)', color: txn.paymentMethod === 'CASH' ? '#10b981' : '#818cf8', fontSize: '10px', fontWeight: 600 }}>
+              {txn.paymentMethod || 'N/A'}
+            </span>
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontWeight: 'bold', color: '#10b981', fontSize: '15px' }}>Rs. {Number(txn.total || 0).toFixed(2)}</div>
+          <div style={{ fontSize: '12px', color: '#3b82f6' }}>ලාභය: Rs. {Number(txn.profit || 0).toFixed(2)}</div>
+          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{txn.items?.length || 0} භාණ්ඩ</div>
+        </div>
+      </div>
+      {expandedTxnId === txn.id && txn.items && txn.items.length > 0 && (
+        <div style={{ padding: '0 10px 12px 20px', animation: 'fadeIn 0.2s ease' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+            <thead>
+              <tr style={{ color: '#64748b', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>භාණ්ඩය</th>
+                <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600 }}>ප්‍රමාණය</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>මිල</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>එකතුව</th>
+              </tr>
+            </thead>
+            <tbody>
+              {txn.items.map((item, idx) => (
+                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                  <td style={{ padding: '5px 8px', color: '#e2e8f0' }}>{item.name || 'N/A'}</td>
+                  <td style={{ padding: '5px 8px', textAlign: 'center', color: '#94a3b8' }}>{item.quantity}</td>
+                  <td style={{ padding: '5px 8px', textAlign: 'right', color: '#94a3b8' }}>Rs. {Number(item.price || 0).toFixed(2)}</td>
+                  <td style={{ padding: '5px 8px', textAlign: 'right', color: '#10b981', fontWeight: 600 }}>Rs. {(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="reports-page fade-in">
       <div className="page-header">
@@ -391,6 +457,12 @@ export default function Reports() {
           onClick={() => setActiveTab('monthly')}
         >
           <FiTrendingUp /> {t('reports.monthly')}
+        </button>
+        <button 
+          className={`report-tab ${activeTab === 'yearly' ? 'active' : ''}`}
+          onClick={() => setActiveTab('yearly')}
+        >
+          <FiBarChart2 /> වාර්ෂික
         </button>
         <button 
           className={`report-tab ${activeTab === 'item' ? 'active' : ''}`}
@@ -548,32 +620,26 @@ export default function Reports() {
                           style={{background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none', colorScheme: 'dark'}}
                         />
                      </div>
-                     <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
-                       <div style={{ flex: 1, background: 'rgba(16, 185, 129, 0.1)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                         <div style={{ color: '#94a3b8', fontSize: '12px' }}>දෛනික විකුණුම් (Sales)</div>
-                         <div style={{ color: '#10b981', fontSize: '20px', fontWeight: 'bold' }}>Rs. {dailyTotalSales.toFixed(2)}</div>
+                     <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                       <div style={{ flex: 1, minWidth: '140px', background: 'rgba(16, 185, 129, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>විකුණුම්</div>
+                         <div style={{ color: '#10b981', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>Rs. {dailyTotalSales.toFixed(2)}</div>
                        </div>
-                       <div style={{ flex: 1, background: 'rgba(59, 130, 246, 0.1)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                         <div style={{ color: '#94a3b8', fontSize: '12px' }}>දෛනික ලාභය (Profit)</div>
-                         <div style={{ color: '#3b82f6', fontSize: '20px', fontWeight: 'bold' }}>Rs. {dailyTotalProfit.toFixed(2)}</div>
+                       <div style={{ flex: 1, minWidth: '140px', background: 'rgba(59, 130, 246, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ලාභය</div>
+                         <div style={{ color: '#3b82f6', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>Rs. {dailyTotalProfit.toFixed(2)}</div>
+                       </div>
+                       <div style={{ flex: 1, minWidth: '140px', background: 'rgba(168, 85, 247, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ගනුදෙනු</div>
+                         <div style={{ color: '#a855f7', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>{filteredDailyTxns.length}</div>
                        </div>
                      </div>
-                     <div style={{ overflowY: 'auto', flex: 1 }}>
+                     <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '8px', fontWeight: 600 }}>ගනුදෙනු ලැයිස්තුව — ක්ලික් කර විස්තර බලන්න</div>
+                     <div style={{ overflowY: 'auto', flex: 1, maxHeight: '400px' }}>
                        {filteredDailyTxns.length > 0 ? (
-                         filteredDailyTxns.map(txn => (
-                            <div key={txn.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                               <div>
-                                 <div style={{ fontWeight: 'bold', color: '#cbd5e1' }}>#{txn.billNumber ? String(txn.billNumber).padStart(6,'0') : txn.id.substring(0,8)}</div>
-                                 <div style={{ fontSize: '12px', color: '#64748b' }}>{formatDate(txn.timestamp)}</div>
-                               </div>
-                               <div style={{ textAlign: 'right' }}>
-                                 <div style={{ fontWeight: 'bold', color: '#10b981' }}>Rs. {Number(txn.total || 0).toFixed(2)}</div>
-                                 <div style={{ fontSize: '12px', color: '#3b82f6' }}>ලාභය: Rs. {Number(txn.profit || 0).toFixed(2)}</div>
-                               </div>
-                            </div>
-                         ))
+                         filteredDailyTxns.map(txn => renderTxnDetailRow(txn))
                        ) : (
-                         <div className="empty-state-sm">තොරතුරු හමු නොවීය. (No data found)</div>
+                         <div className="empty-state-sm" style={{ padding: '40px 20px', textAlign: 'center' }}>මෙම දිනට ගනුදෙනු හමු නොවීය</div>
                        )}
                      </div>
                   </div>
@@ -588,32 +654,63 @@ export default function Reports() {
                           style={{background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none', colorScheme: 'dark'}}
                         />
                      </div>
-                     <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
-                       <div style={{ flex: 1, background: 'rgba(16, 185, 129, 0.1)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                         <div style={{ color: '#94a3b8', fontSize: '12px' }}>මාසික විකුණුම් (Sales)</div>
-                         <div style={{ color: '#10b981', fontSize: '20px', fontWeight: 'bold' }}>Rs. {monthlyTotalSales.toFixed(2)}</div>
+                     <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                       <div style={{ flex: 1, minWidth: '140px', background: 'rgba(16, 185, 129, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>මාසික විකුණුම්</div>
+                         <div style={{ color: '#10b981', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>Rs. {monthlyTotalSales.toFixed(2)}</div>
                        </div>
-                       <div style={{ flex: 1, background: 'rgba(59, 130, 246, 0.1)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                         <div style={{ color: '#94a3b8', fontSize: '12px' }}>මාසික ලාභය (Profit)</div>
-                         <div style={{ color: '#3b82f6', fontSize: '20px', fontWeight: 'bold' }}>Rs. {monthlyTotalProfit.toFixed(2)}</div>
+                       <div style={{ flex: 1, minWidth: '140px', background: 'rgba(59, 130, 246, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>මාසික ලාභය</div>
+                         <div style={{ color: '#3b82f6', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>Rs. {monthlyTotalProfit.toFixed(2)}</div>
+                       </div>
+                       <div style={{ flex: 1, minWidth: '140px', background: 'rgba(168, 85, 247, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ගනුදෙනු</div>
+                         <div style={{ color: '#a855f7', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>{filteredMonthlyTxns.length}</div>
                        </div>
                      </div>
-                     <div style={{ overflowY: 'auto', flex: 1 }}>
+                     <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '8px', fontWeight: 600 }}>ගනුදෙනු ලැයිස්තුව — ක්ලික් කර විස්තර බලන්න</div>
+                     <div style={{ overflowY: 'auto', flex: 1, maxHeight: '400px' }}>
                        {filteredMonthlyTxns.length > 0 ? (
-                         filteredMonthlyTxns.map(txn => (
-                            <div key={txn.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                               <div>
-                                 <div style={{ fontWeight: 'bold', color: '#cbd5e1' }}>#{txn.billNumber ? String(txn.billNumber).padStart(6,'0') : txn.id.substring(0,8)}</div>
-                                 <div style={{ fontSize: '12px', color: '#64748b' }}>{formatDate(txn.timestamp)}</div>
-                               </div>
-                               <div style={{ textAlign: 'right' }}>
-                                 <div style={{ fontWeight: 'bold', color: '#10b981' }}>Rs. {Number(txn.total || 0).toFixed(2)}</div>
-                                 <div style={{ fontSize: '12px', color: '#3b82f6' }}>ලාභය: Rs. {Number(txn.profit || 0).toFixed(2)}</div>
-                               </div>
-                            </div>
-                         ))
+                         filteredMonthlyTxns.map(txn => renderTxnDetailRow(txn))
                        ) : (
-                         <div className="empty-state-sm">තොරතුරු හමු නොවීය. (No data found)</div>
+                         <div className="empty-state-sm" style={{ padding: '40px 20px', textAlign: 'center' }}>මෙම මාසයට ගනුදෙනු හමු නොවීය</div>
+                       )}
+                     </div>
+                  </div>
+                ) : activeTab === 'yearly' ? (
+                  <div className="yearly-report-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                     <div className="search-box glass-card mb-4" style={{display: 'flex', alignItems: 'center', padding: '10px 15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)'}}>
+                        <FiBarChart2 style={{marginRight: 10, color: '#94a3b8'}}/>
+                        <select 
+                          value={selectedYear}
+                          onChange={(e) => setSelectedYear(e.target.value)}
+                          style={{background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none', colorScheme: 'dark', fontSize: '14px'}}
+                        >
+                          {availableYears.map(yr => (
+                            <option key={yr} value={String(yr)} style={{background: '#1e293b'}}>{yr} වර්ෂය</option>
+                          ))}
+                        </select>
+                     </div>
+                     <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                       <div style={{ flex: 1, minWidth: '140px', background: 'rgba(16, 185, 129, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>වාර්ෂික විකුණුම්</div>
+                         <div style={{ color: '#10b981', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>Rs. {yearlyTotalSales.toFixed(2)}</div>
+                       </div>
+                       <div style={{ flex: 1, minWidth: '140px', background: 'rgba(59, 130, 246, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>වාර්ෂික ලාභය</div>
+                         <div style={{ color: '#3b82f6', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>Rs. {yearlyTotalProfit.toFixed(2)}</div>
+                       </div>
+                       <div style={{ flex: 1, minWidth: '140px', background: 'rgba(168, 85, 247, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ගනුදෙනු</div>
+                         <div style={{ color: '#a855f7', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>{filteredYearlyTxns.length}</div>
+                       </div>
+                     </div>
+                     <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '8px', fontWeight: 600 }}>ගනුදෙනු ලැයිස්තුව — ක්ලික් කර විස්තර බලන්න</div>
+                     <div style={{ overflowY: 'auto', flex: 1, maxHeight: '400px' }}>
+                       {filteredYearlyTxns.length > 0 ? (
+                         filteredYearlyTxns.map(txn => renderTxnDetailRow(txn))
+                       ) : (
+                         <div className="empty-state-sm" style={{ padding: '40px 20px', textAlign: 'center' }}>මෙම වර්ෂයට ගනුදෙනු හමු නොවීය</div>
                        )}
                      </div>
                   </div>
