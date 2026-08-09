@@ -10,7 +10,7 @@ import Modal from '../../components/ui/Modal';
 import {
   FiSearch, FiShoppingCart, FiPlus, FiMinus, FiTrash2,
   FiCreditCard, FiDollarSign, FiUser, FiMaximize, FiPrinter, FiCheckCircle,
-  FiFileText, FiHash, FiHome, FiStar, FiEye, FiZap, FiPhoneCall, FiCopy, FiCheck
+  FiFileText, FiHash, FiHome, FiStar, FiEye, FiZap, FiPhoneCall, FiCopy, FiCheck, FiEdit3
 } from 'react-icons/fi';
 
 import './Sales.css';
@@ -361,6 +361,40 @@ export default function Sales() {
   const [weightModal, setWeightModal] = useState(false);
   const [weightItem, setWeightItem] = useState(null);
   const [weightValue, setWeightValue] = useState('');
+
+  // Custom Item Modal (නොමැති භාණ්ඩ)
+  const [customItemModal, setCustomItemModal] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemPrice, setCustomItemPrice] = useState('');
+  const [customItemQty, setCustomItemQty] = useState('1');
+
+  const handleAddCustomItem = () => {
+    const name = customItemName.trim() || 'වෙනත් භාණ්ඩ';
+    const price = parseFloat(customItemPrice);
+    const qty = parseInt(customItemQty) || 1;
+
+    if (!price || price <= 0) {
+      alert('කරුණාකර නිවැරදි මිලක් ඇතුළත් කරන්න (Enter valid price)');
+      return;
+    }
+
+    const cartId = `custom_${Date.now()}`;
+    const customItem = {
+      id: cartId,
+      cartId,
+      name: name,
+      sellPrice: price,
+      quantity: qty,
+      stock: 999999,
+      isCustom: true
+    };
+
+    setCart([customItem, ...cart]);
+    setCustomItemModal(false);
+    setCustomItemName('');
+    setCustomItemPrice('');
+    setCustomItemQty('1');
+  };
 
   // Reload Modal State on Sales Page
   const [reloadModal, setReloadModal] = useState(false);
@@ -806,7 +840,7 @@ export default function Sales() {
           }
 
           await setDoc(doc(db, 'reloads', reloadId), reloadRecord);
-        } else if (item.id) {
+        } else if (item.id && !item.isCustom) {
           await updateDoc(doc(db, 'items', item.id), {
             stock: increment(-item.quantity)
           });
@@ -950,6 +984,9 @@ export default function Sales() {
           <div className="page-header mb-4">
             <h1 className="page-title gradient-text">{t('sales.title')}</h1>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="bill-search-btn glass" onClick={() => setCustomItemModal(true)} title="නොමැති භාණ්ඩයක් එකතු කරන්න" style={{ borderColor: 'var(--success-400)', color: 'var(--success-400)' }}>
+                <FiEdit3 /> <span>නොමැති භාණ්ඩ</span>
+              </button>
               <button className="bill-search-btn glass" onClick={handleOpenReloadModal} title={t('reload.title')} style={{ borderColor: 'var(--primary-500)', color: 'var(--primary-400)' }}>
                 <FiZap /> <span>{t('reload.quickReload')}</span>
               </button>
@@ -1096,6 +1133,7 @@ export default function Sales() {
                       {item.name}
                       {item.itemType === 'weighed' && <span className="weighed-tag"> ⚖️</span>}
                       {item.isReload && <span className="reload-tag" style={{ background: 'rgba(234, 88, 12, 0.2)', color: '#ea580c', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>⚡ Reload</span>}
+                      {item.isCustom && <span style={{ background: 'rgba(34, 197, 94, 0.2)', color: '#22c55e', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>✏️ Custom</span>}
                     </span>
                     <span className="cart-item-price">
                       Rs. {item.sellPrice.toFixed(2)}{item.itemType === 'weighed' ? '/kg' : ''}
@@ -1117,6 +1155,16 @@ export default function Sales() {
                     ) : item.isReload ? (
                       <div className="qty-controls">
                         <span>1</span>
+                      </div>
+                    ) : item.isCustom ? (
+                      <div className="qty-controls">
+                        <button onClick={() => {
+                          setCart(cart.map(c => c.cartId === item.cartId ? { ...c, quantity: Math.max(1, c.quantity - 1) } : c));
+                        }}><FiMinus /></button>
+                        <span>{item.quantity}</span>
+                        <button onClick={() => {
+                          setCart(cart.map(c => c.cartId === item.cartId ? { ...c, quantity: c.quantity + 1 } : c));
+                        }}><FiPlus /></button>
                       </div>
                     ) : (
                       <div className="qty-controls">
@@ -1995,6 +2043,110 @@ export default function Sales() {
               })()}
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* Custom Item Modal (නොමැති භාණ්ඩ) */}
+      <Modal isOpen={customItemModal} onClose={() => setCustomItemModal(false)} title="✏️ නොමැති භාණ්ඩයක් බිලට එකතු කරන්න / Add Custom Item">
+        <div className="custom-item-modal-content">
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px', lineHeight: '1.5' }}>
+            පද්ධතියේ නොමැති භාණ්ඩයක් සෘජුවම බිලට එකතු කරන්න. (නම ඇතුළත් නොකළහොත් "වෙනත් භාණ්ඩ" ලෙස සටහන් වේ)
+          </p>
+
+          {/* Item Name */}
+          <div className="form-group mb-4">
+            <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              භාණ්ඩයේ නම / Item Name <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '12px' }}>(විකල්පයි / Optional)</span>
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="වෙනත් භාණ්ඩ (උදා: බිස්කට්, පාන්...)"
+                value={customItemName}
+                onChange={(e) => setCustomItemName(e.target.value)}
+                className="search-input"
+                style={{ width: '100%', paddingLeft: '40px', fontSize: '1rem', fontWeight: 600 }}
+                autoFocus
+                onKeyPress={(e) => e.key === 'Enter' && handleAddCustomItem()}
+              />
+              <FiEdit3 style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--success-400)', fontSize: '18px' }} />
+            </div>
+          </div>
+
+          {/* Item Price */}
+          <div className="form-group mb-4">
+            <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              විකුණුම් මිල / Sell Price (Rs.)
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={customItemPrice}
+                onChange={(e) => setCustomItemPrice(e.target.value)}
+                className="search-input"
+                style={{ width: '100%', paddingLeft: '40px', fontSize: '1.2rem', fontWeight: 700, color: 'var(--success-400)' }}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddCustomItem()}
+              />
+              <FiDollarSign style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--success-400)', fontSize: '18px' }} />
+            </div>
+          </div>
+
+          {/* Item Quantity */}
+          <div className="form-group mb-4">
+            <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              ප්‍රමාණය / Quantity
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setCustomItemQty(String(Math.max(1, (parseInt(customItemQty) || 1) - 1)))}
+                style={{ width: '40px', height: '40px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-glass)', color: 'var(--text-primary)', fontWeight: 700, fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <FiMinus />
+              </button>
+              <input
+                type="number"
+                min="1"
+                value={customItemQty}
+                onChange={(e) => setCustomItemQty(e.target.value)}
+                className="search-input"
+                style={{ width: '80px', textAlign: 'center', fontSize: '1.2rem', fontWeight: 700 }}
+              />
+              <button
+                type="button"
+                onClick={() => setCustomItemQty(String((parseInt(customItemQty) || 1) + 1))}
+                style={{ width: '40px', height: '40px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-glass)', color: 'var(--text-primary)', fontWeight: 700, fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <FiPlus />
+              </button>
+            </div>
+          </div>
+
+          {/* Total Preview */}
+          {customItemPrice && parseFloat(customItemPrice) > 0 && (
+            <div style={{ background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.3)', borderRadius: '8px', padding: '12px', marginBottom: '16px', textAlign: 'center' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block' }}>එකතුව / Total</span>
+              <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#22c55e' }}>
+                Rs. {(parseFloat(customItemPrice) * (parseInt(customItemQty) || 1)).toFixed(2)}
+              </span>
+            </div>
+          )}
+
+          {/* Modal Actions */}
+          <div className="modal-actions mt-6" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setCustomItemModal(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={handleAddCustomItem}
+              icon={<FiShoppingCart />}
+              style={{ background: 'var(--success-500)' }}
+            >
+              🛒 කරත්තයට එකතු කරන්න
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>
