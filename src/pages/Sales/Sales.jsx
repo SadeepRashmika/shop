@@ -1529,8 +1529,6 @@ export default function Sales() {
                 Rs. {Math.abs((parseFloat(tenderedAmount) || 0) - subtotal).toFixed(2)}
               </span>
             </div>
-          </div>
-
             {paymentMethod === 'cash' && (!tenderedAmount || Math.round((parseFloat(tenderedAmount) || 0) * 100) < Math.round(subtotal * 100)) && (
               <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '8px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                 ⚠️ මුදලින් ගෙවීමේදී දුන් මුදල අවම වශයෙන් මුළු ගණන (Rs. {subtotal.toFixed(2)}) ට සමාන හෝ වැඩි විය යුතුය.
