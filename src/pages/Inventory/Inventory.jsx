@@ -537,7 +537,6 @@ export default function Inventory() {
               step="0.01"
               value={formData.purchasePrice}
               onChange={e => setFormData({...formData, purchasePrice: e.target.value})}
-              required
               placeholder="0.00"
             />
             <Input
