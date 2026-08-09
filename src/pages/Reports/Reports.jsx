@@ -15,10 +15,12 @@ export default function Reports() {
   const { t } = useTranslation();
   const [stats, setStats] = useState({
     todaySales: 0,
+    todayProfit: 0,
     todayTxns: 0,
     totalItems: 0,
     lowStock: 0,
     monthSales: 0,
+    monthProfit: 0,
     monthTxns: 0
   });
   const [recentTxns, setRecentTxns] = useState([]);
@@ -31,6 +33,10 @@ export default function Reports() {
   const [itemSearchQuery, setItemSearchQuery] = useState('');
   const [selectedItemForChart, setSelectedItemForChart] = useState(null);
   const [itemChartData, setItemChartData] = useState([]);
+
+  // Date selection states
+  const [selectedDailyDate, setSelectedDailyDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedMonthDate, setSelectedMonthDate] = useState(new Date().toISOString().slice(0, 7));
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -46,6 +52,20 @@ export default function Reports() {
         monthStart.setHours(0,0,0,0);
         const monthTimestamp = Timestamp.fromDate(monthStart);
 
+        // Fetch Inventory Stats FIRST to calculate profit accurately
+        const itemSnapshot = await getDocs(collection(db, 'items'));
+        let totalItems = 0;
+        let lowStockCount = 0;
+        const invMap = {};
+        itemSnapshot.forEach(doc => {
+          totalItems++;
+          const data = doc.data();
+          if (data.stock <= 5) lowStockCount++;
+          invMap[doc.id] = data;
+          if (data.name) invMap[data.name] = data;
+        });
+        setInventoryItems(invMap);
+
         // Fetch ALL Transactions
         const txnSnapshot = await getDocs(collection(db, 'transactions'));
         
@@ -53,6 +73,8 @@ export default function Reports() {
         let todayCount = 0;
         let monthSales = 0;
         let monthCount = 0;
+        let todayProfit = 0;
+        let monthProfit = 0;
         const itemFreq = {};
         const transactions = [];
         const dailySalesMap = {};
@@ -60,19 +82,33 @@ export default function Reports() {
         txnSnapshot.forEach(doc => {
           const data = doc.data();
           const total = data.total || 0;
-          transactions.push({ id: doc.id, ...data });
+          
+          // Calculate Profit for this transaction
+          let txnCost = 0;
+          if (data.items) {
+            data.items.forEach(item => {
+              const invItem = invMap[item.id] || invMap[item.name];
+              const unitCost = invItem ? (Number(invItem.purchasePrice) || 0) : 0;
+              txnCost += (Number(item.quantity) || 0) * unitCost;
+            });
+          }
+          const profit = total - txnCost;
+          const txnData = { id: doc.id, profit: profit, ...data };
+          transactions.push(txnData);
           
           const txnDate = data.timestamp?.seconds ? new Date(data.timestamp.seconds * 1000) : null;
 
           // Today's sales
           if (data.timestamp && data.timestamp.seconds >= todayTimestamp.seconds) {
             todaySales += total;
+            todayProfit += profit;
             todayCount++;
           }
 
           // This month's sales
           if (data.timestamp && data.timestamp.seconds >= monthTimestamp.seconds) {
             monthSales += total;
+            monthProfit += profit;
             monthCount++;
           }
 
@@ -110,26 +146,14 @@ export default function Reports() {
         setAllTxns(transactions);
         setRecentTxns(transactions.slice(0, 10));
 
-        // Fetch Inventory Stats
-        const itemSnapshot = await getDocs(collection(db, 'items'));
-        let totalItems = 0;
-        let lowStockCount = 0;
-        const invMap = {};
-        itemSnapshot.forEach(doc => {
-          totalItems++;
-          const data = doc.data();
-          if (data.stock <= 5) lowStockCount++;
-          invMap[doc.id] = data;
-          if (data.name) invMap[data.name] = data;
-        });
-        setInventoryItems(invMap);
-
         setStats({
           todaySales,
+          todayProfit,
           todayTxns: todayCount,
           totalItems,
           lowStock: lowStockCount,
           monthSales,
+          monthProfit,
           monthTxns: monthCount
         });
 
@@ -308,6 +332,26 @@ export default function Reports() {
     setItemChartData(dataArr);
   };
 
+  // Calculations for specific selected date in Daily tab
+  const filteredDailyTxns = allTxns.filter(txn => {
+    if (!txn.timestamp?.seconds) return false;
+    const d = new Date(txn.timestamp.seconds * 1000);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return dateStr === selectedDailyDate;
+  });
+  const dailyTotalSales = filteredDailyTxns.reduce((acc, t) => acc + (t.total || 0), 0);
+  const dailyTotalProfit = filteredDailyTxns.reduce((acc, t) => acc + (t.profit || 0), 0);
+
+  // Calculations for specific selected month in Monthly tab
+  const filteredMonthlyTxns = allTxns.filter(txn => {
+    if (!txn.timestamp?.seconds) return false;
+    const d = new Date(txn.timestamp.seconds * 1000);
+    const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return monthStr === selectedMonthDate;
+  });
+  const monthlyTotalSales = filteredMonthlyTxns.reduce((acc, t) => acc + (t.total || 0), 0);
+  const monthlyTotalProfit = filteredMonthlyTxns.reduce((acc, t) => acc + (t.profit || 0), 0);
+
   return (
     <div className="reports-page fade-in">
       <div className="page-header">
@@ -367,7 +411,10 @@ export default function Reports() {
               <div className="stat-info">
                 <span className="stat-label">{t('reports.todaySales')}</span>
                 <h2 className="stat-value">Rs. {stats.todaySales.toFixed(2)}</h2>
-                <span className="stat-trend positive"><FiArrowUpRight /> {stats.todayTxns} {t('reports.transactions')}</span>
+                <span className="stat-trend positive" style={{ display: 'block', marginBottom: '4px' }}><FiArrowUpRight /> {stats.todayTxns} {t('reports.transactions')}</span>
+                <div style={{ fontSize: '14px', color: '#10b981', fontWeight: 600 }}>
+                  ලාභය: Rs. {stats.todayProfit.toFixed(2)}
+                </div>
               </div>
             </div>
 
@@ -376,7 +423,10 @@ export default function Reports() {
               <div className="stat-info">
                 <span className="stat-label">{t('reports.monthSales')}</span>
                 <h2 className="stat-value">Rs. {stats.monthSales.toFixed(2)}</h2>
-                <span className="stat-trend neutral">{stats.monthTxns} {t('reports.transactions')}</span>
+                <span className="stat-trend neutral" style={{ display: 'block', marginBottom: '4px' }}>{stats.monthTxns} {t('reports.transactions')}</span>
+                <div style={{ fontSize: '14px', color: '#3b82f6', fontWeight: 600 }}>
+                  ලාභය: Rs. {stats.monthProfit.toFixed(2)}
+                </div>
               </div>
             </div>
 
@@ -487,26 +537,87 @@ export default function Reports() {
                   ) : (
                     <div className="empty-chart">{t('reports.noSalesData')}</div>
                   )
-                ) : (
-                  dailyChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={dailyChartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                        <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" fontSize={12} />
-                        <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />
-                        <Tooltip 
-                          contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', padding: '10px 14px' }}
-                          labelStyle={{ color: '#ffffff', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}
-                          itemStyle={{ color: '#38bdf8', fontWeight: '600', fontSize: '13px' }}
-                          formatter={(value) => [`Rs. ${Number(value || 0).toFixed(2)}`, 'Sales']}
+                ) : activeTab === 'daily' ? (
+                  <div className="daily-report-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                     <div className="search-box glass-card mb-4" style={{display: 'flex', alignItems: 'center', padding: '10px 15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)'}}>
+                        <FiCalendar style={{marginRight: 10, color: '#94a3b8'}}/>
+                        <input 
+                          type="date"
+                          value={selectedDailyDate}
+                          onChange={(e) => setSelectedDailyDate(e.target.value)}
+                          style={{background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none', colorScheme: 'dark'}}
                         />
-                        <Line type="monotone" dataKey="sales" stroke="#8b5cf6" strokeWidth={3} dot={{ fill: '#8b5cf6', r: 5 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="empty-chart">{t('reports.noSalesData')}</div>
-                  )
-                )}
+                     </div>
+                     <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+                       <div style={{ flex: 1, background: 'rgba(16, 185, 129, 0.1)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '12px' }}>දෛනික විකුණුම් (Sales)</div>
+                         <div style={{ color: '#10b981', fontSize: '20px', fontWeight: 'bold' }}>Rs. {dailyTotalSales.toFixed(2)}</div>
+                       </div>
+                       <div style={{ flex: 1, background: 'rgba(59, 130, 246, 0.1)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '12px' }}>දෛනික ලාභය (Profit)</div>
+                         <div style={{ color: '#3b82f6', fontSize: '20px', fontWeight: 'bold' }}>Rs. {dailyTotalProfit.toFixed(2)}</div>
+                       </div>
+                     </div>
+                     <div style={{ overflowY: 'auto', flex: 1 }}>
+                       {filteredDailyTxns.length > 0 ? (
+                         filteredDailyTxns.map(txn => (
+                            <div key={txn.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                               <div>
+                                 <div style={{ fontWeight: 'bold', color: '#cbd5e1' }}>#{txn.billNumber ? String(txn.billNumber).padStart(6,'0') : txn.id.substring(0,8)}</div>
+                                 <div style={{ fontSize: '12px', color: '#64748b' }}>{formatDate(txn.timestamp)}</div>
+                               </div>
+                               <div style={{ textAlign: 'right' }}>
+                                 <div style={{ fontWeight: 'bold', color: '#10b981' }}>Rs. {Number(txn.total || 0).toFixed(2)}</div>
+                                 <div style={{ fontSize: '12px', color: '#3b82f6' }}>ලාභය: Rs. {Number(txn.profit || 0).toFixed(2)}</div>
+                               </div>
+                            </div>
+                         ))
+                       ) : (
+                         <div className="empty-state-sm">තොරතුරු හමු නොවීය. (No data found)</div>
+                       )}
+                     </div>
+                  </div>
+                ) : activeTab === 'monthly' ? (
+                  <div className="monthly-report-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                     <div className="search-box glass-card mb-4" style={{display: 'flex', alignItems: 'center', padding: '10px 15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)'}}>
+                        <FiCalendar style={{marginRight: 10, color: '#94a3b8'}}/>
+                        <input 
+                          type="month"
+                          value={selectedMonthDate}
+                          onChange={(e) => setSelectedMonthDate(e.target.value)}
+                          style={{background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none', colorScheme: 'dark'}}
+                        />
+                     </div>
+                     <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+                       <div style={{ flex: 1, background: 'rgba(16, 185, 129, 0.1)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '12px' }}>මාසික විකුණුම් (Sales)</div>
+                         <div style={{ color: '#10b981', fontSize: '20px', fontWeight: 'bold' }}>Rs. {monthlyTotalSales.toFixed(2)}</div>
+                       </div>
+                       <div style={{ flex: 1, background: 'rgba(59, 130, 246, 0.1)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                         <div style={{ color: '#94a3b8', fontSize: '12px' }}>මාසික ලාභය (Profit)</div>
+                         <div style={{ color: '#3b82f6', fontSize: '20px', fontWeight: 'bold' }}>Rs. {monthlyTotalProfit.toFixed(2)}</div>
+                       </div>
+                     </div>
+                     <div style={{ overflowY: 'auto', flex: 1 }}>
+                       {filteredMonthlyTxns.length > 0 ? (
+                         filteredMonthlyTxns.map(txn => (
+                            <div key={txn.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                               <div>
+                                 <div style={{ fontWeight: 'bold', color: '#cbd5e1' }}>#{txn.billNumber ? String(txn.billNumber).padStart(6,'0') : txn.id.substring(0,8)}</div>
+                                 <div style={{ fontSize: '12px', color: '#64748b' }}>{formatDate(txn.timestamp)}</div>
+                               </div>
+                               <div style={{ textAlign: 'right' }}>
+                                 <div style={{ fontWeight: 'bold', color: '#10b981' }}>Rs. {Number(txn.total || 0).toFixed(2)}</div>
+                                 <div style={{ fontSize: '12px', color: '#3b82f6' }}>ලාභය: Rs. {Number(txn.profit || 0).toFixed(2)}</div>
+                               </div>
+                            </div>
+                         ))
+                       ) : (
+                         <div className="empty-state-sm">තොරතුරු හමු නොවීය. (No data found)</div>
+                       )}
+                     </div>
+                  </div>
+                ) : null}
               </div>
             </div>
 
