@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
-import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiImage, FiPackage, FiDollarSign, FiTag, FiMaximize, FiDownload, FiZap } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiImage, FiPackage, FiDollarSign, FiTag, FiMaximize, FiDownload, FiZap, FiRefreshCw } from 'react-icons/fi';
 import JsBarcode from 'jsbarcode';
 import './Inventory.css';
 
@@ -94,6 +94,12 @@ export default function Inventory() {
   const [modalError, setModalError] = useState('');
   const [compressionInfo, setCompressionInfo] = useState(null); // { original, compressed, savings }
   const [isCompressing, setIsCompressing] = useState(false);
+  
+  // Stock Update Quick Modal State
+  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+  const [stockItem, setStockItem] = useState(null);
+  const [newStockVal, setNewStockVal] = useState('');
+  const [stockModalError, setStockModalError] = useState('');
 
   // Form State
   const [formData, setFormData] = useState({
@@ -150,7 +156,7 @@ export default function Inventory() {
 
   const handleOpenEdit = (item) => {
     setFormData({ 
-      id: item.id, name: item.name, category: item.category, 
+      id: item.id, itemNo: item.itemNo || '', name: item.name, category: item.category, 
       itemType: item.itemType || 'non-weighed',
       purchasePrice: item.purchasePrice || '', sellPrice: item.sellPrice || item.price || '', 
       stock: item.stock, description: item.description, 
@@ -185,6 +191,37 @@ export default function Inventory() {
         console.error("Error deleting item:", error);
         alert("Failed to delete item.");
       }
+    }
+  };
+
+  const handleOpenStockUpdate = (item) => {
+    setStockItem(item);
+    setNewStockVal(item.stock !== undefined ? String(item.stock) : '');
+    setStockModalError('');
+    setIsStockModalOpen(true);
+  };
+
+  const handleStockSubmit = async (e) => {
+    e.preventDefault();
+    if (newStockVal === '' || isNaN(Number(newStockVal)) || Number(newStockVal) < 0) {
+      setStockModalError("Please enter a valid stock amount (0 or positive).");
+      return;
+    }
+    setActionLoading(true);
+    setStockModalError('');
+    try {
+      const updatedStock = Number(newStockVal);
+      await updateDoc(doc(db, 'items', stockItem.id), {
+        stock: updatedStock,
+        updatedAt: serverTimestamp()
+      });
+      setIsStockModalOpen(false);
+      fetchItems();
+    } catch (err) {
+      console.error("Error updating stock:", err);
+      setStockModalError("Failed to update stock. Please try again.");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -384,7 +421,9 @@ export default function Inventory() {
                     </td>
                     <td>
                       <span className={`stock-badge ${item.stock <= 5 ? 'low-stock' : 'in-stock'}`}>
-                        {item.stock} {item.itemType === 'weighed' ? 'kg' : t('inventory.table.inStock')}
+                        {typeof item.stock === 'number' || !isNaN(Number(item.stock)) 
+                          ? (Number(item.stock) % 1 === 0 ? Number(item.stock) : Number(item.stock).toFixed(2)) 
+                          : (item.stock || 0)} {item.itemType === 'weighed' ? 'kg' : t('inventory.table.inStock')}
                       </span>
                     </td>
                     <td className="font-bold text-primary">
@@ -398,6 +437,9 @@ export default function Inventory() {
                     </td>
                     <td>
                       <div className="action-buttons">
+                        <button className="icon-btn edit-btn" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.2)' }} onClick={() => handleOpenStockUpdate(item)} title="Update Stock">
+                          <FiRefreshCw />
+                        </button>
                         <button className="icon-btn edit-btn" onClick={() => handleOpenEdit(item)} title={t('common.edit')}>
                           <FiEdit2 />
                         </button>
@@ -456,6 +498,7 @@ export default function Inventory() {
                   <option value="සබන්">සබන්</option>
                   <option value="කුළුබඩු">කුළුබඩු</option>
                   <option value="ඉලෙක්ට්රනික බඩු">ඉලෙක්ට්රනික බඩු</option>
+                  <option value="වෙනත් භාණ්ඩ">වෙනත් භාණ්ඩ</option>
                 </select>
               </div>
             </div>
@@ -657,6 +700,40 @@ export default function Inventory() {
           <div className="modal-actions">
             <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>{t('common.cancel')}</Button>
             <Button type="submit" loading={actionLoading}>{formData.isEdit ? t('common.save') : t('items.addItem')}</Button>
+          </div>
+        </form>
+      </Modal>
+      {/* Quick Stock Update Modal */}
+      <Modal
+        isOpen={isStockModalOpen}
+        onClose={() => setIsStockModalOpen(false)}
+        title={`Update Stock: ${stockItem?.name}`}
+      >
+        <form onSubmit={handleStockSubmit} className="inventory-form">
+          {stockModalError && <div className="modal-error">{stockModalError}</div>}
+          
+          <div style={{ marginBottom: '1rem' }}>
+             <p className="text-secondary pb-1" style={{ fontSize: 'var(--fs-sm)' }}>Current Stock Level:</p>
+             <h2 className="font-bold text-xl" style={{ color: 'var(--primary-400)' }}>
+               {stockItem?.stock || 0} {stockItem?.itemType === 'weighed' ? 'kg' : 'units'}
+             </h2>
+          </div>
+
+          <Input
+            label={stockItem?.itemType === 'weighed' ? "New Stock Level (kg)" : "New Stock Level (Units)"}
+            icon={<FiPackage/>}
+            type="number"
+            step={stockItem?.itemType === 'weighed' ? '0.01' : '1'}
+            value={newStockVal}
+            onChange={e => setNewStockVal(e.target.value)}
+            required
+            placeholder="Enter new amount"
+            autoFocus
+          />
+
+          <div className="modal-actions mt-4">
+            <Button type="button" variant="secondary" onClick={() => setIsStockModalOpen(false)}>{t('common.cancel')}</Button>
+            <Button type="submit" loading={actionLoading}>Update Stock</Button>
           </div>
         </form>
       </Modal>

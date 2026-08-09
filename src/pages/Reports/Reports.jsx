@@ -443,9 +443,13 @@ export default function Reports() {
                               <XAxis dataKey="date" stroke="rgba(255,255,255,0.5)" fontSize={12} />
                               <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} allowDecimals={false} />
                               <Tooltip 
-                                contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
-                                itemStyle={{ color: '#fff' }}
-                                formatter={(value) => [`${value} items`, 'Sold']}
+                                contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', padding: '10px 14px' }}
+                                labelStyle={{ color: '#ffffff', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}
+                                itemStyle={{ color: '#34d399', fontWeight: '600', fontSize: '13px' }}
+                                formatter={(value) => [
+                                  `${typeof value === 'number' ? (Number.isInteger(value) ? value : Number(value).toFixed(2)) : value}`,
+                                  'Quantity Sold'
+                                ]}
                               />
                               <Line type="monotone" dataKey="qty" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 4 }} />
                             </LineChart>
@@ -465,8 +469,13 @@ export default function Reports() {
                         <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" fontSize={12} />
                         <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />
                         <Tooltip 
-                          contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
-                          itemStyle={{ color: '#fff' }}
+                          contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', padding: '10px 14px' }}
+                          labelStyle={{ color: '#ffffff', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}
+                          itemStyle={{ color: '#c084fc', fontWeight: '600', fontSize: '13px' }}
+                          formatter={(value) => [
+                            typeof value === 'number' ? (Number.isInteger(value) ? value : Number(value).toFixed(2)) : value,
+                            'Quantity Sold'
+                          ]}
                         />
                         <Bar dataKey="qty" radius={[4, 4, 0, 0]}>
                           {chartData.map((entry, index) => (
@@ -486,9 +495,10 @@ export default function Reports() {
                         <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" fontSize={12} />
                         <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />
                         <Tooltip 
-                          contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
-                          itemStyle={{ color: '#fff' }}
-                          formatter={(value) => [`Rs. ${value.toFixed(2)}`, 'Sales']}
+                          contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', padding: '10px 14px' }}
+                          labelStyle={{ color: '#ffffff', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}
+                          itemStyle={{ color: '#38bdf8', fontWeight: '600', fontSize: '13px' }}
+                          formatter={(value) => [`Rs. ${Number(value || 0).toFixed(2)}`, 'Sales']}
                         />
                         <Line type="monotone" dataKey="sales" stroke="#8b5cf6" strokeWidth={3} dot={{ fill: '#8b5cf6', r: 5 }} />
                       </LineChart>

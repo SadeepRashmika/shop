@@ -34,9 +34,9 @@
   --bg-primary: #0a0a1a;
   --bg-secondary: #111128;
   --bg-tertiary: #1a1a3e;
-  --bg-card: rgba(26, 26, 62, 0.6);
-  --bg-glass: rgba(26, 26, 62, 0.45);
-  --bg-input: rgba(255, 255, 255, 0.05);
+  --bg-card: #13132e;
+  --bg-glass: #171738;
+  --bg-input: #1d1d45;
 
   --text-primary: #f1f1f7;
   --text-secondary: #a0a0c0;
@@ -112,17 +112,17 @@
 
 [data-theme="light"] {
   /* — Neutrals (Light theme) — */
-  --bg-primary: #f5f5fa;
-  --bg-secondary: #ebebf3;
-  --bg-tertiary: #dddde8;
-  --bg-card: rgba(255, 255, 255, 0.85);
-  --bg-glass: rgba(255, 255, 255, 0.7);
-  --bg-input: rgba(0, 0, 0, 0.04);
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-tertiary: #e2e8f0;
+  --bg-card: #ffffff;
+  --bg-glass: #ffffff;
+  --bg-input: #f8fafc;
 
-  --text-primary: #1a1a2e;
-  --text-secondary: #4a4a6a;
-  --text-muted: #8888a8;
-  --text-inverse: #f1f1f7;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-inverse: #ffffff;
 
   --border-color: rgba(0, 0, 0, 0.1);
   --border-focus: var(--primary-500);
@@ -510,14 +510,14 @@ ul, ol {
    ============================================ */
 
 [data-theme="light"] .glass {
-  background: rgba(255, 255, 255, 0.75);
-  border-color: rgba(0, 0, 0, 0.08);
+  background: #ffffff;
+  border-color: #cbd5e1;
 }
 
 [data-theme="light"] .glass-card {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: var(--shadow-sm);
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
 }
 
 [data-theme="light"] .glass-card:hover {

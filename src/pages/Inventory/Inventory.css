@@ -488,7 +488,7 @@
   background: rgba(255, 255, 255, 0.03);
   border: 2px solid var(--border-color);
   border-radius: var(--radius-lg);
-  color: var(--text-secondary);
+  color: var(--text-primary); /* Brighter base text color for better visibility */
   cursor: pointer;
   transition: all 0.25s ease;
 }
@@ -500,9 +500,9 @@
 
 .type-toggle-btn.active {
   border-color: var(--primary-500);
-  background: rgba(139, 92, 246, 0.12);
-  color: white;
-  box-shadow: 0 0 15px rgba(139, 92, 246, 0.15);
+  background: rgba(139, 92, 246, 0.25); /* Slightly darker backing for active state */
+  color: #ffffff; /* High contrast text */
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.25);
 }
 
 .type-emoji {
@@ -513,12 +513,44 @@
 .type-label-main {
   font-weight: 700;
   font-size: var(--fs-sm);
+  color: inherit;
 }
 
 .type-label-sub {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--text-secondary); /* Upgraded from muted to secondary for readability */
   font-weight: 400;
+}
+
+.type-toggle-btn.active .type-label-sub {
+  color: #c084fc; /* Purple tint subtext for active button for rich readability */
+}
+
+/* Light Theme Overrides for Item Type Toggle */
+[data-theme="light"] .type-toggle-btn {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+
+[data-theme="light"] .type-toggle-btn:hover {
+  background: #e2e8f0;
+  border-color: var(--primary-500);
+}
+
+[data-theme="light"] .type-toggle-btn.active {
+  background: var(--primary-600);
+  border-color: var(--primary-600);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(108, 43, 217, 0.25);
+}
+
+[data-theme="light"] .type-toggle-btn.active .type-label-sub {
+  color: #e9d5ff;
+}
+
+[data-theme="light"] .type-toggle-btn:not(.active) .type-label-sub {
+  color: #64748b;
 }
 
 /* ---- Type Badge (Table) ---- */
@@ -542,3 +574,92 @@
   color: #60a5fa;
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
+
+/* ============================================
+   LIGHT THEME PROFESSIONAL ENHANCEMENTS
+   ============================================ */
+
+[data-theme="light"] .table-container.glass-card,
+[data-theme="light"] .inventory-toolbar.glass-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .inventory-table th {
+  color: #475569;
+  font-weight: 700;
+  border-bottom: 2px solid #e2e8f0;
+  background-color: #f8fafc;
+}
+
+[data-theme="light"] .inventory-table tr {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+[data-theme="light"] .inventory-table tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+[data-theme="light"] .inventory-table tr:hover {
+  background-color: #edf2f7;
+}
+
+[data-theme="light"] .stock-badge.in-stock {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+[data-theme="light"] .stock-badge.low-stock {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+[data-theme="light"] .type-badge.weighed {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+[data-theme="light"] .type-badge.non-weighed {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+[data-theme="light"] .category-badge {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+[data-theme="light"] .text-success {
+  color: #15803d !important;
+  font-weight: 700;
+}
+
+[data-theme="light"] .text-primary {
+  color: #6d28d9 !important;
+}
+
+[data-theme="light"] .barcode-text {
+  color: #334155;
+  font-weight: 600;
+}
+
+[data-theme="light"] .barcode-cell:hover {
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .item-thumbnail-placeholder {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
+[data-theme="light"] .item-thumbnail {
+  border-color: #cbd5e1;
+}
+

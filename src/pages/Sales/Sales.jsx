@@ -10,7 +10,7 @@ import Modal from '../../components/ui/Modal';
 import {
   FiSearch, FiShoppingCart, FiPlus, FiMinus, FiTrash2,
   FiCreditCard, FiDollarSign, FiUser, FiMaximize, FiPrinter, FiCheckCircle,
-  FiFileText, FiHash, FiHome
+  FiFileText, FiHash, FiHome, FiStar, FiEye
 } from 'react-icons/fi';
 
 import './Sales.css';
@@ -195,9 +195,42 @@ export default function Sales() {
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [debtorSearch, setDebtorSearch] = useState('');
+  const [favoriteItemIds, setFavoriteItemIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('smartpos_favorites');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  const toggleFavorite = async (item) => {
+    const itemId = item.id;
+    const isFav = favoriteItemIds.includes(itemId) || item.isFavorite;
+    let updatedFavs;
+    if (isFav) {
+      updatedFavs = favoriteItemIds.filter(id => id !== itemId);
+    } else {
+      updatedFavs = [...favoriteItemIds, itemId];
+    }
+    setFavoriteItemIds(updatedFavs);
+    localStorage.setItem('smartpos_favorites', JSON.stringify(updatedFavs));
+
+    setItems(prevItems =>
+      prevItems.map(i => (i.id === itemId ? { ...i, isFavorite: !isFav } : i))
+    );
+
+    try {
+      await updateDoc(doc(db, 'items', itemId), {
+        isFavorite: !isFav
+      });
+    } catch (err) {
+      console.warn("Could not sync favorite to Firestore:", err);
+    }
+  };
 
   // Checkout Multi-step
+  const [previewModal, setPreviewModal] = useState(false);
   const [checkoutModal, setCheckoutModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [selectedDebtor, setSelectedDebtor] = useState(null);
@@ -369,6 +402,28 @@ export default function Sales() {
     return item.name.toLowerCase().includes(search.toLowerCase()) ||
       item.barcode?.toLowerCase().includes(search.toLowerCase());
   }) : [];
+
+  const gridDisplayItems = items.filter(item => {
+    const isFav = favoriteItemIds.includes(item.id) || item.isFavorite;
+    if (selectedCategory === 'favorites') {
+      return isFav;
+    }
+    if (selectedCategory) {
+      return item.category === selectedCategory;
+    }
+    if (search) {
+      const s = search.toLowerCase().trim();
+      const cleanS = s.replace('#', '').replace('no', '').trim();
+      return (
+        item.name?.toLowerCase().includes(s) ||
+        item.barcode?.toLowerCase().includes(s) ||
+        item.category?.toLowerCase().includes(s) ||
+        item.itemNo?.toString() === cleanS ||
+        item.itemNo?.toString().includes(cleanS)
+      );
+    }
+    return true;
+  });
 
   const handleSearchKeyPress = (e) => {
     if (e.key === 'Enter' && filteredItems.length === 1) {
@@ -613,24 +668,74 @@ export default function Sales() {
           <div className="quick-categories mt-4">
             <h3 className="section-title text-sm mb-2">Popular Categories</h3>
             <div className="category-chips">
-              {['වී කෙටීම', 'පොල් කෙටීම', 'සහල්', 'පොල්තෙල්', 'හාඩ්වයාර්', 'බිස්කට්', 'සබන්', 'කුළුබඩු', 'ඉලෙක්ට්රනික බඩු'].map(cat => (
-                <button key={cat} className="cat-chip" onClick={() => setSearch(cat)}>{cat}</button>
+              <button 
+                className={`cat-chip fav-chip ${selectedCategory === 'favorites' ? 'active' : ''}`}
+                onClick={() => {
+                  setSearch('');
+                  setSelectedCategory(selectedCategory === 'favorites' ? '' : 'favorites');
+                }}
+              >
+                <FiStar style={{ color: '#f59e0b', fontSize: '14px' }} />
+                <span>{t('sales.favorites')}</span>
+                <span className="fav-count-badge">
+                  {items.filter(i => favoriteItemIds.includes(i.id) || i.isFavorite).length}
+                </span>
+              </button>
+              {['වී කෙටීම', 'පොල් කෙටීම', 'සහල්', 'පොල්තෙල්', 'හාඩ්වයාර්', 'බිස්කට්', 'සබන්', 'කුළුබඩු', 'ඉලෙක්ට්රනික බඩු', 'වෙනත් භාණ්ඩ'].map(cat => (
+                <button 
+                  key={cat} 
+                  className={`cat-chip ${selectedCategory === cat && !search ? 'active' : ''}`} 
+                  onClick={() => {
+                    setSearch('');
+                    setSelectedCategory(selectedCategory === cat ? '' : cat);
+                  }}
+                >
+                  {cat}
+                </button>
               ))}
             </div>
           </div>
 
           <div className="items-grid mt-4">
-            {items.filter(i => search === '' || i.category === search).slice(0, 12).map(item => (
-              <div key={item.id} className="pos-item-card glass-card" onClick={() => addToCart(item)}>
-                <div className="pos-item-img">
-                  {item.imageUrl ? <img src={item.imageUrl} alt={item.name} /> : <FiSearch />}
-                </div>
-                <div className="pos-item-info">
-                  <span className="pos-item-name">{item.name}</span>
-                  <span className="pos-item-price">Rs. {item.sellPrice.toFixed(2)}</span>
-                </div>
+            {gridDisplayItems.length > 0 ? (
+              gridDisplayItems.slice(0, 36).map(item => {
+                const isFav = favoriteItemIds.includes(item.id) || item.isFavorite;
+                return (
+                  <div key={item.id} className={`pos-item-card glass-card ${isFav ? 'favorite-active' : ''}`} onClick={() => addToCart(item)}>
+                    <button
+                      type="button"
+                      className={`favorite-star-btn ${isFav ? 'active' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(item);
+                      }}
+                      title={isFav ? "Remove from favorites" : "Add to favorites"}
+                    >
+                      <FiStar />
+                    </button>
+                    <div className="pos-item-img">
+                      {item.imageUrl ? <img src={item.imageUrl} alt={item.name} /> : <FiSearch />}
+                    </div>
+                    <div className="pos-item-info">
+                      <span className="pos-item-name">{item.name}</span>
+                      <span className="pos-item-price">Rs. {item.sellPrice.toFixed(2)}</span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="empty-items-grid" style={{ gridColumn: '1 / -1', padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                {selectedCategory === 'favorites' ? (
+                  <div>
+                    <FiStar style={{ fontSize: '2rem', color: '#f59e0b', marginBottom: '0.5rem' }} />
+                    <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>ප්‍රියතම ලැයිස්තුව හිස්ය / No favorite items yet.</p>
+                    <small style={{ opacity: 0.8 }}>ඕනෑම භාණ්ඩයක ⭐ තරුව ක්ලික් කර එය ප්‍රියතම ලැයිස්තුවට එක් කරගන්න!</small>
+                  </div>
+                ) : (
+                  <p>No items found.</p>
+                )}
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -702,18 +807,129 @@ export default function Sales() {
               <span>{t('sales.total')}</span>
               <span className="total-amount">Rs. {subtotal.toFixed(2)}</span>
             </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.75rem' }}>
+              <Button
+                variant="secondary"
+                onClick={() => setPreviewModal(true)}
+                disabled={cart.length === 0}
+                icon={<FiEye />}
+                fullWidth
+              >
+                {t('sales.preview')}
+              </Button>
+              <Button
+                onClick={() => setCheckoutModal(true)}
+                disabled={cart.length === 0}
+                className="checkout-btn"
+                icon={<FiCheckCircle />}
+                fullWidth
+              >
+                {t('sales.checkout')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bill Preview Modal */}
+      <Modal
+        isOpen={previewModal}
+        onClose={() => setPreviewModal(false)}
+        title={t('sales.preview') + " / Bill Preview"}
+        size="md"
+      >
+        <div className="bill-preview-content" style={{ padding: '0.25rem' }}>
+          {/* Thermal Receipt Mockup */}
+          <div className="receipt-mockup" style={{
+            background: '#ffffff',
+            color: '#1e293b',
+            borderRadius: '12px',
+            padding: '1.25rem',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            border: '1px solid #cbd5e1',
+            fontFamily: "'Inter', sans-serif"
+          }}>
+            <div style={{ textAlign: 'center', borderBottom: '1px dashed #cbd5e1', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>{SHOP_INFO.name}</h2>
+              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '2px 0 0 0' }}>{SHOP_INFO.address}</p>
+              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '2px 0 0 0' }}>Tel: {SHOP_INFO.phone}</p>
+              <div style={{ marginTop: '0.5rem', display: 'inline-block', background: '#e0e7ff', color: '#3730a3', fontSize: '0.75rem', fontWeight: '700', padding: '2px 8px', borderRadius: '4px' }}>
+                BILL PREVIEW (DRAFT)
+              </div>
+            </div>
+
+            <div style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Date: {new Date().toLocaleDateString('en-LK', { dateStyle: 'medium' })}</span>
+              <span>Time: {new Date().toLocaleTimeString('en-LK', { timeStyle: 'short' })}</span>
+            </div>
+
+            <table style={{ width: '100%', fontSize: '0.825rem', borderCollapse: 'collapse', marginBottom: '0.75rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #cbd5e1', textAlign: 'left', color: '#475569', fontSize: '0.75rem' }}>
+                  <th style={{ padding: '4px 0' }}>ITEM</th>
+                  <th style={{ padding: '4px 0', textAlign: 'center' }}>QTY</th>
+                  <th style={{ padding: '4px 0', textAlign: 'right' }}>PRICE</th>
+                  <th style={{ padding: '4px 0', textAlign: 'right' }}>TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cart.map((item, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '6px 0', fontWeight: '600', color: '#0f172a' }}>{item.name}</td>
+                    <td style={{ padding: '6px 0', textAlign: 'center', color: '#475569' }}>
+                      {typeof item.quantity === 'number' && item.quantity % 1 !== 0 ? item.quantity.toFixed(2) : item.quantity}
+                    </td>
+                    <td style={{ padding: '6px 0', textAlign: 'right', color: '#475569' }}>Rs. {item.sellPrice.toFixed(2)}</td>
+                    <td style={{ padding: '6px 0', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>
+                      Rs. {(item.sellPrice * item.quantity).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ borderTop: '2px dashed #94a3b8', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#475569' }}>TOTAL AMOUNT</span>
+              <span style={{ fontSize: '1.25rem', fontWeight: '800', color: '#16a34a' }}>
+                Rs. {subtotal.toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          {/* Modal Actions */}
+          <div className="modal-actions mt-4" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: '0.5rem' }}>
+            <Button variant="secondary" onClick={() => setPreviewModal(false)}>
+              {t('common.cancel')}
+            </Button>
             <Button
-              onClick={() => setCheckoutModal(true)}
-              disabled={cart.length === 0}
-              className="checkout-btn"
+              variant="secondary"
+              icon={<FiPrinter />}
+              onClick={() => {
+                const previewBillData = {
+                  billNumber: 'PREVIEW',
+                  items: cart.map(i => ({ ...i, subtotal: i.sellPrice * i.quantity })),
+                  total: subtotal,
+                  paymentMethod: 'draft',
+                  cashierName: userData?.name || 'Cashier',
+                  date: new Date()
+                };
+                generateBillPDF(previewBillData);
+              }}
+            >
+              මුද්‍රණය (PDF)
+            </Button>
+            <Button
+              onClick={() => {
+                setPreviewModal(false);
+                setCheckoutModal(true);
+              }}
               icon={<FiCheckCircle />}
-              fullWidth
             >
               {t('sales.checkout')}
             </Button>
           </div>
         </div>
-      </div>
+      </Modal>
 
       {/* Checkout Modal */}
       <Modal

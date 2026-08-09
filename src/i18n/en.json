@@ -89,6 +89,8 @@
   },
   "sales": {
     "title": "Sales",
+    "favorites": "Favorites",
+    "preview": "Preview",
     "newSale": "New Sale",
     "dailyReport": "Daily Report",
     "total": "Total",
