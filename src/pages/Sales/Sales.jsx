@@ -830,6 +830,15 @@ export default function Sales() {
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
+
+    if (paymentMethod === 'cash') {
+      const tendered = parseFloat(tenderedAmount) || 0;
+      if (!tenderedAmount || Math.round(tendered * 100) < Math.round(subtotal * 100)) {
+        alert(`මුදලින් ගෙවීමේදී දුන් මුදල අවම වශයෙන් මුළු මුදල (Rs. ${subtotal.toFixed(2)}) ට සමාන හෝ වැඩි විය යුතුය.`);
+        return;
+      }
+    }
+
     setActionLoading(true);
 
     try {
@@ -1522,6 +1531,13 @@ export default function Sales() {
             </div>
           </div>
 
+            {paymentMethod === 'cash' && (!tenderedAmount || Math.round((parseFloat(tenderedAmount) || 0) * 100) < Math.round(subtotal * 100)) && (
+              <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '8px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                ⚠️ මුදලින් ගෙවීමේදී දුන් මුදල අවම වශයෙන් මුළු ගණන (Rs. {subtotal.toFixed(2)}) ට සමාන හෝ වැඩි විය යුතුය.
+              </div>
+            )}
+          </div>
+
           {paymentMethod === 'credit' && (
             <div className="debtor-selection">
               <label className="input-label mb-2 d-block">{t('sales.selectDebtor')}</label>
@@ -1563,7 +1579,14 @@ export default function Sales() {
 
           <div className="modal-actions mt-6">
             <Button variant="secondary" onClick={() => setCheckoutModal(false)}>{t('common.cancel')}</Button>
-            <Button onClick={handleCheckout} loading={actionLoading} icon={<FiCheckCircle />}>{t('sales.confirmSale')}</Button>
+            <Button 
+              onClick={handleCheckout} 
+              loading={actionLoading} 
+              disabled={paymentMethod === 'cash' && (!tenderedAmount || Math.round((parseFloat(tenderedAmount) || 0) * 100) < Math.round(subtotal * 100))}
+              icon={<FiCheckCircle />}
+            >
+              {t('sales.confirmSale')}
+            </Button>
           </div>
         </div>
       </Modal>
