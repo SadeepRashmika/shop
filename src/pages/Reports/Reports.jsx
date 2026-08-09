@@ -516,7 +516,7 @@ export default function Reports() {
             {/* Chart Area */}
             <div className="report-main glass-card">
               <h3 className="section-title">
-                <FiTrendingUp /> {activeTab === 'overview' ? t('reports.topSelling') : activeTab === 'item' ? 'Item Sales Trend' : t('reports.salesTrend')}
+                <FiTrendingUp /> {activeTab === 'overview' ? t('reports.topSelling') : activeTab === 'item' ? 'Item Sales Trend' : activeTab === 'daily' ? '📅 දෛනික විකුණුම් විස්තර' : activeTab === 'monthly' ? '📅 මාසික විකුණුම් විස්තර' : activeTab === 'yearly' ? '📅 වාර්ෂික විකුණුම් විස්තර' : t('reports.salesTrend')}
               </h3>
               <div className="chart-container">
                 {activeTab === 'item' ? (
@@ -611,26 +611,31 @@ export default function Reports() {
                   )
                 ) : activeTab === 'daily' ? (
                   <div className="daily-report-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                     <div className="search-box glass-card mb-4" style={{display: 'flex', alignItems: 'center', padding: '10px 15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)'}}>
-                        <FiCalendar style={{marginRight: 10, color: '#94a3b8'}}/>
-                        <input 
-                          type="date"
-                          value={selectedDailyDate}
-                          onChange={(e) => setSelectedDailyDate(e.target.value)}
-                          style={{background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none', colorScheme: 'dark'}}
-                        />
+                     <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <label style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                          📅 දිනය තෝරන්න:
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.3)', background: 'var(--bg-secondary, rgba(255,255,255,0.05))', flex: 1 }}>
+                          <FiCalendar style={{ marginRight: 10, color: '#3b82f6', fontSize: '18px' }}/>
+                          <input 
+                            type="date"
+                            value={selectedDailyDate}
+                            onChange={(e) => setSelectedDailyDate(e.target.value)}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--text-primary, #0f172a)', width: '100%', outline: 'none', fontSize: '15px', fontWeight: '500' }}
+                          />
+                        </div>
                      </div>
                      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
                        <div style={{ flex: 1, minWidth: '140px', background: 'rgba(16, 185, 129, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>විකුණුම්</div>
+                         <div style={{ color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>දෛනික විකුණුම්</div>
                          <div style={{ color: '#10b981', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>Rs. {dailyTotalSales.toFixed(2)}</div>
                        </div>
                        <div style={{ flex: 1, minWidth: '140px', background: 'rgba(59, 130, 246, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ලාභය</div>
+                         <div style={{ color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>දෛනික ලාභය</div>
                          <div style={{ color: '#3b82f6', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>Rs. {dailyTotalProfit.toFixed(2)}</div>
                        </div>
                        <div style={{ flex: 1, minWidth: '140px', background: 'rgba(168, 85, 247, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
-                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ගනුදෙනු</div>
+                         <div style={{ color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>ගනුදෙනු</div>
                          <div style={{ color: '#a855f7', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>{filteredDailyTxns.length}</div>
                        </div>
                      </div>
@@ -639,32 +644,37 @@ export default function Reports() {
                        {filteredDailyTxns.length > 0 ? (
                          filteredDailyTxns.map(txn => renderTxnDetailRow(txn))
                        ) : (
-                         <div className="empty-state-sm" style={{ padding: '40px 20px', textAlign: 'center' }}>මෙම දිනට ගනුදෙනු හමු නොවීය</div>
+                         <div className="empty-state-sm" style={{ padding: '40px 20px', textAlign: 'center' }}>මෙම දිනට ({selectedDailyDate}) ගනුදෙනු හමු නොවීය</div>
                        )}
                      </div>
                   </div>
                 ) : activeTab === 'monthly' ? (
                   <div className="monthly-report-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                     <div className="search-box glass-card mb-4" style={{display: 'flex', alignItems: 'center', padding: '10px 15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)'}}>
-                        <FiCalendar style={{marginRight: 10, color: '#94a3b8'}}/>
-                        <input 
-                          type="month"
-                          value={selectedMonthDate}
-                          onChange={(e) => setSelectedMonthDate(e.target.value)}
-                          style={{background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none', colorScheme: 'dark'}}
-                        />
+                     <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <label style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                          📅 මාසය තෝරන්න:
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.3)', background: 'var(--bg-secondary, rgba(255,255,255,0.05))', flex: 1 }}>
+                          <FiCalendar style={{ marginRight: 10, color: '#3b82f6', fontSize: '18px' }}/>
+                          <input 
+                            type="month"
+                            value={selectedMonthDate}
+                            onChange={(e) => setSelectedMonthDate(e.target.value)}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--text-primary, #0f172a)', width: '100%', outline: 'none', fontSize: '15px', fontWeight: '500' }}
+                          />
+                        </div>
                      </div>
                      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
                        <div style={{ flex: 1, minWidth: '140px', background: 'rgba(16, 185, 129, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>මාසික විකුණුම්</div>
+                         <div style={{ color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>මාසික විකුණුම්</div>
                          <div style={{ color: '#10b981', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>Rs. {monthlyTotalSales.toFixed(2)}</div>
                        </div>
                        <div style={{ flex: 1, minWidth: '140px', background: 'rgba(59, 130, 246, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>මාසික ලාභය</div>
+                         <div style={{ color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>මාසික ලාභය</div>
                          <div style={{ color: '#3b82f6', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>Rs. {monthlyTotalProfit.toFixed(2)}</div>
                        </div>
                        <div style={{ flex: 1, minWidth: '140px', background: 'rgba(168, 85, 247, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
-                         <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ගනුදෙනු</div>
+                         <div style={{ color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>ගනුදෙනු</div>
                          <div style={{ color: '#a855f7', fontSize: '22px', fontWeight: 'bold', marginTop: '4px' }}>{filteredMonthlyTxns.length}</div>
                        </div>
                      </div>
@@ -673,23 +683,28 @@ export default function Reports() {
                        {filteredMonthlyTxns.length > 0 ? (
                          filteredMonthlyTxns.map(txn => renderTxnDetailRow(txn))
                        ) : (
-                         <div className="empty-state-sm" style={{ padding: '40px 20px', textAlign: 'center' }}>මෙම මාසයට ගනුදෙනු හමු නොවීය</div>
+                         <div className="empty-state-sm" style={{ padding: '40px 20px', textAlign: 'center' }}>මෙම මාසයට ({selectedMonthDate}) ගනුදෙනු හමු නොවීය</div>
                        )}
                      </div>
                   </div>
                 ) : activeTab === 'yearly' ? (
                   <div className="yearly-report-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                     <div className="search-box glass-card mb-4" style={{display: 'flex', alignItems: 'center', padding: '10px 15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)'}}>
-                        <FiBarChart2 style={{marginRight: 10, color: '#94a3b8'}}/>
-                        <select 
-                          value={selectedYear}
-                          onChange={(e) => setSelectedYear(e.target.value)}
-                          style={{background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none', colorScheme: 'dark', fontSize: '14px'}}
-                        >
-                          {availableYears.map(yr => (
-                            <option key={yr} value={String(yr)} style={{background: '#1e293b'}}>{yr} වර්ෂය</option>
-                          ))}
-                        </select>
+                     <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <label style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                          📅 වර්ෂය තෝරන්න:
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.3)', background: 'var(--bg-secondary, rgba(255,255,255,0.05))', flex: 1 }}>
+                          <FiBarChart2 style={{ marginRight: 10, color: '#3b82f6', fontSize: '18px' }}/>
+                          <select 
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(e.target.value)}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--text-primary, #0f172a)', width: '100%', outline: 'none', fontSize: '15px', fontWeight: '500' }}
+                          >
+                            {availableYears.map(yr => (
+                              <option key={yr} value={String(yr)} style={{ background: 'var(--bg-card, #ffffff)', color: 'var(--text-primary, #0f172a)' }}>{yr} වර්ෂය</option>
+                            ))}
+                          </select>
+                        </div>
                      </div>
                      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
                        <div style={{ flex: 1, minWidth: '140px', background: 'rgba(16, 185, 129, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>

@@ -133,7 +133,7 @@
 
 .chart-container {
   margin-top: var(--space-6);
-  height: 300px;
+  min-height: 300px;
   width: 100%;
 }
 
