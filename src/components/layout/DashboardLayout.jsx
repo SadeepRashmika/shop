@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { useState } from 'react';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
+import GlobalKeyboardShortcuts from '../common/GlobalKeyboardShortcuts';
 import './DashboardLayout.css';
 
 export default function DashboardLayout() {
@@ -9,6 +10,7 @@ export default function DashboardLayout() {
 
   return (
     <div className="dashboard-layout">
+      <GlobalKeyboardShortcuts />
       <Navbar onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
       <Sidebar isOpen={sidebarOpen} />
       <main className={`dashboard-main ${sidebarOpen ? 'sidebar-visible' : 'sidebar-hidden'}`}>

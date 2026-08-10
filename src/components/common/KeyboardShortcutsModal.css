@@ -1,0 +1,127 @@
+.shortcuts-modal-content {
+  padding: 8px 4px;
+}
+
+.shortcuts-intro {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  background: rgba(139, 92, 246, 0.08);
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.shortcuts-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: 65vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.shortcuts-section {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  padding-bottom: 8px;
+}
+
+.sec-icon {
+  color: var(--primary-500, #8b5cf6);
+  display: flex;
+}
+
+.shortcuts-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--bg-hover, rgba(241, 245, 249, 0.5));
+  gap: 16px;
+}
+
+.shortcut-row:hover {
+  background: rgba(139, 92, 246, 0.05);
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.key-badge {
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  border: 1px solid #cbd5e1;
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-family: monospace, SFMono-Regular, Consolas, 'Courier New';
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.dark .key-badge {
+  background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+.key-separator {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.shortcut-desc {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.shortcuts-footer {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.shortcuts-close-btn {
+  background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.shortcuts-close-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}

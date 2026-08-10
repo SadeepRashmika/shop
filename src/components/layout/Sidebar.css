@@ -96,3 +96,20 @@
     background: rgba(0, 0, 0, 0.5);
   }
 }
+
+.sidebar-hotkey-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--primary-400, #a78bfa);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  line-height: 1.2;
+}
+
+.sidebar-link.active .sidebar-hotkey-badge {
+  background: rgba(139, 92, 246, 0.3);
+  color: #ffffff;
+}

@@ -374,6 +374,7 @@ export default function Sales() {
 
   // Barcode input focus
   const barcodeInputRef = useRef(null);
+  const tenderedInputRef = useRef(null);
 
   // Weight entry for weighed items
   const [weightModal, setWeightModal] = useState(false);
@@ -688,17 +689,88 @@ export default function Sales() {
     fetchData();
   }, []);
 
-  // Keyboard shortcut for focus search
+  // F1 keyboard shortcut & Arrow Key navigation + Enter OK for Bill Preview / Checkout Modal
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'f' && (e.ctrlKey || e.metaKey)) {
+      const methods = ['cash', 'credit', 'home_use'];
+
+      // Press F1 -> Toggle Bill Preview Modal (Open if closed & cart has items, Close if open)
+      if (e.key === 'F1') {
         e.preventDefault();
-        barcodeInputRef.current?.focus();
+        setPreviewModal(prev => {
+          if (!prev) {
+            if (cart.length > 0) return true;
+            return false;
+          }
+          return false;
+        });
+        return;
+      }
+
+      // If Bill Preview Modal or Checkout Modal is open: handle Arrow keys & Enter key
+      if (previewModal || checkoutModal) {
+        const isInputFocused = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+
+        // Arrow Right or Arrow Down -> Move selection to next bill type (Cash -> Credit -> Home Use)
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          setPaymentMethod(prev => {
+            const idx = methods.indexOf(prev);
+            const nextIdx = (idx + 1) % methods.length;
+            return methods[nextIdx];
+          });
+          return;
+        }
+
+        // Arrow Left or Arrow Up -> Move selection to previous bill type (Home Use -> Credit -> Cash)
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          setPaymentMethod(prev => {
+            const idx = methods.indexOf(prev);
+            const prevIdx = (idx - 1 + methods.length) % methods.length;
+            return methods[prevIdx];
+          });
+          return;
+        }
+
+        // Enter Key -> OK / Confirm Selection
+        if (e.key === 'Enter') {
+          // If in preview modal: confirm bill type and open checkout modal, auto-focus tendered amount
+          if (previewModal) {
+            e.preventDefault();
+            setPreviewModal(false);
+            setCheckoutModal(true);
+            // Auto-focus tendered amount input after modal renders
+            setTimeout(() => {
+              tenderedInputRef.current?.focus();
+              tenderedInputRef.current?.select();
+            }, 100);
+            return;
+          }
+          // If in checkout modal: execute checkout (unless searching for debtor)
+          if (checkoutModal) {
+            const isSearchingDebtor = document.activeElement?.placeholder?.includes('Search by name');
+            if (!isSearchingDebtor) {
+              e.preventDefault();
+              handleCheckout();
+              return;
+            }
+          }
+        }
+
+        // Escape Key -> Close modal
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setPreviewModal(false);
+          setCheckoutModal(false);
+          return;
+        }
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [cart, previewModal, checkoutModal, paymentMethod, tenderedAmount, selectedDebtor]);
 
   const addToCart = (item) => {
     if (item.stock <= 0) {
@@ -967,9 +1039,16 @@ export default function Sales() {
 
           await setDoc(doc(db, 'reloads', reloadId), reloadRecord);
         } else if (item.id && !item.isCustom) {
-          await updateDoc(doc(db, 'items', item.id), {
-            stock: increment(-item.quantity)
-          });
+          // Check if item document still exists before updating stock
+          const itemRef = doc(db, 'items', item.id);
+          const itemSnap = await getDoc(itemRef);
+          if (itemSnap.exists()) {
+            await updateDoc(itemRef, {
+              stock: increment(-item.quantity)
+            });
+          } else {
+            console.warn(`Item ${item.id} (${item.name}) not found in database, skipping stock update.`);
+          }
         }
       }
 
@@ -1029,13 +1108,17 @@ export default function Sales() {
       setLastTransactionId(transactionId);
       setLastBillNumber(billNumber);
       setLastBillData(billData);
-      setIsSuccessModal(true);
       setCheckoutModal(false);
       setCart([]);
       setSelectedDebtor(null);
       setPaymentMethod('cash');
       setDebtorSearch('');
       setTenderedAmount('');
+
+      // Auto-print receipt immediately after successful checkout
+      generateBillPDF(billData);
+
+      setIsSuccessModal(true);
 
       // Refresh data to reflect stock changes
       const itemSnapshot = await getDocs(collection(db, 'items'));
@@ -1574,6 +1657,7 @@ export default function Sales() {
             <div className="search-box glass" style={{ padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)' }}>
               <FiDollarSign className="search-icon" />
               <input
+                ref={tenderedInputRef}
                 type="number"
                 placeholder="0.00"
                 value={tenderedAmount}

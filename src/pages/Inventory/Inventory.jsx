@@ -135,9 +135,38 @@ export default function Inventory() {
     }
   };
 
+  const searchInputRef = useRef(null);
+
   useEffect(() => {
     fetchItems();
   }, []);
+
+  // Keyboard shortcuts for Inventory page
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+
+      if ((e.key === 'f' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !isInput)) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      if (e.altKey && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        handleOpenAdd();
+        return;
+      }
+
+      if (isModalOpen && e.altKey && (e.key === 'g' || e.key === 'G')) {
+        e.preventDefault();
+        generateRandomBarcode();
+        return;
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isModalOpen, items]);
 
   const handleOpenAdd = () => {
     let maxNo = 0;
@@ -148,7 +177,7 @@ export default function Inventory() {
 
     setFormData({ 
       id: '', itemNo: nextNo, name: '', category: 'වී කෙටීම', itemType: 'non-weighed', purchasePrice: '', markedPrice: '', sellPrice: '', stock: '', description: '', 
-      imageUrl: '', imageFile: null, compressedFile: null, barcode: `ITM${nextNo}`, isEdit: false 
+      imageUrl: '', imageFile: null, compressedFile: null, barcode: '', isEdit: false 
     });
     setModalError('');
     setCompressionInfo(null);
@@ -169,8 +198,9 @@ export default function Inventory() {
   };
 
   const generateRandomBarcode = () => {
-    const random = Math.floor(100000000000 + Math.random() * 900000000000).toString();
-    setFormData({ ...formData, barcode: random });
+    const itemNoVal = formData.itemNo || (items.reduce((max, i) => (i.itemNo > max ? i.itemNo : max), 0) + 1);
+    const generated = `ITM${itemNoVal}`;
+    setFormData(prev => ({ ...prev, barcode: generated }));
   };
 
   const downloadBarcode = (barcode, itemName) => {
@@ -364,6 +394,22 @@ export default function Inventory() {
         return;
       }
 
+      // Barcode handling: If scanned/entered barcode exists, use it. Otherwise auto-generate ITM{itemNumber}
+      const rawBarcode = formData.barcode ? formData.barcode.trim() : '';
+      const finalBarcode = rawBarcode || `ITM${itemNumber}`;
+
+      // Check if barcode is already used by another item
+      const duplicateBarcode = items.find(i => 
+        i.barcode && 
+        i.barcode.trim().toLowerCase() === finalBarcode.toLowerCase() && 
+        i.id !== formData.id
+      );
+      if (duplicateBarcode) {
+        setModalError(`මෙම බාරකෝඩ් එක (${finalBarcode}) "${duplicateBarcode.name}" (Item #${duplicateBarcode.itemNo || ''}) සඳහා දැනටමත් භාවිත කර ඇත.`);
+        setActionLoading(false);
+        return;
+      }
+
       const itemData = {
         itemNo: itemNumber,
         name: formData.name,
@@ -374,7 +420,7 @@ export default function Inventory() {
         sellPrice: Number(formData.sellPrice),
         profit: Number(formData.sellPrice) - (Number(formData.purchasePrice) || 0),
         stock: Number(formData.stock),
-        barcode: formData.barcode || `item_${Date.now()}`,
+        barcode: finalBarcode,
         description: formData.description,
         imageUrl: uploadedImageUrl,
         updatedAt: serverTimestamp()
@@ -402,10 +448,21 @@ export default function Inventory() {
   };
 
   const filteredItems = items.filter(item => {
-    if (search && item.itemNo?.toString() === search.trim()) return true;
-    return item.name.toLowerCase().includes(search.toLowerCase()) || 
-           item.category.toLowerCase().includes(search.toLowerCase()) ||
-           item.barcode?.toLowerCase().includes(search.toLowerCase());
+    if (!search.trim()) return true;
+    const s = search.toLowerCase().trim();
+    const cleanS = s.replace('#', '').replace('itm', '').replace('item', '').replace('no', '').trim();
+
+    return (
+      item.name?.toLowerCase().includes(s) ||
+      item.category?.toLowerCase().includes(s) ||
+      item.barcode?.toLowerCase().includes(s) ||
+      (item.itemNo !== undefined && item.itemNo !== null && (
+        item.itemNo.toString() === cleanS ||
+        item.itemNo.toString().includes(cleanS) ||
+        `#${item.itemNo}`.includes(s) ||
+        `itm${item.itemNo}`.includes(s)
+      ))
+    );
   });
 
   return (
@@ -421,13 +478,16 @@ export default function Inventory() {
             </div>
           )}
         </div>
-        <Button onClick={handleOpenAdd} icon={<FiPlus />}>{t('items.addItem')}</Button>
+        <Button onClick={handleOpenAdd} icon={<FiPlus />}>
+          {t('items.addItem')}
+        </Button>
       </div>
 
       <div className="inventory-toolbar glass-card">
         <div className="search-box">
           <FiSearch className="search-icon" />
           <input 
+            ref={searchInputRef}
             type="text" 
             placeholder={t('inventory.search')}
             value={search}
@@ -759,12 +819,12 @@ export default function Inventory() {
               </span>
             </label>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-              භාණ්ඩයේ ඇති බාරකෝඩ් එක මෙතැනට Scan කරන්න. නැතහොත් "Auto Generate" ක්ලික් කර නව බාරකෝඩ් එකක් සාදන්න.
+              බිස්කට් වැනි භාණ්ඩවල ඇති බාරකෝඩ් එක මෙතැනට Scan කරන්න. බාරකෝඩ් නොමැති භාණ්ඩ සඳහා පමණක් "Auto Generate" ක්ලික් කරන්න (හිස්ව තැබුවහොත් ස්වයංක්‍රීයව ITM... ලෙස සාදනු ලැබේ).
             </p>
             <div className="barcode-gen-row" style={{ display: 'flex', gap: '8px' }}>
               <div style={{ flex: 1 }}>
                 <Input
-                  placeholder="Scan existing barcode or enter number..."
+                  placeholder="Scan existing barcode or leave blank..."
                   value={formData.barcode}
                   onChange={e => setFormData({...formData, barcode: e.target.value})}
                   icon={<FiMaximize />}

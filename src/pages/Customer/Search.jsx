@@ -37,10 +37,21 @@ export default function CustomerSearch() {
   }, []);
 
   const filteredItems = items.filter(i => {
-    if (search && i.itemNo?.toString() === search.trim()) return true;
-    return i.name.toLowerCase().includes(search.toLowerCase()) || 
-           i.category.toLowerCase().includes(search.toLowerCase()) ||
-           i.barcode?.toLowerCase().includes(search.toLowerCase());
+    if (!search.trim()) return true;
+    const s = search.toLowerCase().trim();
+    const cleanS = s.replace('#', '').replace('itm', '').replace('item', '').replace('no', '').trim();
+
+    return (
+      i.name?.toLowerCase().includes(s) ||
+      i.category?.toLowerCase().includes(s) ||
+      i.barcode?.toLowerCase().includes(s) ||
+      (i.itemNo !== undefined && i.itemNo !== null && (
+        i.itemNo.toString() === cleanS ||
+        i.itemNo.toString().includes(cleanS) ||
+        `#${i.itemNo}`.includes(s) ||
+        `itm${i.itemNo}`.includes(s)
+      ))
+    );
   });
 
   const handleAddToCart = () => {

@@ -191,7 +191,7 @@
   "inventory": {
     "title": "Inventory Management",
     "subtitle": "Add, update, and manage your products",
-    "search": "Search items by name or category...",
+    "search": "Search items by name, number (#), barcode or category...",
     "loading": "Loading inventory...",
     "table": {
       "item": "Item",
