@@ -134,7 +134,7 @@ function generateBillPDF(billData) {
     ? billData.date.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' })
     : new Date().toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
 
-  const totalSavings = billData.items.reduce((sum, item) => {
+  const totalSavings = billData.paymentMethod === 'credit' ? 0 : billData.items.reduce((sum, item) => {
     const mPrice = Number(item.markedPrice) || Number(item.sellPrice);
     const sPrice = Number(item.sellPrice);
     const qty = Number(item.quantity) || 1;
@@ -792,7 +792,12 @@ export default function Sales() {
     }));
   };
 
-  const subtotal = cart.reduce((acc, item) => acc + (item.sellPrice * item.quantity), 0);
+  const isCreditMode = paymentMethod === 'credit';
+  const subtotal = cart.reduce((acc, item) => {
+    const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
+    const effectivePrice = (isCreditMode && mPrice > Number(item.sellPrice)) ? mPrice : Number(item.sellPrice);
+    return acc + (effectivePrice * item.quantity);
+  }, 0);
 
   const filteredItems = search ? items.filter(item => {
     if (search && item.itemNo?.toString() === search.trim()) return true;
@@ -846,15 +851,20 @@ export default function Sales() {
       const billNumber = await getNextBillNumber();
 
       const transactionId = `TXN${Date.now()}`;
-      const cartItems = cart.map(item => ({
-        id: item.id,
-        itemNo: item.itemNo || null,
-        name: item.name,
-        markedPrice: item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice),
-        sellPrice: Number(item.sellPrice),
-        quantity: Number(item.quantity),
-        subtotal: Number(item.sellPrice) * Number(item.quantity)
-      }));
+      const isCreditMode = paymentMethod === 'credit';
+      const cartItems = cart.map(item => {
+        const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
+        const effectivePrice = (isCreditMode && mPrice > Number(item.sellPrice)) ? mPrice : Number(item.sellPrice);
+        return {
+          id: item.id,
+          itemNo: item.itemNo || null,
+          name: item.name,
+          markedPrice: mPrice,
+          sellPrice: effectivePrice,
+          quantity: Number(item.quantity),
+          subtotal: effectivePrice * Number(item.quantity)
+        };
+      });
 
       const transactionData = {
         billNumber,
@@ -1446,9 +1456,19 @@ export default function Sales() {
               variant="secondary"
               icon={<FiPrinter />}
               onClick={() => {
+                const isCredit = paymentMethod === 'credit';
                 const previewBillData = {
                   billNumber: 'PREVIEW',
-                  items: cart.map(i => ({ ...i, subtotal: i.sellPrice * i.quantity })),
+                  items: cart.map(i => {
+                    const mPrice = i.markedPrice ? Number(i.markedPrice) : Number(i.sellPrice);
+                    const effectivePrice = (isCredit && mPrice > Number(i.sellPrice)) ? mPrice : Number(i.sellPrice);
+                    return {
+                      ...i,
+                      markedPrice: mPrice,
+                      sellPrice: effectivePrice,
+                      subtotal: effectivePrice * i.quantity
+                    };
+                  }),
                   total: subtotal,
                   paymentMethod: paymentMethod,
                   cashierName: userData?.name || 'Cashier',
