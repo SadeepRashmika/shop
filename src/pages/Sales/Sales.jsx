@@ -800,9 +800,16 @@ export default function Sales() {
   }, 0);
 
   const filteredItems = search ? items.filter(item => {
-    if (search && item.itemNo?.toString() === search.trim()) return true;
-    return item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.barcode?.toLowerCase().includes(search.toLowerCase());
+    const s = search.toLowerCase().trim();
+    const cleanS = s.replace('#', '').replace('itm', '').replace('item', '').replace('no', '').trim();
+    return (
+      item.name?.toLowerCase().includes(s) ||
+      item.barcode?.toLowerCase() === s ||
+      item.barcode?.toLowerCase().includes(s) ||
+      item.itemNo?.toString() === cleanS ||
+      item.itemNo?.toString() === s ||
+      item.category?.toLowerCase().includes(s)
+    );
   }) : [];
 
   const gridDisplayItems = items.filter(item => {
@@ -815,7 +822,7 @@ export default function Sales() {
     }
     if (search) {
       const s = search.toLowerCase().trim();
-      const cleanS = s.replace('#', '').replace('no', '').trim();
+      const cleanS = s.replace('#', '').replace('itm', '').replace('item', '').replace('no', '').trim();
       return (
         item.name?.toLowerCase().includes(s) ||
         item.barcode?.toLowerCase().includes(s) ||
@@ -828,8 +835,45 @@ export default function Sales() {
   });
 
   const handleSearchKeyPress = (e) => {
-    if (e.key === 'Enter' && filteredItems.length === 1) {
-      addToCart(filteredItems[0]);
+    if (e.key === 'Enter') {
+      const rawSearch = search.trim();
+      if (!rawSearch) return;
+
+      const cleanSearch = rawSearch.toLowerCase();
+      const cleanNumStr = cleanSearch.replace('#', '').replace('itm', '').replace('item', '').replace('no', '').trim();
+
+      // 1. Exact Barcode Match (Scanned barcode)
+      const exactBarcodeMatch = items.find(item => 
+        item.barcode && item.barcode.trim().toLowerCase() === cleanSearch
+      );
+
+      if (exactBarcodeMatch) {
+        addToCart(exactBarcodeMatch);
+        setSearch('');
+        return;
+      }
+
+      // 2. Exact Item Number Match (#1, 1, ITM1)
+      const exactItemNoMatch = items.find(item => 
+        item.itemNo !== undefined && (
+          String(item.itemNo) === cleanNumStr || 
+          String(item.itemNo) === rawSearch ||
+          `itm${item.itemNo}` === cleanSearch
+        )
+      );
+
+      if (exactItemNoMatch) {
+        addToCart(exactItemNoMatch);
+        setSearch('');
+        return;
+      }
+
+      // 3. Fallback: single result in filtered list
+      if (filteredItems.length === 1) {
+        addToCart(filteredItems[0]);
+        setSearch('');
+        return;
+      }
     }
   };
 

@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
-import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiImage, FiPackage, FiDollarSign, FiTag, FiMaximize, FiDownload, FiZap, FiRefreshCw } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiImage, FiPackage, FiDollarSign, FiTag, FiMaximize, FiDownload, FiZap, FiRefreshCw, FiPrinter } from 'react-icons/fi';
 import JsBarcode from 'jsbarcode';
 import './Inventory.css';
 
@@ -181,6 +181,74 @@ export default function Inventory() {
     link.href = url;
     link.download = `barcode_${itemName}_${barcode}.png`;
     link.click();
+  };
+
+  const printBarcodeLabel = (item) => {
+    const barcodeVal = item.barcode || `ITM${item.itemNo || ''}`;
+    const canvas = document.createElement('canvas');
+    try {
+      JsBarcode(canvas, barcodeVal, {
+        format: "CODE128",
+        width: 2,
+        height: 50,
+        displayValue: true,
+        fontSize: 14,
+        margin: 5
+      });
+      const barcodeImgData = canvas.toDataURL("image/png");
+
+      const printWindow = window.open('', '_blank', 'width=400,height=400');
+      if (!printWindow) {
+        alert("Pop-up blocked! Please allow pop-ups to print barcode label.");
+        return;
+      }
+
+      printWindow.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Barcode Label - ${item.name || ''}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans Sinhala', Arial, sans-serif;
+      width: 50mm;
+      margin: 0 auto;
+      padding: 3mm;
+      text-align: center;
+      color: #000;
+    }
+    .shop-name { font-size: 10px; font-weight: 700; text-transform: uppercase; margin-bottom: 2px; }
+    .item-title { font-size: 12px; font-weight: 700; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-price { font-size: 14px; font-weight: 800; margin-bottom: 4px; }
+    .barcode-img { width: 100%; max-width: 45mm; height: auto; display: block; margin: 0 auto; }
+    @media print {
+      body { width: 50mm; margin: 0; padding: 2mm; }
+      @page { size: 50mm 30mm; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shop-name">සුමින්ද ස්ටෝර්ස්</div>
+  <div class="item-title">#${item.itemNo || ''} ${item.name || ''}</div>
+  <div class="item-price">Rs. ${Number(item.sellPrice || item.price || 0).toFixed(2)}</div>
+  <img src="${barcodeImgData}" class="barcode-img" alt="Barcode" />
+  <script>
+    window.onload = function() {
+      window.print();
+      setTimeout(function() { window.close(); }, 500);
+    };
+  </script>
+</body>
+</html>
+      `);
+      printWindow.document.close();
+    } catch (err) {
+      console.error("Error printing barcode label:", err);
+      alert("Could not generate barcode print label.");
+    }
   };
 
   const handleDelete = async (id) => {
@@ -432,9 +500,24 @@ export default function Inventory() {
                        Rs. {Number((item.stock || 0) * (item.sellPrice || item.price || 0)).toFixed(2)}
                     </td>
                     <td>
-                      <div className="barcode-cell" onClick={() => downloadBarcode(item.barcode, item.name)} title="Click to download barcode">
-                        <span className="barcode-text">{item.barcode}</span>
-                        <FiDownload className="download-icon-sm" />
+                      <div className="barcode-cell" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="barcode-text" style={{ fontWeight: 600 }}>{item.barcode || `ITM${item.itemNo || ''}`}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => printBarcodeLabel(item)} 
+                          title="Print Barcode Label / Sticker"
+                          style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '6px', padding: '3px 6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: 600 }}
+                        >
+                          <FiPrinter style={{ fontSize: '12px' }} /> Print
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => downloadBarcode(item.barcode || `ITM${item.itemNo || ''}`, item.name)} 
+                          title="Download Barcode PNG Image"
+                          style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '6px', padding: '3px 6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px' }}
+                        >
+                          <FiDownload style={{ fontSize: '12px' }} />
+                        </button>
                       </div>
                     </td>
                     <td>
@@ -669,29 +752,49 @@ export default function Inventory() {
 
           {/* Barcode Section */}
           <div className="form-group">
-            <label className="input-label">{t('items.barcode')}</label>
-            <div className="barcode-gen-row">
-              <Input
-                placeholder="Barcode number"
-                value={formData.barcode}
-                onChange={e => setFormData({...formData, barcode: e.target.value})}
-                icon={<FiMaximize />}
-              />
+            <label className="input-label">
+              {t('items.barcode')}
+              <span className="label-badge" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)', marginLeft: '8px' }}>
+                📷 Scan or Auto-Generate
+              </span>
+            </label>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              භාණ්ඩයේ ඇති බාරකෝඩ් එක මෙතැනට Scan කරන්න. නැතහොත් "Auto Generate" ක්ලික් කර නව බාරකෝඩ් එකක් සාදන්න.
+            </p>
+            <div className="barcode-gen-row" style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ flex: 1 }}>
+                <Input
+                  placeholder="Scan existing barcode or enter number..."
+                  value={formData.barcode}
+                  onChange={e => setFormData({...formData, barcode: e.target.value})}
+                  icon={<FiMaximize />}
+                />
+              </div>
               <Button type="button" variant="secondary" onClick={generateRandomBarcode} size="sm">
-                {t('items.generateBarcode')}
+                ⚡ Auto Generate
               </Button>
             </div>
             {formData.barcode && (
-              <div className="barcode-preview-area">
-                <canvas ref={el => { if (el && formData.barcode) { try { JsBarcode(el, formData.barcode, { format: "CODE128", height: 50, displayValue: true }); } catch(e) {} } }} />
-                <button 
-                  type="button" 
-                  className="barcode-download-mini"
-                  onClick={() => downloadBarcode(formData.barcode, formData.name || 'item')}
-                  title="Download barcode"
-                >
-                  <FiDownload /> Download
-                </button>
+              <div className="barcode-preview-area" style={{ marginTop: '10px', padding: '10px', background: '#ffffff', borderRadius: '8px', textAlign: 'center', border: '1px solid var(--border-color)' }}>
+                <canvas ref={el => { if (el && formData.barcode) { try { JsBarcode(el, formData.barcode, { format: "CODE128", height: 45, displayValue: true }); } catch(e) {} } }} />
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '6px' }}>
+                  <button 
+                    type="button" 
+                    className="barcode-download-mini"
+                    onClick={() => printBarcodeLabel({ ...formData, itemNo: formData.itemNo, sellPrice: formData.sellPrice })}
+                    style={{ background: '#10b981', color: '#ffffff', border: 'none', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <FiPrinter /> Print Sticker Label
+                  </button>
+                  <button 
+                    type="button" 
+                    className="barcode-download-mini"
+                    onClick={() => downloadBarcode(formData.barcode, formData.name || 'item')}
+                    style={{ background: '#3b82f6', color: '#ffffff', border: 'none', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <FiDownload /> Download PNG
+                  </button>
+                </div>
               </div>
             )}
           </div>
