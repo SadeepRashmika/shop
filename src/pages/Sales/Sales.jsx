@@ -372,6 +372,12 @@ export default function Sales() {
   const [selectedBill, setSelectedBill] = useState(null);
   const [billDetailModal, setBillDetailModal] = useState(false);
 
+  // Edit Bill
+  const [editBillModal, setEditBillModal] = useState(false);
+  const [editBillItems, setEditBillItems] = useState([]);
+  const [editBillLoading, setEditBillLoading] = useState(false);
+  const [editingBill, setEditingBill] = useState(null);
+
   // Barcode input focus
   const barcodeInputRef = useRef(null);
   const tenderedInputRef = useRef(null);
@@ -950,6 +956,9 @@ export default function Sales() {
   };
 
   const handleCheckout = async () => {
+    if (editingBill) {
+      return handleUpdateBill(true);
+    }
     if (cart.length === 0) return;
 
     if (paymentMethod === 'cash') {
@@ -1139,24 +1148,34 @@ export default function Sales() {
   };
 
   // Bill Search Functions
-  const handleBillSearch = async () => {
-    if (!billSearchQuery.trim()) return;
+  const handleBillSearch = async (overrideQuery) => {
+    const queryToUse = (overrideQuery !== undefined ? overrideQuery : billSearchQuery).trim();
     setBillSearchLoading(true);
     try {
       const transactionsSnapshot = await getDocs(collection(db, 'transactions'));
       const allTransactions = transactionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      const cleanQuery = billSearchQuery.trim();
-      const searchNum = parseInt(cleanQuery);
-      const results = allTransactions.filter(txn => {
-        // Search by exact bill number
-        if (txn.billNumber && txn.billNumber === searchNum) return true;
-        // Search by padded bill number string match
-        if (txn.billNumber && String(txn.billNumber).padStart(6, '0').includes(cleanQuery)) return true;
-        // Search by transaction ID
-        if (txn.id && txn.id.toLowerCase().includes(cleanQuery.toLowerCase())) return true;
-        return false;
-      });
+      // Sort all transactions descending by bill number (latest first)
+      allTransactions.sort((a, b) => (b.billNumber || 0) - (a.billNumber || 0));
+
+      const cleanQuery = queryToUse.toLowerCase();
+
+      let results = [];
+      if (!cleanQuery || cleanQuery === 'l' || cleanQuery === 'last' || cleanQuery === 'latest') {
+        // 'L' / 'l' or empty query -> return all bills starting from the latest bill downwards
+        results = allTransactions;
+      } else {
+        const searchNum = parseInt(cleanQuery);
+        results = allTransactions.filter(txn => {
+          // Exact bill number match
+          if (!isNaN(searchNum) && txn.billNumber && txn.billNumber === searchNum) return true;
+          // Padded bill number match (e.g. "000075" or "75")
+          if (txn.billNumber && String(txn.billNumber).padStart(6, '0').includes(cleanQuery)) return true;
+          // Customer / debtor name match
+          if (txn.debtorName && txn.debtorName.toLowerCase().includes(cleanQuery)) return true;
+          return false;
+        });
+      }
 
       setBillSearchResults(results);
     } catch (err) {
@@ -1166,6 +1185,177 @@ export default function Sales() {
       setBillSearchLoading(false);
     }
   };
+
+  const handleOpenEditBill = (bill) => {
+    setSelectedBill(bill);
+    // Map bill items to cart format so they load directly into the main Cart UI
+    const cartItems = (bill.items || []).map((bItem, idx) => {
+      const matched = items.find(i => i.id === bItem.id || i.name === bItem.name || (i.itemNo && i.itemNo === bItem.itemNo));
+      return {
+        id: bItem.id || matched?.id || `EDIT_ITEM_${idx}_${Date.now()}`,
+        cartId: `edit_${idx}_${Date.now()}`,
+        name: bItem.name,
+        markedPrice: bItem.markedPrice ? Number(bItem.markedPrice) : Number(bItem.sellPrice),
+        sellPrice: Number(bItem.sellPrice) || 0,
+        quantity: Number(bItem.quantity) || 1,
+        stock: matched ? matched.stock : 999,
+        itemNo: bItem.itemNo || matched?.itemNo || null,
+        isCustom: bItem.isCustom || false,
+        isReload: bItem.isReload || false
+      };
+    });
+
+    setCart(cartItems);
+    setEditingBill({
+      id: bill.id,
+      billNumber: bill.billNumber,
+      originalItems: bill.items || [],
+      originalTotal: bill.total || 0,
+      paymentMethod: bill.paymentMethod || 'cash',
+      cashierName: bill.cashierName || 'Cashier',
+      debtorId: bill.debtorId || null,
+      debtorName: bill.debtorName || null
+    });
+    setPaymentMethod(bill.paymentMethod || 'cash');
+
+    // Close all search & detail modals so user lands on main screen with items in Cart
+    setBillDetailModal(false);
+    setBillSearchModal(false);
+    setIsSuccessModal(false);
+    setEditBillModal(false);
+  };
+
+  const handleCancelEditBill = () => {
+    setEditingBill(null);
+    setCart([]);
+  };
+
+  const handleUpdateBill = async (printAfter = true) => {
+    if (!editingBill) return;
+    if (cart.length === 0) {
+      alert('Bill එකේ අවම වශයෙන් item 1ක් තිබිය යුතුය.');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const originalItems = editingBill.originalItems || [];
+      const isCreditMode = paymentMethod === 'credit';
+
+      const updatedCartItems = cart.map(item => {
+        const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
+        const effectivePrice = (isCreditMode && mPrice > Number(item.sellPrice)) ? mPrice : Number(item.sellPrice);
+        return {
+          id: item.id,
+          itemNo: item.itemNo || null,
+          name: item.name,
+          markedPrice: mPrice,
+          sellPrice: effectivePrice,
+          quantity: Number(item.quantity),
+          subtotal: effectivePrice * Number(item.quantity)
+        };
+      });
+
+      const newTotal = updatedCartItems.reduce((sum, item) => sum + item.subtotal, 0);
+      const oldTotal = editingBill.originalTotal || 0;
+      const totalDiff = newTotal - oldTotal;
+
+      // 1. Stock Adjustments (compare originalItems vs current cart)
+      for (const origItem of originalItems) {
+        if (!origItem.id || origItem.isCustom || origItem.isReload) continue;
+        const currentItem = updatedCartItems.find(ci => ci.id === origItem.id);
+        const origQty = parseFloat(origItem.quantity) || 0;
+        const newQty = currentItem ? (parseFloat(currentItem.quantity) || 0) : 0;
+        const qtyDiff = origQty - newQty; // positive = quantity reduced -> add back to stock
+
+        if (qtyDiff !== 0) {
+          const itemRef = doc(db, 'items', origItem.id);
+          const itemSnap = await getDoc(itemRef);
+          if (itemSnap.exists()) {
+            await updateDoc(itemRef, { stock: increment(qtyDiff) });
+          }
+        }
+      }
+
+      // Handle brand new items added to cart during edit
+      for (const newItem of updatedCartItems) {
+        if (!newItem.id || newItem.isCustom || newItem.isReload) continue;
+        const wasInOrig = originalItems.find(oi => oi.id === newItem.id);
+        if (!wasInOrig) {
+          const itemRef = doc(db, 'items', newItem.id);
+          const itemSnap = await getDoc(itemRef);
+          if (itemSnap.exists()) {
+            await updateDoc(itemRef, { stock: increment(-parseFloat(newItem.quantity)) });
+          }
+        }
+      }
+
+      // 2. Update Transaction document
+      await updateDoc(doc(db, 'transactions', editingBill.id), {
+        items: updatedCartItems,
+        total: newTotal,
+        paymentMethod,
+        editedAt: serverTimestamp()
+      });
+
+      // 3. Cash Session Adjustment
+      if (paymentMethod === 'cash' && Math.abs(totalDiff) > 0.001) {
+        try {
+          const qSession = query(collection(db, 'cashSessions'), where('status', '==', 'open'));
+          const sessionSnap = await getDocs(qSession);
+          if (!sessionSnap.empty) {
+            const openDoc = sessionSnap.docs[0];
+            const existingEntries = openDoc.data().entries || [];
+            const billNoFormatted = String(editingBill.billNumber).padStart(6, '0');
+            const adjustEntry = {
+              type: totalDiff > 0 ? 'in' : 'out',
+              isSale: true,
+              isAdjustment: true,
+              amount: Math.abs(totalDiff),
+              note: `Bill #${billNoFormatted} Edit Adjustment`,
+              billNumber: editingBill.billNumber,
+              time: new Date().toISOString()
+            };
+            await updateDoc(doc(db, 'cashSessions', openDoc.id), {
+              entries: [...existingEntries, adjustEntry]
+            });
+          }
+        } catch (csErr) {
+          console.warn('Could not sync cash session adjustment:', csErr);
+        }
+      }
+
+      const billData = {
+        billNumber: editingBill.billNumber,
+        items: updatedCartItems,
+        total: newTotal,
+        paymentMethod,
+        tenderedAmount: parseFloat(tenderedAmount) || newTotal,
+        cashierName: editingBill.cashierName || userData?.name || 'Cashier',
+        debtorName: paymentMethod === 'credit' ? (selectedDebtor?.name || editingBill.debtorName) : null,
+        date: new Date()
+      };
+
+      generateBillPDF(billData);
+
+      alert(`Bill #${String(editingBill.billNumber).padStart(6, '0')} සාර්ථකව Update කර Print කරන ලදී!`);
+
+      // Refresh items to show updated stock
+      const itemSnapshot = await getDocs(collection(db, 'items'));
+      setItems(itemSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+
+      setEditingBill(null);
+      setCart([]);
+      setCheckoutModal(false);
+      setPreviewModal(false);
+    } catch (err) {
+      console.error('Update bill error:', err);
+      alert('Bill update කිරීම අසාර්ථකයි: ' + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
 
   const handleViewBill = (bill) => {
     setSelectedBill(bill);
@@ -1199,7 +1389,14 @@ export default function Sales() {
               <button className="bill-search-btn glass" onClick={handleOpenReloadModal} title={t('reload.title')} style={{ borderColor: 'var(--primary-500)', color: 'var(--primary-400)' }}>
                 <FiZap /> <span>{t('reload.quickReload')}</span>
               </button>
-              <button className="bill-search-btn glass" onClick={() => setBillSearchModal(true)} title={t('sales.searchBill')}>
+              <button
+                className="bill-search-btn glass"
+                onClick={() => {
+                  setBillSearchModal(true);
+                  handleBillSearch('l');
+                }}
+                title={t('sales.searchBill')}
+              >
                 <FiFileText /> <span>{t('sales.searchBill')}</span>
               </button>
             </div>
@@ -1321,6 +1518,43 @@ export default function Sales() {
 
         {/* Right Side: Cart */}
         <div className="sales-right glass-card">
+          {editingBill && (
+            <div style={{
+              background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+              border: '2px solid #f59e0b',
+              borderRadius: '12px',
+              padding: '10px 14px',
+              margin: '0.75rem 1rem 0.25rem 1rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              color: '#92400e',
+              fontWeight: '600',
+              fontSize: '0.875rem',
+              boxShadow: '0 4px 12px rgba(245,158,11,0.2)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FiEdit3 style={{ fontSize: '1.2rem', color: '#d97706' }} />
+                <span>Editing Bill #{String(editingBill.billNumber).padStart(6, '0')}</span>
+              </div>
+              <button
+                onClick={handleCancelEditBill}
+                style={{
+                  background: '#ef4444',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '4px 10px',
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel Edit
+              </button>
+            </div>
+          )}
+
           <div className="cart-header">
             <h2 className="cart-title"><FiShoppingCart /> {t('sales.cart')}</h2>
             <div className="cart-header-right">
@@ -1419,7 +1653,7 @@ export default function Sales() {
               <span>{t('sales.total')}</span>
               <span className="total-amount">Rs. {subtotal.toFixed(2)}</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: editingBill ? '1fr 1.5fr' : '1fr 1fr', gap: '0.5rem', marginTop: '0.75rem' }}>
               <Button
                 variant="secondary"
                 onClick={() => setPreviewModal(true)}
@@ -1429,15 +1663,28 @@ export default function Sales() {
               >
                 {t('sales.preview')}
               </Button>
-              <Button
-                onClick={() => setCheckoutModal(true)}
-                disabled={cart.length === 0}
-                className="checkout-btn"
-                icon={<FiCheckCircle />}
-                fullWidth
-              >
-                {t('sales.checkout')}
-              </Button>
+              {editingBill ? (
+                <Button
+                  onClick={() => handleUpdateBill(true)}
+                  disabled={cart.length === 0}
+                  loading={actionLoading}
+                  style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff', fontWeight: 'bold' }}
+                  icon={<FiPrinter />}
+                  fullWidth
+                >
+                  UPDATE &amp; PRINT
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => setCheckoutModal(true)}
+                  disabled={cart.length === 0}
+                  className="checkout-btn"
+                  icon={<FiCheckCircle />}
+                  fullWidth
+                >
+                  {t('sales.checkout')}
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -1754,6 +2001,21 @@ export default function Sales() {
 
           <div className="receipt-actions mt-6">
             <Button onClick={handlePrintReceipt} variant="secondary" icon={<FiPrinter />}>{t('sales.printReceipt')}</Button>
+            {isOwner && lastBillData && (
+              <Button
+                variant="secondary"
+                icon={<FiEdit3 />}
+                onClick={() => {
+                  setIsSuccessModal(false);
+                  handleOpenEditBill({
+                    id: lastTransactionId,
+                    ...lastBillData
+                  });
+                }}
+              >
+                Edit Bill
+              </Button>
+            )}
             <Button onClick={() => setIsSuccessModal(false)}>{t('sales.newSale')}</Button>
           </div>
         </div>
@@ -1767,9 +2029,15 @@ export default function Sales() {
               <FiHash className="search-icon" />
               <input
                 type="text"
-                placeholder={t('sales.searchBillPlaceholder')}
+                placeholder="Bill No, Customer Name or 'L' for Latest Bills..."
                 value={billSearchQuery}
-                onChange={(e) => setBillSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setBillSearchQuery(val);
+                  if (val.trim().toLowerCase() === 'l' || val.trim() === '') {
+                    handleBillSearch(val);
+                  }
+                }}
                 onKeyPress={(e) => e.key === 'Enter' && handleBillSearch()}
                 className="search-input"
                 autoFocus
@@ -1846,6 +2114,16 @@ export default function Sales() {
                   <div className="bill-result-actions">
                     <Button variant="secondary" onClick={() => handleViewBill(bill)} icon={<FiSearch />}>
                       {t('sales.viewBill')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setBillSearchModal(false);
+                        handleOpenEditBill(bill);
+                      }}
+                      icon={<FiEdit3 />}
+                    >
+                      Edit
                     </Button>
                     <Button onClick={() => handleReprintBill(bill)} icon={<FiPrinter />}>
                       {t('sales.reprintBill')}
@@ -1925,6 +2203,16 @@ export default function Sales() {
 
             <div className="modal-actions mt-6">
               <Button variant="secondary" onClick={() => setBillDetailModal(false)}>{t('common.back')}</Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setBillDetailModal(false);
+                  handleOpenEditBill(selectedBill);
+                }}
+                icon={<FiEdit3 />}
+              >
+                Edit Bill
+              </Button>
               {isOwner && (
                 <Button
                   variant="secondary"
@@ -1956,6 +2244,8 @@ export default function Sales() {
           </div>
         )}
       </Modal>
+
+
 
       {/* Weight Entry Modal for Weighed Items */}
       <Modal isOpen={weightModal} onClose={() => setWeightModal(false)} title="⚖️ බර ඇතුලත් කරන්න / Enter Weight">
