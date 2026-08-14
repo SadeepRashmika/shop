@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
-import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiImage, FiPackage, FiDollarSign, FiTag, FiMaximize, FiDownload, FiZap, FiRefreshCw, FiPrinter } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiImage, FiPackage, FiDollarSign, FiTag, FiMaximize, FiDownload, FiZap, FiRefreshCw, FiPrinter, FiCamera } from 'react-icons/fi';
 import JsBarcode from 'jsbarcode';
 import './Inventory.css';
 
@@ -95,6 +95,10 @@ export default function Inventory() {
   const [compressionInfo, setCompressionInfo] = useState(null); // { original, compressed, savings }
   const [isCompressing, setIsCompressing] = useState(false);
   
+  // Barcode scanner state
+  const [scannerReady, setScannerReady] = useState(false);
+  const barcodeInputRef = useRef(null);
+
   // Stock Update Quick Modal State
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [stockItem, setStockItem] = useState(null);
@@ -181,6 +185,7 @@ export default function Inventory() {
     });
     setModalError('');
     setCompressionInfo(null);
+    setScannerReady(false);
     setIsModalOpen(true);
   };
 
@@ -194,7 +199,29 @@ export default function Inventory() {
     });
     setModalError('');
     setCompressionInfo(null);
+    setScannerReady(false);
     setIsModalOpen(true);
+  };
+
+  // Activate scanner mode: focus the barcode field so the USB/BT scanner can fill it
+  const activateScannerMode = useCallback(() => {
+    setScannerReady(true);
+    setTimeout(() => {
+      barcodeInputRef.current?.focus();
+      barcodeInputRef.current?.select();
+    }, 50);
+  }, []);
+
+  // Handle Enter key inside the barcode field (scanner sends Enter after scan)
+  const handleBarcodeKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setScannerReady(false);
+      // Move focus to name field if empty, otherwise stay
+      if (!formData.name) {
+        document.getElementById('inv-item-name')?.focus();
+      }
+    }
   };
 
   const generateRandomBarcode = () => {
@@ -617,6 +644,7 @@ export default function Inventory() {
           
           <div className="form-row">
             <Input
+              id="inv-item-name"
               label={t('inventory.form.itemName')}
               icon={<FiPackage/>}
               value={formData.name}
@@ -819,17 +847,65 @@ export default function Inventory() {
               </span>
             </label>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-              බිස්කට් වැනි භාණ්ඩවල ඇති බාරකෝඩ් එක මෙතැනට Scan කරන්න. බාරකෝඩ් නොමැති භාණ්ඩ සඳහා පමණක් "Auto Generate" ක්ලික් කරන්න (හිස්ව තැබුවහොත් ස්වයංක්‍රීයව ITM... ලෙස සාදනු ලැබේ).
+              බිස්කට් වැනි භාණ්ඩවල ඇති බාරකෝඩ් එක <strong>"📷 Scan Now"</strong> ක්ලික් කර Scan කරන්න. බාරකෝඩ් නොමැති භාණ්ඩ සඳහා <strong>"⚡ Auto Generate"</strong> ක්ලික් කරන්න, ඉන්පසු Print කර Scanner එකෙන් Scan කරන්න.
             </p>
-            <div className="barcode-gen-row" style={{ display: 'flex', gap: '8px' }}>
-              <div style={{ flex: 1 }}>
-                <Input
-                  placeholder="Scan existing barcode or leave blank..."
-                  value={formData.barcode}
-                  onChange={e => setFormData({...formData, barcode: e.target.value})}
-                  icon={<FiMaximize />}
-                />
+
+            {/* Scanner Ready Indicator */}
+            {scannerReady && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                background: 'rgba(16, 185, 129, 0.12)', border: '2px solid #10b981',
+                borderRadius: '10px', padding: '10px 14px', marginBottom: '10px',
+                animation: 'scannerPulse 1.2s ease-in-out infinite'
+              }}>
+                <span style={{ fontSize: '22px' }}>📡</span>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#10b981', fontSize: '13px' }}>Scanner Ready! / ස්කෑනර් සූදානම්!</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Scan the barcode now. It will auto-fill below. / දැන් Scanner එකෙන් scan කරන්න.</div>
+                </div>
+                <button type="button" onClick={() => setScannerReady(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '18px' }}>×</button>
               </div>
+            )}
+
+            <div className="barcode-gen-row" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '180px' }}>
+                <div className="input-wrapper" style={{ position: 'relative' }}>
+                  <span className="input-icon" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: scannerReady ? '#10b981' : 'var(--text-muted)', transition: 'color 0.3s' }}>
+                    <FiMaximize />
+                  </span>
+                  <input
+                    ref={barcodeInputRef}
+                    type="text"
+                    className={`input-field has-icon${scannerReady ? ' barcode-scan-active' : ''}`}
+                    placeholder={scannerReady ? '🔴 Scanning... / ස්කෑන් වෙමින්...' : 'Scan barcode or leave blank for auto-generate...'}
+                    value={formData.barcode}
+                    onChange={e => setFormData({...formData, barcode: e.target.value})}
+                    onKeyDown={handleBarcodeKeyDown}
+                    onBlur={() => setScannerReady(false)}
+                    onFocus={() => { if (barcodeInputRef.current === document.activeElement) setScannerReady(true); }}
+                    style={{
+                      borderColor: scannerReady ? '#10b981' : undefined,
+                      boxShadow: scannerReady ? '0 0 0 3px rgba(16,185,129,0.2)' : undefined,
+                      transition: 'border-color 0.3s, box-shadow 0.3s'
+                    }}
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={activateScannerMode}
+                style={{
+                  background: scannerReady ? '#10b981' : 'rgba(16,185,129,0.12)',
+                  color: scannerReady ? '#fff' : '#10b981',
+                  border: '2px solid #10b981',
+                  borderRadius: '8px', padding: '0 14px', cursor: 'pointer',
+                  fontWeight: 700, fontSize: '13px',
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  transition: 'all 0.2s', whiteSpace: 'nowrap'
+                }}
+              >
+                <FiCamera /> Scan Now
+              </button>
               <Button type="button" variant="secondary" onClick={generateRandomBarcode} size="sm">
                 ⚡ Auto Generate
               </Button>
@@ -837,7 +913,7 @@ export default function Inventory() {
             {formData.barcode && (
               <div className="barcode-preview-area" style={{ marginTop: '10px', padding: '10px', background: '#ffffff', borderRadius: '8px', textAlign: 'center', border: '1px solid var(--border-color)' }}>
                 <canvas ref={el => { if (el && formData.barcode) { try { JsBarcode(el, formData.barcode, { format: "CODE128", height: 45, displayValue: true }); } catch(e) {} } }} />
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
                   <button 
                     type="button" 
                     className="barcode-download-mini"

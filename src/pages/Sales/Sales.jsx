@@ -182,8 +182,22 @@ function generateBillPDF(billData) {
     .bill-number { text-align: center; font-size: 14px; font-weight: 700; margin: 4px 0; }
     .meta-row { display: flex; justify-content: space-between; font-size: 10px; margin: 2px 0; }
     table { width: 100%; border-collapse: collapse; font-size: 10px; }
-    thead tr { background-color: #000; color: #fff; }
-    thead th { font-weight: 700; padding: 4px 2px; font-size: 10px; color: #fff; text-align: right; }
+    thead tr {
+      background-color: #000 !important;
+      color: #fff !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    thead th {
+      font-weight: 700;
+      padding: 4px 2px;
+      font-size: 10px;
+      color: #fff !important;
+      text-align: right;
+      background-color: #000 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
     thead th:first-child { text-align: left; }
     .total-section { margin-top: 6px; }
     .total-row { display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0; }
@@ -191,8 +205,10 @@ function generateBillPDF(billData) {
     .footer { text-align: center; margin-top: 10px; font-size: 11px; }
     .footer .thanks { font-weight: 700; font-size: 12px; }
     @media print {
-      body { width: 80mm; margin: 0; padding: 3mm; }
+      body { width: 80mm; margin: 0; padding: 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       @page { size: 80mm auto; margin: 0; }
+      thead tr { background-color: #000 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      thead th { background-color: #000 !important; color: #fff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
   </style>
 </head>
@@ -326,6 +342,7 @@ export default function Sales() {
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
+  const [activeCartId, setActiveCartId] = useState(null);
 
   const toggleFavorite = async (item) => {
     const itemId = item.id;
@@ -455,6 +472,7 @@ export default function Sales() {
     };
 
     setCart([customItem, ...cart]);
+    setActiveCartId(cartId);
     setCustomItemModal(false);
     setCustomItemName('');
     setCustomItemMarkedPrice('');
@@ -552,6 +570,7 @@ export default function Sales() {
     };
 
     setCart([reloadCartItem, ...cart]);
+    setActiveCartId(cartId);
     setReloadModal(false);
     setReloadPhone('');
     setReloadAmount('');
@@ -695,9 +714,50 @@ export default function Sales() {
     fetchData();
   }, []);
 
-  // F1 keyboard shortcut & Arrow Key navigation + Enter OK for Bill Preview / Checkout Modal
+  // F1 keyboard shortcut, Arrow Key navigation + Enter OK for Bill Preview / Checkout Modal
+  // AND + / - keys to change cart item quantity
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const isAnyModalOpen = previewModal || checkoutModal || weightModal || customItemModal || editCartItemModal || billSearchModal || billDetailModal || editBillModal || reloadModal;
+
+      // 1. If NO modal is open: handle + and - keys for active cart item quantity
+      if (!isAnyModalOpen) {
+        const isPlusKey = e.key === '+' || e.key === '=' || e.code === 'NumpadAdd';
+        const isMinusKey = e.key === '-' || e.key === '_' || e.code === 'NumpadSubtract';
+
+        if (isPlusKey || isMinusKey) {
+          const activeTag = document.activeElement?.tagName;
+          const isSearchFocused = document.activeElement === barcodeInputRef.current;
+          const isInputFocused = isSearchFocused || ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag);
+
+          // If user is inside search input AND search box is empty OR user is not in any input field:
+          if ((isSearchFocused && search.trim() === '') || !isInputFocused) {
+            e.preventDefault();
+            if (cart.length === 0) return;
+
+            // Find active item (or top item cart[0])
+            const targetItem = cart.find(c => (c.cartId ? c.cartId === activeCartId : c.id === activeCartId)) || cart[0];
+            if (!targetItem) return;
+
+            if (isPlusKey) {
+              updateQuantity(targetItem.id, 1, targetItem.cartId);
+            } else if (isMinusKey) {
+              updateQuantity(targetItem.id, -1, targetItem.cartId);
+            }
+            return;
+          }
+        }
+
+        // Auto-focus search input when barcode scanner or user starts typing on main screen (if not in input)
+        const activeTag = document.activeElement?.tagName;
+        const isInputActive = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
+        if (!isInputActive && barcodeInputRef.current) {
+          if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key && e.key.length === 1 && e.key !== ' ') {
+            barcodeInputRef.current.focus();
+          }
+        }
+      }
+
       const methods = ['cash', 'credit', 'home_use'];
 
       // Press F1 -> Toggle Bill Preview Modal (Open if closed & cart has items, Close if open)
@@ -715,8 +775,6 @@ export default function Sales() {
 
       // If Bill Preview Modal or Checkout Modal is open: handle Arrow keys & Enter key
       if (previewModal || checkoutModal) {
-        const isInputFocused = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
-
         // Arrow Right or Arrow Down -> Move selection to next bill type (Cash -> Credit -> Home Use)
         if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
           e.preventDefault();
@@ -776,7 +834,7 @@ export default function Sales() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, previewModal, checkoutModal, paymentMethod, tenderedAmount, selectedDebtor]);
+  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor]);
 
   const addToCart = (item) => {
     if (item.stock <= 0) {
@@ -794,17 +852,32 @@ export default function Sales() {
 
     const markedPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
 
-    const existingInCart = cart.find(c => c.id === item.id);
-    if (existingInCart) {
-      if (existingInCart.quantity >= item.stock) {
-        alert("Maximum stock reached!");
-        return;
+    setCart(prevCart => {
+      const existingIndex = prevCart.findIndex(c => c.id === item.id);
+      if (existingIndex !== -1) {
+        const existingInCart = prevCart[existingIndex];
+        if (existingInCart.quantity >= item.stock) {
+          alert("Maximum stock reached!");
+          return prevCart;
+        }
+        const updatedItem = { ...existingInCart, quantity: existingInCart.quantity + 1 };
+        const newCart = [updatedItem, ...prevCart.filter((_, idx) => idx !== existingIndex)];
+        setActiveCartId(updatedItem.cartId || updatedItem.id);
+        return newCart;
+      } else {
+        const cartId = item.cartId || `cart_${item.id}_${Date.now()}`;
+        const newItem = { ...item, markedPrice, quantity: 1, cartId };
+        setActiveCartId(cartId);
+        return [newItem, ...prevCart];
       }
-      setCart(cart.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c));
-    } else {
-      setCart([{ ...item, markedPrice, quantity: 1 }, ...cart]);
-    }
+    });
+
     setSearch('');
+    setTimeout(() => {
+      if (barcodeInputRef.current) {
+        barcodeInputRef.current.focus();
+      }
+    }, 50);
   };
 
   const addWeighedToCart = () => {
@@ -822,10 +895,12 @@ export default function Sales() {
     const cartId = `${weightItem.id}_${Date.now()}`;
     const markedPrice = weightItem.markedPrice ? Number(weightItem.markedPrice) : Number(weightItem.sellPrice);
     setCart([{ ...weightItem, markedPrice, quantity: weight, cartId }, ...cart]);
+    setActiveCartId(cartId);
     setWeightModal(false);
     setWeightItem(null);
     setWeightValue('');
     setSearch('');
+    setTimeout(() => barcodeInputRef.current?.focus(), 50);
   };
 
   const removeFromCart = (itemId, cartId, itemName) => {
@@ -833,29 +908,43 @@ export default function Sales() {
       ? `"${itemName}" භාණ්ඩය කරත්තයෙන් ඉවත් කිරීමට අවශ්‍යද?`
       : 'මෙම භාණ්ඩය කරත්තයෙන් ඉවත් කිරීමට අවශ්‍යද?';
     if (window.confirm(confirmMsg)) {
-      if (cartId) {
-        setCart(cart.filter(item => item.cartId !== cartId));
-      } else {
-        setCart(cart.filter(item => item.id !== itemId));
-      }
+      setCart(prevCart => {
+        const filtered = prevCart.filter(item => cartId ? item.cartId !== cartId : item.id !== itemId);
+        if (filtered.length > 0) {
+          setActiveCartId(filtered[0].cartId || filtered[0].id);
+        } else {
+          setActiveCartId(null);
+        }
+        return filtered;
+      });
     }
   };
 
-  const updateQuantity = (itemId, delta) => {
-    setCart(cart.map(item => {
-      if (item.id === itemId) {
-        // For weighed items, delta is ±0.1 kg
-        const step = item.itemType === 'weighed' ? 0.1 : 1;
-        const newQty = Math.round((item.quantity + (delta > 0 ? step : -step)) * 100) / 100;
-        if (newQty <= 0) return item;
-        if (newQty > item.stock) {
-          alert("Maximum stock reached!");
-          return item;
-        }
-        return { ...item, quantity: newQty };
+  const updateQuantity = (itemId, delta, cartId) => {
+    setCart(prevCart => {
+      const targetIndex = prevCart.findIndex(item => cartId ? item.cartId === cartId : item.id === itemId);
+      if (targetIndex === -1) return prevCart;
+
+      const item = prevCart[targetIndex];
+      const step = item.itemType === 'weighed' ? 0.1 : 1;
+      const newQty = Math.round((item.quantity + (delta > 0 ? step : -step)) * 100) / 100;
+
+      // Do NOT remove item when quantity is 1 and minus is pressed (make no change)
+      const minQty = item.itemType === 'weighed' ? 0.01 : 1;
+      if (newQty < minQty) {
+        return prevCart;
       }
-      return item;
-    }));
+
+      if (newQty > item.stock) {
+        alert("Maximum stock reached!");
+        return prevCart;
+      }
+
+      const updated = [...prevCart];
+      updated[targetIndex] = { ...item, quantity: newQty };
+      setActiveCartId(item.cartId || item.id);
+      return updated;
+    });
   };
 
   const updateWeightDirectly = (cartId, newWeight) => {
@@ -877,13 +966,20 @@ export default function Sales() {
     return acc + (effectivePrice * item.quantity);
   }, 0);
 
+  // Helper: get effective barcode for an item (stored barcode OR auto-generated ITM{itemNo})
+  const getEffectiveBarcode = (item) => {
+    if (item.barcode && item.barcode.trim()) return item.barcode.trim().toLowerCase();
+    if (item.itemNo !== undefined && item.itemNo !== null) return `itm${item.itemNo}`;
+    return null;
+  };
+
   const filteredItems = search ? items.filter(item => {
     const s = search.toLowerCase().trim();
     const cleanS = s.replace('#', '').replace('itm', '').replace('item', '').replace('no', '').trim();
+    const effectiveBarcode = getEffectiveBarcode(item);
     return (
       item.name?.toLowerCase().includes(s) ||
-      item.barcode?.toLowerCase() === s ||
-      item.barcode?.toLowerCase().includes(s) ||
+      (effectiveBarcode && (effectiveBarcode === s || effectiveBarcode.includes(s))) ||
       item.itemNo?.toString() === cleanS ||
       item.itemNo?.toString() === s ||
       item.category?.toLowerCase().includes(s)
@@ -901,9 +997,10 @@ export default function Sales() {
     if (search) {
       const s = search.toLowerCase().trim();
       const cleanS = s.replace('#', '').replace('itm', '').replace('item', '').replace('no', '').trim();
+      const effectiveBarcode = getEffectiveBarcode(item);
       return (
         item.name?.toLowerCase().includes(s) ||
-        item.barcode?.toLowerCase().includes(s) ||
+        (effectiveBarcode && effectiveBarcode.includes(s)) ||
         item.category?.toLowerCase().includes(s) ||
         item.itemNo?.toString() === cleanS ||
         item.itemNo?.toString().includes(cleanS)
@@ -912,8 +1009,9 @@ export default function Sales() {
     return true;
   });
 
-  const handleSearchKeyPress = (e) => {
+  const handleSearchKeyDown = (e) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       const rawSearch = search.trim();
       if (!rawSearch) return;
 
@@ -921,20 +1019,29 @@ export default function Sales() {
       const cleanNumStr = cleanSearch.replace('#', '').replace('itm', '').replace('item', '').replace('no', '').trim();
 
       // 1. Exact Barcode Match (Scanned barcode)
-      const exactBarcodeMatch = items.find(item => 
-        item.barcode && item.barcode.trim().toLowerCase() === cleanSearch
-      );
+      // Check stored barcode field OR fallback ITM{itemNo} auto-generated pattern
+      const exactBarcodeMatch = items.find(item => {
+        // Check stored barcode (exact)
+        if (item.barcode && item.barcode.trim().toLowerCase() === cleanSearch) return true;
+        // Check auto-generated ITM{itemNo} pattern (for items saved without explicit barcode)
+        if (item.itemNo !== undefined && item.itemNo !== null) {
+          const autoBarcode = `itm${item.itemNo}`;
+          if (autoBarcode === cleanSearch) return true;
+        }
+        return false;
+      });
 
       if (exactBarcodeMatch) {
         addToCart(exactBarcodeMatch);
         setSearch('');
+        setTimeout(() => barcodeInputRef.current?.focus(), 50);
         return;
       }
 
       // 2. Exact Item Number Match (#1, 1, ITM1)
-      const exactItemNoMatch = items.find(item => 
+      const exactItemNoMatch = items.find(item =>
         item.itemNo !== undefined && (
-          String(item.itemNo) === cleanNumStr || 
+          String(item.itemNo) === cleanNumStr ||
           String(item.itemNo) === rawSearch ||
           `itm${item.itemNo}` === cleanSearch
         )
@@ -943,6 +1050,7 @@ export default function Sales() {
       if (exactItemNoMatch) {
         addToCart(exactItemNoMatch);
         setSearch('');
+        setTimeout(() => barcodeInputRef.current?.focus(), 50);
         return;
       }
 
@@ -950,10 +1058,12 @@ export default function Sales() {
       if (filteredItems.length === 1) {
         addToCart(filteredItems[0]);
         setSearch('');
+        setTimeout(() => barcodeInputRef.current?.focus(), 50);
         return;
       }
     }
   };
+
 
   const handleCheckout = async () => {
     if (editingBill) {
@@ -1411,7 +1521,7 @@ export default function Sales() {
                 placeholder="Search name, barcode or Item No..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                onKeyPress={handleSearchKeyPress}
+                onKeyDown={handleSearchKeyDown}
                 className="search-input"
                 autoFocus
               />
@@ -1559,7 +1669,7 @@ export default function Sales() {
             <h2 className="cart-title"><FiShoppingCart /> {t('sales.cart')}</h2>
             <div className="cart-header-right">
               {cart.length > 0 && (
-                <button className="clear-cart-btn" onClick={() => { if (window.confirm('Clear entire cart?')) setCart([]); }} title="Clear Cart">
+                <button className="clear-cart-btn" onClick={() => { if (window.confirm('Clear entire cart?')) { setCart([]); setActiveCartId(null); } }} title="Clear Cart">
                   <FiTrash2 /> Clear
                 </button>
               )}
@@ -1569,8 +1679,12 @@ export default function Sales() {
 
           <div className="cart-items">
             {cart.length > 0 ? (
-              cart.map(item => (
-                <div key={item.cartId || item.id} className="cart-item">
+              cart.map((item) => (
+                <div
+                  key={item.cartId || item.id}
+                  className="cart-item"
+                  onClick={() => setActiveCartId(item.cartId || item.id)}
+                >
                   <div className="cart-item-info">
                     <span className="cart-item-name">
                       {item.name}
@@ -1591,7 +1705,10 @@ export default function Sales() {
                     {!item.isReload && (
                       <button 
                         className="edit-cart-btn" 
-                        onClick={() => handleOpenEditCartItem(item)} 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditCartItem(item);
+                        }} 
                         title="🏷️ මිල / Discount වෙනස් කරන්න"
                         style={{ background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', color: '#38bdf8', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', marginRight: '4px' }}
                       >
@@ -1600,7 +1717,7 @@ export default function Sales() {
                       </button>
                     )}
                     {item.itemType === 'weighed' ? (
-                      <div className="weight-input-inline">
+                      <div className="weight-input-inline" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="number"
                           step="0.01"
@@ -1617,22 +1734,33 @@ export default function Sales() {
                       </div>
                     ) : item.isCustom ? (
                       <div className="qty-controls">
-                        <button onClick={() => {
-                          setCart(cart.map(c => c.cartId === item.cartId ? { ...c, quantity: Math.max(1, c.quantity - 1) } : c));
+                        <button onClick={(e) => {
+                          e.stopPropagation();
+                          updateQuantity(item.id, -1, item.cartId);
                         }}><FiMinus /></button>
                         <span>{item.quantity}</span>
-                        <button onClick={() => {
-                          setCart(cart.map(c => c.cartId === item.cartId ? { ...c, quantity: c.quantity + 1 } : c));
+                        <button onClick={(e) => {
+                          e.stopPropagation();
+                          updateQuantity(item.id, 1, item.cartId);
                         }}><FiPlus /></button>
                       </div>
                     ) : (
                       <div className="qty-controls">
-                        <button onClick={() => updateQuantity(item.id, -1)}><FiMinus /></button>
+                        <button onClick={(e) => {
+                          e.stopPropagation();
+                          updateQuantity(item.id, -1, item.cartId);
+                        }}><FiMinus /></button>
                         <span>{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.id, 1)}><FiPlus /></button>
+                        <button onClick={(e) => {
+                          e.stopPropagation();
+                          updateQuantity(item.id, 1, item.cartId);
+                        }}><FiPlus /></button>
                       </div>
                     )}
-                    <button className="remove-cart-btn" onClick={() => removeFromCart(item.id, item.cartId, item.name)} title="Remove Item"><FiTrash2 /></button>
+                    <button className="remove-cart-btn" onClick={(e) => {
+                      e.stopPropagation();
+                      removeFromCart(item.id, item.cartId, item.name);
+                    }} title="Remove Item"><FiTrash2 /></button>
                   </div>
                 </div>
               ))
