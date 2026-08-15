@@ -58,7 +58,7 @@ function generateReloadReceiptPDF(reloadRecord) {
     }
     .header { text-align: center; margin-bottom: 8px; }
     .shop-name { font-size: 16px; font-weight: 700; }
-    .shop-info { font-size: 10px; color: #333; }
+    .shop-info { font-size: 10px; color: #000; }
     .divider { border-top: 1px dashed #000; margin: 6px 0; }
     .title { text-align: center; font-size: 14px; font-weight: 700; margin: 4px 0; }
     .meta-row { display: flex; justify-content: space-between; font-size: 10px; margin: 3px 0; }
@@ -904,7 +904,7 @@ export default function Sales() {
   };
 
   const removeFromCart = (itemId, cartId, itemName) => {
-    const confirmMsg = itemName 
+    const confirmMsg = itemName
       ? `"${itemName}" භාණ්ඩය කරත්තයෙන් ඉවත් කිරීමට අවශ්‍යද?`
       : 'මෙම භාණ්ඩය කරත්තයෙන් ඉවත් කිරීමට අවශ්‍යද?';
     if (window.confirm(confirmMsg)) {
@@ -1555,7 +1555,7 @@ export default function Sales() {
           <div className="quick-categories mt-4">
             <h3 className="section-title text-sm mb-2">Popular Categories</h3>
             <div className="category-chips">
-              <button 
+              <button
                 className={`cat-chip fav-chip ${selectedCategory === 'favorites' ? 'active' : ''}`}
                 onClick={() => {
                   setSearch('');
@@ -1569,9 +1569,9 @@ export default function Sales() {
                 </span>
               </button>
               {['වී කෙටීම', 'පොල් කෙටීම', 'සහල්', 'පොල්තෙල්', 'හාඩ්වයාර්', 'බිස්කට්', 'සබන්', 'කුළුබඩු', 'ඉලෙක්ට්රනික බඩු', 'වෙනත් භාණ්ඩ'].map(cat => (
-                <button 
-                  key={cat} 
-                  className={`cat-chip ${selectedCategory === cat && !search ? 'active' : ''}`} 
+                <button
+                  key={cat}
+                  className={`cat-chip ${selectedCategory === cat && !search ? 'active' : ''}`}
                   onClick={() => {
                     setSearch('');
                     setSelectedCategory(selectedCategory === cat ? '' : cat);
@@ -1703,12 +1703,12 @@ export default function Sales() {
                   </div>
                   <div className="cart-item-actions">
                     {!item.isReload && (
-                      <button 
-                        className="edit-cart-btn" 
+                      <button
+                        className="edit-cart-btn"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleOpenEditCartItem(item);
-                        }} 
+                        }}
                         title="🏷️ මිල / Discount වෙනස් කරන්න"
                         style={{ background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', color: '#38bdf8', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', marginRight: '4px' }}
                       >
@@ -2100,9 +2100,9 @@ export default function Sales() {
 
           <div className="modal-actions mt-6">
             <Button variant="secondary" onClick={() => setCheckoutModal(false)}>{t('common.cancel')}</Button>
-            <Button 
-              onClick={handleCheckout} 
-              loading={actionLoading} 
+            <Button
+              onClick={handleCheckout}
+              loading={actionLoading}
               disabled={paymentMethod === 'cash' && (!tenderedAmount || Math.round((parseFloat(tenderedAmount) || 0) * 100) < Math.round(subtotal * 100))}
               icon={<FiCheckCircle />}
             >

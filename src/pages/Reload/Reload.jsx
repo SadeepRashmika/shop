@@ -106,7 +106,7 @@ function generateReloadReceiptPDF(reloadRecord) {
 </body>
 </html>`;
 
-  const printWindow = window.open('', '_blank', 'width=400,height=600');
+  const Window = window.open('', '_blank', 'width=400,height=600');
   if (printWindow) {
     printWindow.document.write(html);
     printWindow.document.close();
