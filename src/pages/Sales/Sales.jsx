@@ -1715,7 +1715,7 @@ export default function Sales() {
                         <span className="result-stock">{item.stock} in stock</span>
                       </div>
                       <div className="result-price">
-                        Rs. {item.sellPrice.toFixed(2)}
+                        Rs. {Number(item.sellPrice || 0).toFixed(2)}
                       </div>
                     </div>
                   ))
@@ -1785,7 +1785,7 @@ export default function Sales() {
                     </div>
                     <div className="pos-item-info">
                       <span className="pos-item-name">{item.name}</span>
-                      <span className="pos-item-price">Rs. {item.sellPrice.toFixed(2)}</span>
+                      <span className="pos-item-price">Rs. {Number(item.sellPrice || 0).toFixed(2)}</span>
                     </div>
                   </div>
                 );
@@ -2083,9 +2083,9 @@ export default function Sales() {
                     <td style={{ padding: '6px 0', textAlign: 'center', color: '#475569' }}>
                       {typeof item.quantity === 'number' && item.quantity % 1 !== 0 ? item.quantity.toFixed(2) : item.quantity}
                     </td>
-                    <td style={{ padding: '6px 0', textAlign: 'right', color: '#475569' }}>Rs. {item.sellPrice.toFixed(2)}</td>
+                    <td style={{ padding: '6px 0', textAlign: 'right', color: '#475569' }}>Rs. {Number(item.sellPrice || 0).toFixed(2)}</td>
                     <td style={{ padding: '6px 0', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>
-                      Rs. {(item.sellPrice * item.quantity).toFixed(2)}
+                      Rs. {Number((item.sellPrice || 0) * (item.quantity || 1)).toFixed(2)}
                     </td>
                   </tr>
                 ))}
@@ -2598,7 +2598,7 @@ export default function Sales() {
           <div className="weight-entry-content">
             <div className="weight-item-banner">
               <h3>{weightItem.name}</h3>
-              <span className="weight-price-per-kg">Rs. {weightItem.sellPrice.toFixed(2)} / kg</span>
+              <span className="weight-price-per-kg">Rs. {Number(weightItem.sellPrice || 0).toFixed(2)} / kg</span>
               <span className="weight-stock-info">{weightItem.stock} kg available</span>
             </div>
 
@@ -2637,7 +2637,7 @@ export default function Sales() {
             {weightValue && parseFloat(weightValue) > 0 && (
               <div className="weight-total-preview">
                 <span>Total Price:</span>
-                <h2>Rs. {(weightItem.sellPrice * parseFloat(weightValue)).toFixed(2)}</h2>
+                <h2>Rs. {Number((weightItem.sellPrice || 0) * (parseFloat(weightValue) || 0)).toFixed(2)}</h2>
               </div>
             )}
 
