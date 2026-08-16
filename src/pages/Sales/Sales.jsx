@@ -2824,6 +2824,10 @@ export default function Sales() {
                 );
               })()}
             </div>
+          )}
+        </div>
+      </Modal>
+
       {/* Milling Calculator Modal (වී කෙටීම / පොල් කෙටීම) */}
       <Modal
         isOpen={millingModal}
