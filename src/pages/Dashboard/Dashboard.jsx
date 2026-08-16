@@ -145,16 +145,52 @@ export default function Dashboard() {
     }
   }, [isOwner, isCashier]);
 
+  const handleClearBillsOnly = async () => {
+    if (!window.confirm("⚠️ ඔබට සියලුම බිල්පත් සහ විකුණුම් ගනුදෙනු පමණක් (Bills & Transactions only) මකා දැමීමට අවශ්‍යද?\n\nභාණ්ඩ ලැයිස්තුව (Inventory) හෝ ණයගැතියන් (Debtors) මකා නොදැමේ.")) return;
+    const inputPass = prompt("කරුණාකර Master Password එක ඇතුළත් කරන්න:");
+    if (inputPass !== "723412641") {
+      alert("වැරදි මුරපදයක් (Incorrect password). ක්‍රියාවලිය අවලංගු විය.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const collectionsToClear = ['transactions', 'reloads', 'millingRecords', 'cashSessions'];
+      let deletedCount = 0;
+
+      for (const colName of collectionsToClear) {
+        const snap = await getDocs(collection(db, colName));
+        for (const document of snap.docs) {
+          await deleteDoc(doc(db, colName, document.id));
+          deletedCount++;
+        }
+      }
+
+      // Reset bill counter
+      const counterRef = doc(db, 'counters', 'billNumber');
+      await setDoc(counterRef, { current: 1 });
+
+      alert(`බිල්පත් සහ ගනුදෙනු සියල්ල සාර්ථකව මකා දමන ලදී! (${deletedCount} records deleted). බිල් අංකය #000001 ලෙස Reset විය.`);
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to clear bills: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleClearTestingData = async () => {
     if (!window.confirm("🚨 ARE YOU SURE YOU WANT TO DELETE ALL TESTING DATA?\nThis will completely wipe all inventory items, debtors, orders, and sales transactions permanently!")) return;
-    if (prompt("Please enter the Master Password to confirm:") !== "72341264123") {
-        alert("Incorrect password. Operation cancelled.");
-        return;
+    const inputPass = prompt("Please enter the Master Password to confirm:");
+    if (inputPass !== "723412641") {
+      alert("Incorrect password. Operation cancelled.");
+      return;
     }
     
     setLoading(true);
     try {
-      const collectionsToClear = ['items', 'debtors', 'orders', 'transactions'];
+      const collectionsToClear = ['items', 'debtors', 'orders', 'transactions', 'reloads', 'millingRecords', 'cashSessions'];
       let deletedCount = 0;
       
       for (const colName of collectionsToClear) {
@@ -169,7 +205,7 @@ export default function Dashboard() {
       const counterRef = doc(db, 'counters', 'billNumber');
       await setDoc(counterRef, { current: 1 });
       
-      alert(`Testing data cleared successfully! (${deletedCount} items deleted).`);
+      alert(`All testing data cleared successfully! (${deletedCount} items deleted).`);
       window.location.reload();
     } catch(err) {
       console.error(err);
@@ -282,7 +318,11 @@ export default function Dashboard() {
                 <span className="action-emoji">🛍️</span>
                 <span className="action-label">{t('nav.orders')}</span>
               </div>
-              <div className="action-card glass-card" style={{ borderColor: 'var(--error-400)' }} onClick={handleClearTestingData}>
+              <div className="action-card glass-card" style={{ borderColor: '#f59e0b' }} onClick={handleClearBillsOnly} title="බිල්පත් සහ විකුණුම් ගනුදෙනු පමණක් මකන්න">
+                <span className="action-emoji">🧾</span>
+                <span className="action-label" style={{ color: '#d97706', fontWeight: 700 }}>Clear Bills Only</span>
+              </div>
+              <div className="action-card glass-card" style={{ borderColor: 'var(--error-400)' }} onClick={handleClearTestingData} title="සියලුම දත්ත මකන්න">
                 <span className="action-emoji">🚨</span>
                 <span className="action-label text-error">Clear All Data</span>
               </div>
