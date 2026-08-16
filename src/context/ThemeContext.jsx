@@ -12,11 +12,11 @@ export function useTheme() {
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
-    // Check localStorage first, then system preference
+    // Check localStorage first, then default to light
     const saved = localStorage.getItem('smartpos-theme');
     if (saved) return saved;
-    // Default to dark (current theme)
-    return 'dark';
+    // Default to light mode
+    return 'light';
   });
 
   useEffect(() => {

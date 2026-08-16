@@ -3,7 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import en from './en.json';
 import si from './si.json';
 
-const savedLanguage = localStorage.getItem('pos-language') || 'en';
+const savedLanguage = localStorage.getItem('pos-language') || 'si';
 
 i18n
   .use(initReactI18next)
@@ -13,7 +13,7 @@ i18n
       si: { translation: si }
     },
     lng: savedLanguage,
-    fallbackLng: 'en',
+    fallbackLng: 'si',
     interpolation: {
       escapeValue: false
     }
