@@ -145,9 +145,18 @@ function generateReloadReceiptPDF(reloadRecord) {
   </div>
 
   <script>
-    window.onload = function() {
-      window.print();
-    };
+    function doPrint() {
+      try {
+        window.focus();
+        window.print();
+      } catch (e) {}
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(doPrint, 40);
+    } else {
+      window.addEventListener('DOMContentLoaded', doPrint);
+      setTimeout(doPrint, 120);
+    }
   </script>
 </body>
 </html>`;
@@ -319,9 +328,18 @@ function generateBillPDF(billData) {
   </div>
 
   <script>
-    window.onload = function() {
-      window.print();
-    };
+    function doPrint() {
+      try {
+        window.focus();
+        window.print();
+      } catch (e) {}
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(doPrint, 40);
+    } else {
+      window.addEventListener('DOMContentLoaded', doPrint);
+      setTimeout(doPrint, 120);
+    }
   </script>
 </body>
 </html>`;
