@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import { 
   FiSettings, FiCalendar, FiFilter, FiPrinter, FiSearch, 
-  FiRefreshCw, FiDollarSign, FiAward, FiFileText, FiCheckCircle
+  FiRefreshCw, FiDollarSign, FiAward, FiFileText, FiCheckCircle, FiTrash2
 } from 'react-icons/fi';
 import './Milling.css';
 
 export default function Milling() {
+  const { isOwner } = useAuth();
   const [millingRecords, setMillingRecords] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -22,23 +24,15 @@ export default function Milling() {
     setLoading(true);
     try {
       const records = [];
+      const activeBillNumbers = new Set();
 
-      // 1. Fetch from millingRecords collection
-      try {
-        const qMilling = query(collection(db, 'millingRecords'), orderBy('timestamp', 'desc'));
-        const snapMilling = await getDocs(qMilling);
-        snapMilling.docs.forEach(docSnap => {
-          records.push({ id: docSnap.id, ...docSnap.data() });
-        });
-      } catch (err) {
-        console.warn("Could not query millingRecords:", err);
-      }
-
-      // 2. Also extract milling items from transactions collection (for existing bills)
+      // 1. Fetch active transactions first (Source of Truth)
       try {
         const snapTxns = await getDocs(collection(db, 'transactions'));
         snapTxns.docs.forEach(docSnap => {
           const txn = docSnap.data();
+          if (txn.billNumber) activeBillNumbers.add(txn.billNumber);
+
           if (txn.items && Array.isArray(txn.items)) {
             txn.items.forEach((item, idx) => {
               const isMillingItem = item.isMilling || 
@@ -47,31 +41,59 @@ export default function Milling() {
               if (isMillingItem) {
                 const millingType = item.millingType || (item.name.includes('පොල්') ? 'pol' : 'wee');
                 const recId = `txn_mil_${docSnap.id}_${idx}`;
+                let recDate = txn.timestamp ? (txn.timestamp.toDate ? txn.timestamp.toDate() : new Date(txn.timestamp)) : new Date(txn.date || Date.now());
                 
-                // Avoid duplicates if already in millingRecords
-                const exists = records.some(r => r.billNumber === txn.billNumber && r.millingType === millingType && r.kg === (parseFloat(item.quantity) || 1));
-                if (!exists) {
-                  let recDate = txn.timestamp ? (txn.timestamp.toDate ? txn.timestamp.toDate() : new Date(txn.timestamp)) : new Date();
-                  records.push({
-                    id: recId,
-                    billNumber: txn.billNumber,
-                    millingType,
-                    name: item.name,
-                    kg: parseFloat(item.quantity) || 1,
-                    rate: parseFloat(item.sellPrice) || (millingType === 'pol' ? 65 : 7),
-                    total: parseFloat(item.subtotal) || ((parseFloat(item.sellPrice) || 0) * (parseFloat(item.quantity) || 1)),
-                    paymentMethod: txn.paymentMethod || 'cash',
-                    cashierName: txn.cashierName || 'Cashier',
-                    timestamp: recDate,
-                    date: recDate
-                  });
-                }
+                records.push({
+                  id: recId,
+                  txnDocId: docSnap.id,
+                  billNumber: txn.billNumber,
+                  millingType,
+                  name: item.name,
+                  kg: parseFloat(item.quantity) || 1,
+                  rate: parseFloat(item.sellPrice) || (millingType === 'pol' ? 65 : 7),
+                  total: parseFloat(item.subtotal) || ((parseFloat(item.sellPrice) || 0) * (parseFloat(item.quantity) || 1)),
+                  paymentMethod: txn.paymentMethod || 'cash',
+                  cashierName: txn.cashierName || 'Cashier',
+                  timestamp: recDate,
+                  date: recDate
+                });
               }
             });
           }
         });
       } catch (err) {
         console.warn("Could not extract milling from transactions:", err);
+      }
+
+      // 2. Fetch millingRecords collection: purge orphaned deleted bills
+      try {
+        const snapMilling = await getDocs(collection(db, 'millingRecords'));
+        for (const docSnap of snapMilling.docs) {
+          const data = docSnap.data();
+          // If bill was deleted from transactions, delete orphaned millingRecord
+          if (data.billNumber && !activeBillNumbers.has(data.billNumber)) {
+            await deleteDoc(doc(db, 'millingRecords', docSnap.id));
+          } else if (data.billNumber && !records.some(r => r.billNumber === data.billNumber)) {
+            // Include standalone milling record if active
+            let recDate = data.timestamp ? (data.timestamp.toDate ? data.timestamp.toDate() : new Date(data.timestamp)) : new Date(data.date || Date.now());
+            records.push({
+              id: docSnap.id,
+              millingDocId: docSnap.id,
+              billNumber: data.billNumber,
+              millingType: data.millingType || (data.name?.includes('පොල්') ? 'pol' : 'wee'),
+              name: data.name || (data.millingType === 'pol' ? 'පොල් කෙටීම' : 'වී කෙටීම'),
+              kg: parseFloat(data.kg) || 1,
+              rate: parseFloat(data.rate) || 7,
+              total: parseFloat(data.total) || 0,
+              paymentMethod: data.paymentMethod || 'cash',
+              cashierName: data.cashierName || 'Cashier',
+              timestamp: recDate,
+              date: recDate
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Could not query millingRecords:", err);
       }
 
       // Sort by date desc

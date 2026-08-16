@@ -2594,6 +2594,22 @@ export default function Sales() {
                     }
                     try {
                       await deleteDoc(doc(db, 'transactions', selectedBill.id));
+
+                      // Also delete associated millingRecords
+                      if (selectedBill.billNumber) {
+                        const qMilling = query(collection(db, 'millingRecords'), where('billNumber', '==', selectedBill.billNumber));
+                        const mSnap = await getDocs(qMilling);
+                        for (const mDoc of mSnap.docs) {
+                          await deleteDoc(doc(db, 'millingRecords', mDoc.id));
+                        }
+
+                        const qReload = query(collection(db, 'reloads'), where('billNumber', '==', selectedBill.billNumber));
+                        const rSnap = await getDocs(qReload);
+                        for (const rDoc of rSnap.docs) {
+                          await deleteDoc(doc(db, 'reloads', rDoc.id));
+                        }
+                      }
+
                       setBillDetailModal(false);
                       setBillSearchResults(billSearchResults.filter(b => b.id !== selectedBill.id));
                       setSelectedBill(null);
