@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, updateDoc, increment, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -7,7 +7,7 @@ import Button from '../../components/ui/Button';
 import {
   FiZap, FiPhoneCall, FiDollarSign, FiCopy, FiCheck,
   FiPrinter, FiTrendingUp, FiCheckCircle, FiClock, FiUser, FiCreditCard, FiHome,
-  FiSearch, FiCalendar, FiFilter, FiX
+  FiSearch, FiCalendar, FiFilter, FiX, FiTrash2
 } from 'react-icons/fi';
 import './Reload.css';
 
@@ -29,6 +29,25 @@ function getShopInfo() {
     phone: '0777640334',
     address: 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
   };
+}
+
+// Get next sequential bill number from Firestore
+async function getNextBillNumber() {
+  const counterRef = doc(db, 'counters', 'billNumber');
+  const counterSnap = await getDoc(counterRef);
+
+  if (counterSnap.exists()) {
+    const current = counterSnap.data().current || 0;
+    const next = current + 1;
+    if (next > 1000000) {
+      throw new Error('Bill number limit reached (1,000,000)');
+    }
+    await updateDoc(counterRef, { current: next });
+    return next;
+  } else {
+    await setDoc(counterRef, { current: 1 });
+    return 1;
+  }
 }
 
 // Generate Reload Receipt PDF
@@ -140,7 +159,7 @@ const NETWORKS = [
 
 export default function Reload() {
   const { t } = useTranslation();
-  const { user, userData } = useAuth();
+  const { user, userData, isOwner } = useAuth();
 
   const [phone, setPhone] = useState('');
   const [network, setNetwork] = useState('dialog');
@@ -159,6 +178,73 @@ export default function Reload() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [filterNetwork, setFilterNetwork] = useState('');
+
+  // Delete single reload handler
+  const handleDeleteSingleReload = async (item) => {
+    const pw = prompt('Enter Owner Password to delete this reload record (723412641):');
+    if (pw !== '723412641') {
+      if (pw !== null) alert('Incorrect password. Deletion cancelled.');
+      return;
+    }
+    if (!window.confirm(`⚠️ මෙම Reload වාර්තාව (#${item.phone} - Rs. ${item.amount}) මකා දැමීමට ඔබට විශ්වාසද?`)) return;
+
+    setLoading(true);
+    try {
+      // 1. Delete from reloads collection
+      await deleteDoc(doc(db, 'reloads', item.id));
+
+      // 2. Delete corresponding transaction if exists
+      if (item.billNumber) {
+        const qTxn = query(collection(db, 'transactions'), where('billNumber', '==', item.billNumber));
+        const snap = await getDocs(qTxn);
+        for (const d of snap.docs) {
+          await deleteDoc(doc(db, 'transactions', d.id));
+        }
+      }
+
+      // 3. If credit, deduct from debtor balance
+      if (item.paymentMethod === 'credit' && item.debtorId) {
+        await updateDoc(doc(db, 'debtors', item.debtorId), {
+          totalOwed: increment(-parseFloat(item.amount || 0))
+        });
+      }
+
+      await fetchData();
+      alert('Reload record deleted successfully.');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete reload: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete all reloads handler
+  const handleDeleteAllReloads = async () => {
+    const pw = prompt('Enter Owner Password to delete ALL reload records:');
+    if (pw !== '723412641') {
+      if (pw !== null) alert('Incorrect password. Deletion cancelled.');
+      return;
+    }
+    if (!window.confirm('⚠️ සියලුම Reload වාර්තා ස්ථිරවම මකා දැමීමට ඔබට විශ්වාසද?')) return;
+
+    setLoading(true);
+    try {
+      const snap = await getDocs(collection(db, 'reloads'));
+      let count = 0;
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, 'reloads', d.id));
+        count++;
+      }
+      await fetchData();
+      alert(`All ${count} reload records deleted successfully.`);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete all reloads: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Fetch debtors and reload history
   useEffect(() => {
@@ -228,10 +314,8 @@ export default function Reload() {
     setLoading(true);
 
     try {
-      // Counter for Bill Number
-      const counterRef = doc(db, 'counters', 'billNumber');
-      const counterSnap = await getDocs(collection(db, 'counters'));
-      let billNumber = Date.now() % 1000000;
+      // Get Sequential Bill Number from shared counter
+      const billNumber = await getNextBillNumber();
 
       const reloadId = `RLD${Date.now()}`;
       const reloadRecord = {
@@ -668,9 +752,33 @@ export default function Reload() {
             <h2 className="section-title" style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
               <FiClock style={{ color: 'var(--accent-400)' }} /> {t('reload.history')} & Search
             </h2>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              {filteredHistory.length} records found
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                {filteredHistory.length} records
+              </span>
+              {isOwner && filteredHistory.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleDeleteAllReloads}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--error-400)',
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    color: 'var(--error-400)',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                  title="Delete All Reloads"
+                >
+                  <FiTrash2 /> Delete All
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Search & Filter Controls */}
@@ -745,11 +853,12 @@ export default function Reload() {
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', color: 'var(--text-muted)' }}>
                     <th style={{ padding: '8px 4px' }}>{t('reload.date')}</th>
+                    <th style={{ padding: '8px 4px' }}>බිල් #</th>
                     <th style={{ padding: '8px 4px' }}>{t('reload.network')}</th>
                     <th style={{ padding: '8px 4px' }}>{t('reload.phoneNumber')}</th>
                     <th style={{ padding: '8px 4px', textAlign: 'right' }}>{t('reload.amount')}</th>
                     <th style={{ padding: '8px 4px', textAlign: 'center' }}>ක්‍රමය</th>
-                    <th style={{ padding: '8px 4px', textAlign: 'right' }}>Print</th>
+                    <th style={{ padding: '8px 4px', textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -762,6 +871,9 @@ export default function Reload() {
                           <span style={{ color: 'var(--primary-400)', fontWeight: 600 }}>
                             {dateObj.toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' })}
                           </span>
+                        </td>
+                        <td style={{ padding: '8px 4px', fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary-400)' }}>
+                          #{item.billNumber ? String(item.billNumber).padStart(6, '0') : '-'}
                         </td>
                         <td style={{ padding: '8px 4px' }}>
                           <span className={`network-badge ${item.network}`} style={{ textTransform: 'capitalize' }}>
@@ -785,15 +897,25 @@ export default function Reload() {
                             {item.paymentMethod === 'credit' ? 'CREDIT' : item.paymentMethod === 'home_use' ? 'HOME' : 'CASH'}
                           </span>
                         </td>
-                        <td style={{ padding: '8px 4px', textAlign: 'right' }}>
+                        <td style={{ padding: '8px 4px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                           <button
                             type="button"
                             onClick={() => generateReloadReceiptPDF(item)}
-                            style={{ background: 'none', border: 'none', color: 'var(--primary-400)', cursor: 'pointer', fontSize: '14px', padding: '4px' }}
+                            style={{ background: 'none', border: 'none', color: 'var(--primary-400)', cursor: 'pointer', fontSize: '14px', padding: '4px', marginRight: '4px' }}
                             title="Reprint Receipt"
                           >
                             <FiPrinter />
                           </button>
+                          {isOwner && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSingleReload(item)}
+                              style={{ background: 'none', border: 'none', color: 'var(--error-400)', cursor: 'pointer', fontSize: '14px', padding: '4px' }}
+                              title="Delete Reload Record"
+                            >
+                              <FiTrash2 />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
