@@ -22,6 +22,7 @@ import CashManager from './pages/CashManager/CashManager';
 import HomeUse from './pages/HomeUse/HomeUse';
 import Reload from './pages/Reload/Reload';
 import Settings from './pages/Settings/Settings';
+import Milling from './pages/Milling/Milling';
 
 import './i18n/i18n';
 
@@ -135,6 +136,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['cashier', 'owner']}>
                     <Settings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/milling"
+                element={
+                  <ProtectedRoute allowedRoles={['cashier', 'owner']}>
+                    <Milling />
                   </ProtectedRoute>
                 }
               />

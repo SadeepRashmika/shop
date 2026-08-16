@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { 
   FiHome, FiPackage, FiShoppingCart, FiUsers as FiUsersIcon, 
-  FiBarChart2, FiUserCheck, FiSearch, FiShoppingBag, FiUser, FiStar, FiDollarSign, FiZap, FiSettings
+  FiBarChart2, FiUserCheck, FiSearch, FiShoppingBag, FiUser, FiStar, FiDollarSign, FiZap, FiSettings, FiScissors
 } from 'react-icons/fi';
 import './Sidebar.css';
 
@@ -18,6 +18,7 @@ export default function Sidebar({ isOpen }) {
     { to: '/inventory', icon: <FiPackage />, label: t('nav.inventory') },
     { to: '/sales', icon: <FiShoppingCart />, label: t('nav.sales') },
     { to: '/reload', icon: <FiZap />, label: t('nav.reload') },
+    { to: '/milling', icon: <FiScissors />, label: 'කෙටීමේ වාර්තා' },
     { to: '/debtors', icon: <FiUserCheck />, label: t('nav.debtors') },
     { to: '/cash-manager', icon: <FiDollarSign />, label: t('nav.cashManager') },
     { to: '/home-use', icon: <FiHome />, label: t('nav.homeUse') },
@@ -33,6 +34,7 @@ export default function Sidebar({ isOpen }) {
     { to: '/items', icon: <FiPackage />, label: t('nav.items') },
     { to: '/sales', icon: <FiShoppingCart />, label: t('nav.sales') },
     { to: '/reload', icon: <FiZap />, label: t('nav.reload') },
+    { to: '/milling', icon: <FiScissors />, label: 'කෙටීමේ වාර්තා' },
     { to: '/debtors', icon: <FiUserCheck />, label: t('nav.debtors') },
     { to: '/cash-manager', icon: <FiDollarSign />, label: t('nav.cashManager') },
     { to: '/home-use', icon: <FiHome />, label: t('nav.homeUse') },
