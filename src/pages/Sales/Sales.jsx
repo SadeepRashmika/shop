@@ -795,11 +795,11 @@ export default function Sales() {
       setLoading(true);
       try {
         const itemSnapshot = await getDocs(collection(db, 'items'));
-        const loadedItems = itemSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const loadedItems = itemSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         setItems(loadedItems);
 
         const debtorSnapshot = await getDocs(collection(db, 'debtors'));
-        setDebtors(debtorSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setDebtors(debtorSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
 
         try {
           const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
