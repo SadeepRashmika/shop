@@ -10,7 +10,7 @@ import Modal from '../../components/ui/Modal';
 import {
   FiSearch, FiShoppingCart, FiPlus, FiMinus, FiTrash2,
   FiCreditCard, FiDollarSign, FiUser, FiMaximize, FiPrinter, FiCheckCircle,
-  FiFileText, FiHash, FiHome, FiStar, FiEye, FiZap, FiPhoneCall, FiCopy, FiCheck, FiEdit3
+  FiFileText, FiHash, FiHome, FiStar, FiEye, FiZap, FiPhoneCall, FiCopy, FiCheck, FiEdit3, FiSettings
 } from 'react-icons/fi';
 
 import './Sales.css';
@@ -423,6 +423,66 @@ export default function Sales() {
   const [editMarkedPrice, setEditMarkedPrice] = useState('');
   const [editSellPrice, setEditSellPrice] = useState('');
 
+  // Milling Modal State (වී කෙටීම / පොල් කෙටීම)
+  const [millingModal, setMillingModal] = useState(false);
+  const [millingType, setMillingType] = useState('wee'); // 'wee' (Rs 7/kg) or 'pol' (Rs 65/kg)
+  const [millingKg, setMillingKg] = useState('');
+  const [millingRate, setMillingRate] = useState('7');
+  const millingKgInputRef = useRef(null);
+
+  const handleOpenMillingModal = (type = 'wee') => {
+    setMillingType(type);
+    setMillingRate(type === 'wee' ? '7' : '65');
+    setMillingKg('');
+    setMillingModal(true);
+    setTimeout(() => {
+      if (millingKgInputRef.current) {
+        millingKgInputRef.current.focus();
+      }
+    }, 100);
+  };
+
+  const handleSelectMillingType = (type) => {
+    setMillingType(type);
+    setMillingRate(type === 'wee' ? '7' : '65');
+    if (millingKgInputRef.current) {
+      millingKgInputRef.current.focus();
+    }
+  };
+
+  const handleAddMillingToCart = () => {
+    const kg = parseFloat(millingKg);
+    const rate = parseFloat(millingRate) || (millingType === 'wee' ? 7 : 65);
+    if (!kg || kg <= 0) {
+      alert('කරුණාකර නිවැරදි කිලෝග්‍රෑම් ගණනක් (Kg) ඇතුළත් කරන්න.');
+      return;
+    }
+
+    const subtotal = kg * rate;
+    const name = millingType === 'wee' ? `වී කෙටීම (${kg} Kg)` : `පොල් කෙටීම (${kg} Kg)`;
+    const cartId = `milling_${millingType}_${Date.now()}`;
+
+    const millingItem = {
+      id: `milling_${millingType}_${Date.now()}`,
+      cartId,
+      name,
+      markedPrice: rate,
+      sellPrice: rate,
+      quantity: kg,
+      subtotal,
+      stock: 999999,
+      isMilling: true,
+      millingType,
+      unitRate: rate
+    };
+
+    setCart([millingItem, ...cart]);
+    setActiveCartId(cartId);
+    setMillingModal(false);
+    setMillingKg('');
+    setSearch('');
+  };
+
   const handleOpenEditCartItem = (item) => {
     setEditingCartItem(item);
     setEditMarkedPrice(item.markedPrice ? String(item.markedPrice) : String(item.sellPrice));
@@ -724,7 +784,7 @@ export default function Sales() {
   // AND + / - keys to change cart item quantity
   useEffect(() => {
     const handleKeyDown = (e) => {
-      const isAnyModalOpen = previewModal || checkoutModal || weightModal || customItemModal || editCartItemModal || billSearchModal || billDetailModal || editBillModal || reloadModal;
+      const isAnyModalOpen = previewModal || checkoutModal || weightModal || customItemModal || editCartItemModal || billSearchModal || billDetailModal || editBillModal || reloadModal || millingModal;
 
       // 1. If NO modal is open: handle + and - keys for active cart item quantity
       if (!isAnyModalOpen) {
@@ -843,6 +903,15 @@ export default function Sales() {
   }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor]);
 
   const addToCart = (item) => {
+    if (item.name?.includes('වී කෙටීම')) {
+      handleOpenMillingModal('wee');
+      return;
+    }
+    if (item.name?.includes('පොල් කෙටීම')) {
+      handleOpenMillingModal('pol');
+      return;
+    }
+
     if (item.stock <= 0) {
       alert("Item out of stock!");
       return;
@@ -960,6 +1029,24 @@ export default function Sales() {
       if (item.cartId === cartId) {
         if (weight > item.stock) return item;
         return { ...item, quantity: weight };
+      }
+      return item;
+    }));
+  };
+
+  const updateMillingWeightDirectly = (cartId, newKg) => {
+    const kg = parseFloat(newKg);
+    if (isNaN(kg) || kg <= 0) return;
+    setCart(cart.map(item => {
+      if (item.cartId === cartId) {
+        const subtotal = kg * item.unitRate;
+        const baseName = item.millingType === 'pol' ? 'පොල් කෙටීම' : 'වී කෙටීම';
+        return {
+          ...item,
+          quantity: kg,
+          subtotal,
+          name: `${baseName} (${kg} Kg)`
+        };
       }
       return item;
     }));
@@ -1499,6 +1586,9 @@ export default function Sales() {
           <div className="page-header mb-4">
             <h1 className="page-title gradient-text">{t('sales.title')}</h1>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="bill-search-btn glass" onClick={() => handleOpenMillingModal('wee')} title="කෙටීමේ ගාස්තු (වී/පොල්)" style={{ borderColor: '#eab308', color: '#eab308' }}>
+                <FiSettings /> <span>කෙටීමේ ගාස්තු</span>
+              </button>
               <button className="bill-search-btn glass" onClick={() => setCustomItemModal(true)} title="නොමැති භාණ්ඩයක් එකතු කරන්න" style={{ borderColor: 'var(--success-400)', color: 'var(--success-400)' }}>
                 <FiEdit3 /> <span>නොමැති භාණ්ඩ</span>
               </button>
@@ -1579,8 +1669,14 @@ export default function Sales() {
                   key={cat}
                   className={`cat-chip ${selectedCategory === cat && !search ? 'active' : ''}`}
                   onClick={() => {
-                    setSearch('');
-                    setSelectedCategory(selectedCategory === cat ? '' : cat);
+                    if (cat === 'වී කෙටීම') {
+                      handleOpenMillingModal('wee');
+                    } else if (cat === 'පොල් කෙටීම') {
+                      handleOpenMillingModal('pol');
+                    } else {
+                      setSearch('');
+                      setSelectedCategory(selectedCategory === cat ? '' : cat);
+                    }
                   }}
                 >
                   {cat}
@@ -1697,6 +1793,7 @@ export default function Sales() {
                       {item.itemType === 'weighed' && <span className="weighed-tag"> ⚖️</span>}
                       {item.isReload && <span className="reload-tag" style={{ background: 'rgba(234, 88, 12, 0.2)', color: '#ea580c', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>⚡ Reload</span>}
                       {item.isCustom && <span style={{ background: 'rgba(34, 197, 94, 0.2)', color: '#22c55e', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>✏️ Custom</span>}
+                      {item.isMilling && <span style={{ background: 'rgba(234, 179, 8, 0.2)', color: '#eab308', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>⚙️ කෙටීම</span>}
                     </span>
                     <span className="cart-item-price" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                       {item.markedPrice && Number(item.markedPrice) > Number(item.sellPrice) ? (
@@ -1704,7 +1801,7 @@ export default function Sales() {
                           සඳහන්: Rs. {Number(item.markedPrice).toFixed(2)}
                         </span>
                       ) : null}
-                      <span>Rs. {Number(item.sellPrice).toFixed(2)}{item.itemType === 'weighed' ? '/kg' : ''}</span>
+                      <span>Rs. {Number(item.sellPrice).toFixed(2)}{(item.itemType === 'weighed' || item.isMilling) ? '/kg' : ''}</span>
                     </span>
                   </div>
                   <div className="cart-item-actions">
@@ -1731,6 +1828,19 @@ export default function Sales() {
                           value={item.quantity}
                           onChange={(e) => updateWeightDirectly(item.cartId, e.target.value)}
                           className="weight-input-field"
+                        />
+                        <span className="weight-unit">kg</span>
+                      </div>
+                    ) : item.isMilling ? (
+                      <div className="weight-input-inline" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="number"
+                          step="1"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateMillingWeightDirectly(item.cartId, e.target.value)}
+                          className="weight-input-field"
+                          style={{ width: '65px' }}
                         />
                         <span className="weight-unit">kg</span>
                       </div>
@@ -2714,7 +2824,160 @@ export default function Sales() {
                 );
               })()}
             </div>
-          )}
+      {/* Milling Calculator Modal (වී කෙටීම / පොල් කෙටීම) */}
+      <Modal
+        isOpen={millingModal}
+        onClose={() => setMillingModal(false)}
+        title="🌾 🥥 කෙටීමේ ගාස්තු ගණකය (Milling Calculator)"
+      >
+        <div style={{ padding: '0.5rem 0' }}>
+          {/* Service Type Selection */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            <button
+              type="button"
+              onClick={() => handleSelectMillingType('wee')}
+              style={{
+                padding: '0.85rem 0.5rem',
+                borderRadius: '12px',
+                border: millingType === 'wee' ? '2px solid #eab308' : '1px solid var(--border-color)',
+                background: millingType === 'wee' ? 'rgba(234, 179, 8, 0.15)' : 'var(--bg-glass)',
+                color: millingType === 'wee' ? '#eab308' : 'var(--text-primary)',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '1rem',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <span style={{ fontSize: '1.5rem' }}>🌾</span>
+              <span>වී කෙටීම</span>
+              <span style={{ fontSize: '0.8rem', opacity: 0.85 }}>Rs. 7.00 / kg</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectMillingType('pol')}
+              style={{
+                padding: '0.85rem 0.5rem',
+                borderRadius: '12px',
+                border: millingType === 'pol' ? '2px solid #ea580c' : '1px solid var(--border-color)',
+                background: millingType === 'pol' ? 'rgba(234, 88, 12, 0.15)' : 'var(--bg-glass)',
+                color: millingType === 'pol' ? '#ea580c' : 'var(--text-primary)',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '1rem',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <span style={{ fontSize: '1.5rem' }}>🥥</span>
+              <span>පොල් කෙටීම</span>
+              <span style={{ fontSize: '0.8rem', opacity: 0.85 }}>Rs. 65.00 / kg</span>
+            </button>
+          </div>
+
+          {/* Input Form */}
+          <form onSubmit={(e) => { e.preventDefault(); handleAddMillingToCart(); }}>
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.9rem' }}>
+                කෙටූ කිලෝග්‍රෑම් ගණන (Kg):
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  ref={millingKgInputRef}
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="0.00"
+                  value={millingKg}
+                  onChange={(e) => setMillingKg(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem',
+                    fontSize: '1.25rem',
+                    fontWeight: 700,
+                    borderRadius: '10px',
+                    border: '2px solid var(--primary-400)',
+                    background: 'var(--bg-card)',
+                    color: 'var(--text-primary)'
+                  }}
+                />
+                <span style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  Kg
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.8rem', opacity: 0.8 }}>
+                  1 Kg සඳහා ගාස්තුව (Rs):
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={millingRate}
+                  onChange={(e) => setMillingRate(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-glass)',
+                    color: 'var(--text-primary)',
+                    fontWeight: 600
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Live Amount Calculation Display Box */}
+            <div style={{
+              background: millingType === 'wee' ? 'linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(234, 179, 8, 0.05))' : 'linear-gradient(135deg, rgba(234, 88, 12, 0.2), rgba(234, 88, 12, 0.05))',
+              border: `2px solid ${millingType === 'wee' ? '#eab308' : '#ea580c'}`,
+              borderRadius: '12px',
+              padding: '1rem',
+              textAlign: 'center',
+              marginBottom: '1.5rem'
+            }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 600, opacity: 0.9, marginBottom: '4px' }}>
+                ගණනය කළ මුළු ගාස්තුව (Total):
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: millingType === 'wee' ? '#eab308' : '#ea580c' }}>
+                Rs. {((parseFloat(millingKg) || 0) * (parseFloat(millingRate) || 0)).toFixed(2)}
+              </div>
+              {parseFloat(millingKg) > 0 && (
+                <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '4px' }}>
+                  ({parseFloat(millingKg)} Kg × Rs. {parseFloat(millingRate) || 0})
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setMillingModal(false)}
+                fullWidth
+              >
+                අවලංගු කරන්න
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={!parseFloat(millingKg) || parseFloat(millingKg) <= 0}
+                fullWidth
+              >
+                🛒 බිලට එක් කරන්න
+              </Button>
+            </div>
+          </form>
         </div>
       </Modal>
 
