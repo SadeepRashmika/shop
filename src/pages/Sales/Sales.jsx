@@ -46,7 +46,7 @@ function generateReloadReceiptPDF(reloadRecord) {
   <meta charset="UTF-8">
   <title>Reload Receipt #${billNum}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Noto Sans Sinhala', 'Segoe UI', Arial, sans-serif;
@@ -55,17 +55,20 @@ function generateReloadReceiptPDF(reloadRecord) {
       padding: 5mm;
       color: #000;
       font-size: 11px;
+      font-weight: 700;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     .header { text-align: center; margin-bottom: 8px; }
-    .shop-name { font-size: 16px; font-weight: 700; }
-    .shop-info { font-size: 10px; color: #000; }
+    .shop-name { font-size: 18px; font-weight: 800; margin-bottom: 3px; color: #000; }
+    .shop-info { font-size: 12px; font-weight: 700; color: #000; line-height: 1.4; }
     .divider { border-top: 1px dashed #000; margin: 6px 0; }
-    .title { text-align: center; font-size: 14px; font-weight: 700; margin: 4px 0; }
-    .meta-row { display: flex; justify-content: space-between; font-size: 10px; margin: 3px 0; }
-    .amount-box { text-align: center; font-size: 16px; font-weight: 700; margin: 8px 0; padding: 6px; border: 1px solid #000; }
-    .footer { text-align: center; margin-top: 10px; font-size: 11px; }
+    .title { text-align: center; font-size: 15px; font-weight: 800; margin: 4px 0; color: #000; }
+    .meta-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin: 3px 0; color: #000; }
+    .amount-box { text-align: center; font-size: 17px; font-weight: 800; margin: 8px 0; padding: 6px; border: 2px solid #000; color: #000; }
+    .footer { text-align: center; margin-top: 10px; font-size: 12px; font-weight: 700; color: #000; }
     @media print {
-      body { width: 80mm; margin: 0; padding: 3mm; }
+      body { width: 80mm; margin: 0; padding: 3mm; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: #000; font-weight: 700; }
       @page { size: 80mm auto; margin: 0; }
     }
   </style>
@@ -90,11 +93,11 @@ function generateReloadReceiptPDF(reloadRecord) {
 
   <div class="meta-row">
     <span>Network / ජාලය:</span>
-    <span style="font-weight:700;text-transform:uppercase;">${reloadRecord.network}</span>
+    <span style="font-weight:800;text-transform:uppercase;">${reloadRecord.network}</span>
   </div>
   <div class="meta-row">
     <span>Phone Number / අංකය:</span>
-    <span style="font-weight:700;">${reloadRecord.phone}</span>
+    <span style="font-weight:800;">${reloadRecord.phone}</span>
   </div>
 
   <div class="amount-box">
@@ -108,7 +111,7 @@ function generateReloadReceiptPDF(reloadRecord) {
   <div class="divider"></div>
 
   <div class="footer">
-    <div style="font-weight:700;">ස්තූතියි! Thank You!</div>
+    <div style="font-weight:800; font-size: 13px;">ස්තූතියි! Thank You!</div>
     <div>SmartPOS Reload Service</div>
   </div>
 
@@ -146,14 +149,14 @@ function generateBillPDF(billData) {
     const sPrice = Number(item.sellPrice);
     const subtotal = Number(item.subtotal || (sPrice * item.quantity));
     return `
-      <tr style="border-top: 1px solid #ddd;">
-        <td colspan="4" style="font-weight: 700; padding: 4px 2px 1px 2px; font-size: 11px;">${item.name}</td>
+      <tr style="border-top: 1px solid #000;">
+        <td colspan="4" style="font-weight: 800; padding: 5px 2px 2px 2px; font-size: 14px; color: #000;">${item.name}</td>
       </tr>
-      <tr style="border-bottom: 1px solid #eee;">
-        <td style="text-align:left; padding: 1px 2px 4px 2px; font-size: 10px;">${item.quantity}</td>
-        <td style="text-align:right; padding: 1px 2px 4px 2px; font-size: 10px;">${mPrice.toFixed(2)}</td>
-        <td style="text-align:right; padding: 1px 2px 4px 2px; font-size: 10px;">${sPrice.toFixed(2)}</td>
-        <td style="text-align:right; padding: 1px 2px 4px 2px; font-size: 10px; font-weight: 700;">${subtotal.toFixed(2)}</td>
+      <tr style="border-bottom: 1px solid #000;">
+        <td style="text-align:left; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 700; color: #000;">${item.quantity}</td>
+        <td style="text-align:right; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 700; color: #000;">${mPrice.toFixed(2)}</td>
+        <td style="text-align:right; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 700; color: #000;">${sPrice.toFixed(2)}</td>
+        <td style="text-align:right; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 800; color: #000;">${subtotal.toFixed(2)}</td>
       </tr>
     `;
   }).join('');
@@ -165,7 +168,7 @@ function generateBillPDF(billData) {
   <meta charset="UTF-8">
   <title>Bill #${billNum}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Noto Sans Sinhala', 'Segoe UI', Arial, sans-serif;
@@ -174,14 +177,17 @@ function generateBillPDF(billData) {
       padding: 5mm;
       color: #000;
       font-size: 11px;
+      font-weight: 700;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     .header { text-align: center; margin-bottom: 8px; }
-    .shop-name { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
-    .shop-info { font-size: 10px; color: #333; line-height: 1.5; }
+    .shop-name { font-size: 18px; font-weight: 800; margin-bottom: 3px; color: #000; }
+    .shop-info { font-size: 12px; font-weight: 700; color: #000; line-height: 1.4; }
     .divider { border-top: 1px dashed #000; margin: 6px 0; }
-    .bill-number { text-align: center; font-size: 14px; font-weight: 700; margin: 4px 0; }
-    .meta-row { display: flex; justify-content: space-between; font-size: 10px; margin: 2px 0; }
-    table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    .bill-number { text-align: center; font-size: 15px; font-weight: 800; margin: 4px 0; color: #000; }
+    .meta-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin: 2px 0; color: #000; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; color: #000; }
     thead tr {
       background-color: #000 !important;
       color: #fff !important;
@@ -189,9 +195,9 @@ function generateBillPDF(billData) {
       print-color-adjust: exact !important;
     }
     thead th {
-      font-weight: 700;
+      font-weight: 800;
       padding: 4px 2px;
-      font-size: 10px;
+      font-size: 11px;
       color: #fff !important;
       text-align: right;
       background-color: #000 !important;
@@ -200,12 +206,12 @@ function generateBillPDF(billData) {
     }
     thead th:first-child { text-align: left; }
     .total-section { margin-top: 6px; }
-    .total-row { display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0; }
-    .grand-total { font-size: 14px; font-weight: 800; margin: 4px 0; }
-    .footer { text-align: center; margin-top: 10px; font-size: 11px; }
-    .footer .thanks { font-weight: 700; font-size: 12px; }
+    .total-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin: 3px 0; color: #000; }
+    .grand-total { font-size: 16px; font-weight: 800; margin: 4px 0; color: #000; }
+    .footer { text-align: center; margin-top: 10px; font-size: 12px; font-weight: 700; color: #000; }
+    .footer .thanks { font-weight: 800; font-size: 13px; color: #000; }
     @media print {
-      body { width: 80mm; margin: 0; padding: 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { width: 80mm; margin: 0; padding: 3mm; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: #000; font-weight: 700; }
       @page { size: 80mm auto; margin: 0; }
       thead tr { background-color: #000 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       thead th { background-color: #000 !important; color: #fff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -264,9 +270,9 @@ function generateBillPDF(billData) {
 
     ${totalSavings > 0 ? `
     <div class="divider"></div>
-    <div style="text-align:center; padding: 6px 0;">
-      <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.5px;">ඔබට ලැබුණු ලාභය</div>
-      <div style="font-size: 16px; font-weight: 800; margin-top: 2px;">Rs. ${totalSavings.toFixed(2)}</div>
+    <div style="text-align:center; padding: 6px 0; color: #000;">
+      <div style="font-size: 13px; font-weight: 800; letter-spacing: 0.5px;">ඔබට ලැබුණු ලාභය</div>
+      <div style="font-size: 17px; font-weight: 800; margin-top: 2px;">Rs. ${totalSavings.toFixed(2)}</div>
     </div>
     ` : ''}
   </div>

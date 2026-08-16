@@ -32,7 +32,7 @@ function generateReloadReceiptPDF(reloadRecord) {
   <meta charset="UTF-8">
   <title>Reload Receipt #${billNum}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Noto Sans Sinhala', 'Segoe UI', Arial, sans-serif;
@@ -41,17 +41,20 @@ function generateReloadReceiptPDF(reloadRecord) {
       padding: 5mm;
       color: #000;
       font-size: 11px;
+      font-weight: 700;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     .header { text-align: center; margin-bottom: 8px; }
-    .shop-name { font-size: 16px; font-weight: 700; }
-    .shop-info { font-size: 10px; color: #333; }
+    .shop-name { font-size: 18px; font-weight: 800; margin-bottom: 3px; color: #000; }
+    .shop-info { font-size: 12px; font-weight: 700; color: #000; line-height: 1.4; }
     .divider { border-top: 1px dashed #000; margin: 6px 0; }
-    .title { text-align: center; font-size: 14px; font-weight: 700; margin: 4px 0; }
-    .meta-row { display: flex; justify-content: space-between; font-size: 10px; margin: 3px 0; }
-    .amount-box { text-align: center; font-size: 16px; font-weight: 700; margin: 8px 0; padding: 6px; border: 1px solid #000; }
-    .footer { text-align: center; margin-top: 10px; font-size: 11px; }
+    .title { text-align: center; font-size: 15px; font-weight: 800; margin: 4px 0; color: #000; }
+    .meta-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin: 3px 0; color: #000; }
+    .amount-box { text-align: center; font-size: 17px; font-weight: 800; margin: 8px 0; padding: 6px; border: 2px solid #000; color: #000; }
+    .footer { text-align: center; margin-top: 10px; font-size: 12px; font-weight: 700; color: #000; }
     @media print {
-      body { width: 80mm; margin: 0; padding: 3mm; }
+      body { width: 80mm; margin: 0; padding: 3mm; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: #000; font-weight: 700; }
       @page { size: 80mm auto; margin: 0; }
     }
   </style>
@@ -76,11 +79,11 @@ function generateReloadReceiptPDF(reloadRecord) {
 
   <div class="meta-row">
     <span>Network / ජාලය:</span>
-    <span style="font-weight:700;text-transform:uppercase;">${reloadRecord.network}</span>
+    <span style="font-weight:800;text-transform:uppercase;">${reloadRecord.network}</span>
   </div>
   <div class="meta-row">
     <span>Phone Number / අංකය:</span>
-    <span style="font-weight:700;">${reloadRecord.phone}</span>
+    <span style="font-weight:800;">${reloadRecord.phone}</span>
   </div>
 
   <div class="amount-box">
@@ -94,7 +97,7 @@ function generateReloadReceiptPDF(reloadRecord) {
   <div class="divider"></div>
 
   <div class="footer">
-    <div style="font-weight:700;">ස්තූතියි! Thank You!</div>
+    <div style="font-weight:800; font-size: 13px;">ස්තූතියි! Thank You!</div>
     <div>SmartPOS Reload Service</div>
   </div>
 
@@ -106,7 +109,7 @@ function generateReloadReceiptPDF(reloadRecord) {
 </body>
 </html>`;
 
-  const Window = window.open('', '_blank', 'width=400,height=600');
+  const printWindow = window.open('', '_blank', 'width=400,height=600');
   if (printWindow) {
     printWindow.document.write(html);
     printWindow.document.close();
