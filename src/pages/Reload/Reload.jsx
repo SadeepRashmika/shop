@@ -14,7 +14,7 @@ import './Reload.css';
 // Shop info for receipt
 const SHOP_INFO = {
   name: 'සුමින්ද ස්ටෝර්ස්',
-  phone: '07777640334',
+  phone: '0777640334',
   address: 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
 };
 

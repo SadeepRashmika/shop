@@ -18,7 +18,7 @@ import './Sales.css';
 // Shop information
 const SHOP_INFO = {
   name: 'සුමින්ද ස්ටෝර්ස්',
-  phone: '07777640334',
+  phone: '0777640334',
   email: 'sumindapradeep1111@gmail.com',
   address: 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
 };
