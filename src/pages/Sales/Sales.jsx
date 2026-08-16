@@ -2414,21 +2414,29 @@ export default function Sales() {
                 icon={<FiTrash2 />}
                 style={{ color: 'var(--error-400)', borderColor: 'var(--error-400)' }}
                 onClick={async () => {
-                  const pw = prompt('Enter owner password to delete ALL bills:');
-                  if (pw !== '1972341264123') {
+                  const pw = prompt('Enter Owner Password to delete ALL bills:');
+                  if (pw !== '723412641') {
                     if (pw !== null) alert('Incorrect password. Operation cancelled.');
                     return;
                   }
-                  if (!window.confirm('⚠️ This will permanently delete ALL transaction records. Are you absolutely sure?')) return;
+                  if (!window.confirm('⚠️ සියලුම බිල්පත් සහ ගනුදෙනු (All Bills & Transactions) ස්ථිරවම මකා දැමීමට ඔබට විශ්වාසද?')) return;
                   try {
-                    const snap = await getDocs(collection(db, 'transactions'));
                     let count = 0;
-                    for (const document of snap.docs) {
-                      await deleteDoc(doc(db, 'transactions', document.id));
-                      count++;
+                    const collectionsToClear = ['transactions', 'reloads', 'millingRecords'];
+                    for (const colName of collectionsToClear) {
+                      const snap = await getDocs(collection(db, colName));
+                      for (const document of snap.docs) {
+                        await deleteDoc(doc(db, colName, document.id));
+                        count++;
+                      }
                     }
+
+                    // Reset bill counter
+                    const counterRef = doc(db, 'counters', 'billNumber');
+                    await setDoc(counterRef, { current: 1 });
+
                     setBillSearchResults([]);
-                    alert(`All ${count} bills deleted successfully.`);
+                    alert(`සියලුම බිල්පත් සාර්ථකව මකා දමන ලදී (${count} records deleted).`);
                   } catch (err) {
                     console.error(err);
                     alert('Failed to delete bills: ' + err.message);
