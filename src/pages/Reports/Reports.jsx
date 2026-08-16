@@ -521,19 +521,19 @@ export default function Reports() {
               <div className="chart-container">
                 {activeTab === 'item' ? (
                    <div className="item-analysis-section" style={{display:'flex', flexDirection:'column', height:'100%'}}>
-                      <div className="search-box glass-card mb-4" style={{display: 'flex', alignItems: 'center', padding: '10px 15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)'}}>
-                         <FiSearch style={{marginRight: 10, color: '#94a3b8'}}/>
+                      <div className="search-box glass-card mb-4" style={{display: 'flex', alignItems: 'center', padding: '12px 16px', borderRadius: '12px', border: '1.5px solid var(--border-color)', background: 'var(--bg-glass)', boxShadow: '0 4px 12px rgba(0,0,0,0.04)'}}>
+                         <FiSearch style={{marginRight: 12, color: 'var(--primary-400)', fontSize: '1.1rem'}}/>
                          <input 
                            type="text"
                            placeholder="Search name, barcode or Item No to view graph..."
                            value={itemSearchQuery}
                            onChange={(e) => setItemSearchQuery(e.target.value)}
-                           style={{background: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none'}}
+                           style={{background: 'transparent', border: 'none', color: 'var(--text-primary)', width: '100%', outline: 'none', fontSize: '0.95rem', fontWeight: 600}}
                          />
                       </div>
                       
                       {itemSearchQuery && (
-                         <div className="search-results-list" style={{background: '#1e293b', padding: '10px', borderRadius: '8px', zIndex: 10, marginBottom: '10px', border: '1px solid rgba(255,255,255,0.05)'}}>
+                         <div className="search-results-list" style={{background: 'var(--bg-card)', padding: '8px', borderRadius: '14px', zIndex: 10, marginBottom: '15px', border: '1.5px solid var(--border-color)', boxShadow: '0 10px 30px rgba(0,0,0,0.12)'}}>
                             {Object.values(inventoryItems)
                                .filter(inv => {
                                  if (itemSearchQuery && inv.itemNo?.toString() === itemSearchQuery.trim()) return true;
@@ -545,11 +545,18 @@ export default function Reports() {
                                  <div 
                                     key={idx} 
                                     onClick={() => handleSelectItemGraph(inv.name)} 
-                                    style={{padding: '8px', cursor: 'pointer', borderBottom: '1px solid #334155'}}
-                                    onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.05)'}
-                                    onMouseOut={(e) => e.target.style.background = 'transparent'}
+                                    style={{padding: '10px 14px', cursor: 'pointer', borderRadius: '10px', marginBottom: '4px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.92rem', transition: 'all 0.15s ease'}}
+                                    onMouseOver={(e) => {
+                                      e.currentTarget.style.background = 'var(--primary-50, rgba(139, 92, 246, 0.12))';
+                                      e.currentTarget.style.color = 'var(--primary-400)';
+                                    }}
+                                    onMouseOut={(e) => {
+                                      e.currentTarget.style.background = 'transparent';
+                                      e.currentTarget.style.color = 'var(--text-primary)';
+                                    }}
                                  >
-                                    {inv.name} <span style={{fontSize: '0.8em', color: '#94a3b8', marginLeft: '8px'}}>#{inv.itemNo || '-'}</span>
+                                    <span>{inv.name}</span>
+                                    <span style={{fontSize: '0.82rem', color: 'var(--primary-400)', fontWeight: 700, background: 'rgba(139, 92, 246, 0.12)', padding: '2px 8px', borderRadius: '6px'}}>#{inv.itemNo || '-'}</span>
                                  </div>
                                ))
                             }
@@ -558,16 +565,16 @@ export default function Reports() {
 
                       {selectedItemForChart && itemChartData.length > 0 ? (
                         <>
-                          <h4 style={{marginBottom: '15px', color: '#cbd5e1', fontSize: '14px'}}>Sales (Qty) over last 30 days: <span style={{color: '#8b5cf6', fontWeight: 'bold'}}>{selectedItemForChart}</span></h4>
+                          <h4 style={{marginBottom: '15px', color: 'var(--text-primary)', fontSize: '14px', fontWeight: 600}}>Sales (Qty) over last 30 days: <span style={{color: 'var(--primary-400)', fontWeight: 'bold'}}>{selectedItemForChart}</span></h4>
                           <ResponsiveContainer width="100%" height={260}>
                             <LineChart data={itemChartData}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                              <XAxis dataKey="date" stroke="rgba(255,255,255,0.5)" fontSize={12} />
-                              <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} allowDecimals={false} />
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
+                              <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={12} />
+                              <YAxis stroke="var(--text-secondary)" fontSize={12} allowDecimals={false} />
                               <Tooltip 
-                                contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', padding: '10px 14px' }}
-                                labelStyle={{ color: '#ffffff', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}
-                                itemStyle={{ color: '#34d399', fontWeight: '600', fontSize: '13px' }}
+                                contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px' }}
+                                labelStyle={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}
+                                itemStyle={{ color: 'var(--primary-400)', fontWeight: '600', fontSize: '13px' }}
                                 formatter={(value) => [
                                   `${typeof value === 'number' ? (Number.isInteger(value) ? value : Number(value).toFixed(2)) : value}`,
                                   'Quantity Sold'
@@ -587,13 +594,13 @@ export default function Reports() {
                   chartData.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                        <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" fontSize={12} />
-                        <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
+                        <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} />
+                        <YAxis stroke="var(--text-secondary)" fontSize={12} />
                         <Tooltip 
-                          contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', padding: '10px 14px' }}
-                          labelStyle={{ color: '#ffffff', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}
-                          itemStyle={{ color: '#c084fc', fontWeight: '600', fontSize: '13px' }}
+                          contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px' }}
+                          labelStyle={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}
+                          itemStyle={{ color: 'var(--primary-400)', fontWeight: '600', fontSize: '13px' }}
                           formatter={(value) => [
                             typeof value === 'number' ? (Number.isInteger(value) ? value : Number(value).toFixed(2)) : value,
                             'Quantity Sold'
