@@ -814,11 +814,30 @@ export default function Sales() {
           }
         }
 
+        const isStarKey = e.key === '*' || e.code === 'NumpadMultiply';
+        const isSlashKey = e.key === '/' || e.code === 'NumpadDivide';
+
+        if (isStarKey || isSlashKey) {
+          const activeTag = document.activeElement?.tagName;
+          const isSearchFocused = document.activeElement === barcodeInputRef.current;
+          const isInputFocused = isSearchFocused || ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag);
+
+          if ((isSearchFocused && search.trim() === '') || !isInputFocused) {
+            e.preventDefault();
+            if (isStarKey) {
+              handleOpenMillingModal('wee');
+            } else if (isSlashKey) {
+              handleOpenMillingModal('pol');
+            }
+            return;
+          }
+        }
+
         // Auto-focus search input when barcode scanner or user starts typing on main screen (if not in input)
         const activeTag = document.activeElement?.tagName;
         const isInputActive = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
         if (!isInputActive && barcodeInputRef.current) {
-          if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key && e.key.length === 1 && e.key !== ' ') {
+          if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key && e.key.length === 1 && e.key !== ' ' && e.key !== '*' && e.key !== '/') {
             barcodeInputRef.current.focus();
           }
         }
@@ -1586,8 +1605,8 @@ export default function Sales() {
           <div className="page-header mb-4">
             <h1 className="page-title gradient-text">{t('sales.title')}</h1>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="bill-search-btn glass" onClick={() => handleOpenMillingModal('wee')} title="කෙටීමේ ගාස්තු (වී/පොල්)" style={{ borderColor: '#eab308', color: '#eab308' }}>
-                <FiSettings /> <span>කෙටීමේ ගාස්තු</span>
+              <button className="bill-search-btn glass" onClick={() => handleOpenMillingModal('wee')} title="කෙටීමේ ගාස්තු (වී [*] / පොල් [/])" style={{ borderColor: '#eab308', color: '#eab308' }}>
+                <FiSettings /> <span>කෙටීමේ ගාස්තු [* / /]</span>
               </button>
               <button className="bill-search-btn glass" onClick={() => setCustomItemModal(true)} title="නොමැති භාණ්ඩයක් එකතු කරන්න" style={{ borderColor: 'var(--success-400)', color: 'var(--success-400)' }}>
                 <FiEdit3 /> <span>නොමැති භාණ්ඩ</span>
@@ -1679,7 +1698,7 @@ export default function Sales() {
                     }
                   }}
                 >
-                  {cat}
+                  {cat === 'වී කෙටීම' ? '🌾 වී කෙටීම [*]' : cat === 'පොල් කෙටීම' ? '🥥 පොල් කෙටීම [/]' : cat}
                 </button>
               ))}
             </div>
