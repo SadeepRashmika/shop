@@ -416,6 +416,21 @@ export default function Sales() {
   const [customItemMarkedPrice, setCustomItemMarkedPrice] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState('');
   const [customItemQty, setCustomItemQty] = useState('1');
+  const customItemPriceRef = useRef(null);
+
+  const handleOpenQuickCustomItem = () => {
+    setCustomItemName('වෙනත් භාණ්ඩ');
+    setCustomItemMarkedPrice('');
+    setCustomItemPrice('');
+    setCustomItemQty('1');
+    setCustomItemModal(true);
+    setTimeout(() => {
+      if (customItemPriceRef.current) {
+        customItemPriceRef.current.focus();
+        customItemPriceRef.current.select();
+      }
+    }, 100);
+  };
 
   // Edit Cart Item Price/Discount Modal
   const [editCartItemModal, setEditCartItemModal] = useState(false);
@@ -816,8 +831,9 @@ export default function Sales() {
 
         const isStarKey = e.key === '*' || e.code === 'NumpadMultiply';
         const isSlashKey = e.key === '/' || e.code === 'NumpadDivide';
+        const isDotKey = e.key === '.' || e.code === 'NumpadDecimal';
 
-        if (isStarKey || isSlashKey) {
+        if (isStarKey || isSlashKey || isDotKey) {
           const activeTag = document.activeElement?.tagName;
           const isSearchFocused = document.activeElement === barcodeInputRef.current;
           const isInputFocused = isSearchFocused || ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag);
@@ -828,6 +844,8 @@ export default function Sales() {
               handleOpenMillingModal('wee');
             } else if (isSlashKey) {
               handleOpenMillingModal('pol');
+            } else if (isDotKey) {
+              handleOpenQuickCustomItem();
             }
             return;
           }
@@ -837,7 +855,7 @@ export default function Sales() {
         const activeTag = document.activeElement?.tagName;
         const isInputActive = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
         if (!isInputActive && barcodeInputRef.current) {
-          if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key && e.key.length === 1 && e.key !== ' ' && e.key !== '*' && e.key !== '/') {
+          if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key && e.key.length === 1 && e.key !== ' ' && e.key !== '*' && e.key !== '/' && e.key !== '.') {
             barcodeInputRef.current.focus();
           }
         }
@@ -1608,8 +1626,8 @@ export default function Sales() {
               <button className="bill-search-btn glass" onClick={() => handleOpenMillingModal('wee')} title="කෙටීමේ ගාස්තු (වී [*] / පොල් [/])" style={{ borderColor: '#eab308', color: '#eab308' }}>
                 <FiSettings /> <span>කෙටීමේ ගාස්තු [* / /]</span>
               </button>
-              <button className="bill-search-btn glass" onClick={() => setCustomItemModal(true)} title="නොමැති භාණ්ඩයක් එකතු කරන්න" style={{ borderColor: 'var(--success-400)', color: 'var(--success-400)' }}>
-                <FiEdit3 /> <span>නොමැති භාණ්ඩ</span>
+              <button className="bill-search-btn glass" onClick={handleOpenQuickCustomItem} title="නොමැති භාණ්ඩයක් එකතු කරන්න (.)" style={{ borderColor: 'var(--success-400)', color: 'var(--success-400)' }}>
+                <FiEdit3 /> <span>නොමැති භාණ්ඩ [.]</span>
               </button>
               <button className="bill-search-btn glass" onClick={handleOpenReloadModal} title={t('reload.title')} style={{ borderColor: 'var(--primary-500)', color: 'var(--primary-400)' }}>
                 <FiZap /> <span>{t('reload.quickReload')}</span>
@@ -1788,7 +1806,30 @@ export default function Sales() {
 
           <div className="cart-header">
             <h2 className="cart-title"><FiShoppingCart /> {t('sales.cart')}</h2>
-            <div className="cart-header-right">
+            <div className="cart-header-right" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                className="add-custom-quick-btn"
+                onClick={handleOpenQuickCustomItem}
+                title="නොමැති භාණ්ඩයක් එකතු කරන්න (.)"
+                style={{
+                  background: 'rgba(34, 197, 94, 0.15)',
+                  border: '1px solid rgba(34, 197, 94, 0.4)',
+                  color: '#22c55e',
+                  borderRadius: '8px',
+                  padding: '4px 10px',
+                  fontSize: '0.8rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <FiPlus style={{ fontSize: '1rem', fontWeight: 'bold' }} />
+                <span>වෙනත් [.]</span>
+              </button>
               {cart.length > 0 && (
                 <button className="clear-cart-btn" onClick={() => { if (window.confirm('Clear entire cart?')) { setCart([]); setActiveCartId(null); } }} title="Clear Cart">
                   <FiTrash2 /> Clear
@@ -3057,6 +3098,7 @@ export default function Sales() {
             </label>
             <div style={{ position: 'relative' }}>
               <input
+                ref={customItemPriceRef}
                 type="number"
                 step="0.01"
                 placeholder="0.00"
@@ -3064,6 +3106,7 @@ export default function Sales() {
                 onChange={(e) => setCustomItemPrice(e.target.value)}
                 className="search-input"
                 style={{ width: '100%', paddingLeft: '40px', fontSize: '1.2rem', fontWeight: 700, color: 'var(--success-400)' }}
+                autoFocus
                 onKeyPress={(e) => e.key === 'Enter' && handleAddCustomItem()}
               />
               <FiDollarSign style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--success-400)', fontSize: '18px' }} />
