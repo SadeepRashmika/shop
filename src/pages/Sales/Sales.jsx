@@ -2587,8 +2587,8 @@ export default function Sales() {
                 <Button
                   variant="secondary"
                   onClick={async () => {
-                    const pw = prompt('Enter owner password to delete this bill:');
-                    if (pw !== '1972341264123') {
+                    const pw = prompt('Enter Owner Password to delete this bill:');
+                    if (pw !== '723412641') {
                       if (pw !== null) alert('Incorrect password. Deletion cancelled.');
                       return;
                     }
