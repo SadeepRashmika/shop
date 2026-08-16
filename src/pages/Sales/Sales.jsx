@@ -28,7 +28,7 @@ function getShopInfo() {
         address: data.shopAddress || 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
       };
     }
-  } catch {}
+  } catch { }
   return {
     name: 'සුමින්ද ස්ටෝර්ස්',
     phone: '0777640334',
@@ -47,7 +47,7 @@ function getMillingRates() {
         polRate: data.polRate !== undefined ? Number(data.polRate) : 65
       };
     }
-  } catch {}
+  } catch { }
   return { weeRate: 7, polRate: 65 };
 }
 
@@ -795,11 +795,11 @@ export default function Sales() {
       setLoading(true);
       try {
         const itemSnapshot = await getDocs(collection(db, 'items'));
-        const loadedItems = itemSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const loadedItems = itemSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setItems(loadedItems);
 
         const debtorSnapshot = await getDocs(collection(db, 'debtors'));
-        setDebtors(debtorSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        setDebtors(debtorSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
         try {
           const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
@@ -1328,6 +1328,23 @@ export default function Sales() {
           }
 
           await setDoc(doc(db, 'reloads', reloadId), reloadRecord);
+        } else if (item.isMilling || (item.name && (item.name.includes('වී කෙටීම') || item.name.includes('පොල් කෙටීම')))) {
+          const millingId = `MIL${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+          const millingType = item.millingType || (item.name?.includes('පොල්') ? 'pol' : 'wee');
+          const millingRecord = {
+            billNumber,
+            millingType,
+            name: item.name,
+            kg: parseFloat(item.quantity) || 1,
+            rate: parseFloat(item.sellPrice) || (millingType === 'pol' ? 65 : 7),
+            total: (parseFloat(item.sellPrice) || 0) * (parseFloat(item.quantity) || 1),
+            paymentMethod,
+            cashierId: userData?.uid || 'unknown',
+            cashierName: userData?.name || 'Cashier',
+            timestamp: serverTimestamp(),
+            date: new Date()
+          };
+          await setDoc(doc(db, 'millingRecords', millingId), millingRecord);
         } else if (item.id && !item.isCustom) {
           // Check if item document still exists before updating stock
           const itemRef = doc(db, 'items', item.id);
@@ -1715,7 +1732,7 @@ export default function Sales() {
                         <span className="result-stock">{item.stock} in stock</span>
                       </div>
                       <div className="result-price">
-                        Rs. {Number(item.sellPrice || 0).toFixed(2)}
+                        Rs. {item.sellPrice.toFixed(2)}
                       </div>
                     </div>
                   ))
@@ -1785,7 +1802,7 @@ export default function Sales() {
                     </div>
                     <div className="pos-item-info">
                       <span className="pos-item-name">{item.name}</span>
-                      <span className="pos-item-price">Rs. {Number(item.sellPrice || 0).toFixed(2)}</span>
+                      <span className="pos-item-price">Rs. {item.sellPrice.toFixed(2)}</span>
                     </div>
                   </div>
                 );
@@ -2054,9 +2071,9 @@ export default function Sales() {
             fontFamily: "'Inter', sans-serif"
           }}>
             <div style={{ textAlign: 'center', borderBottom: '1px dashed #cbd5e1', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>{SHOP_INFO.name}</h2>
-              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '2px 0 0 0' }}>{SHOP_INFO.address}</p>
-              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '2px 0 0 0' }}>Tel: {SHOP_INFO.phone}</p>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>{getShopInfo().name}</h2>
+              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '2px 0 0 0' }}>{getShopInfo().address}</p>
+              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '2px 0 0 0' }}>Tel: {getShopInfo().phone}</p>
               <div style={{ marginTop: '0.5rem', display: 'inline-block', background: '#e0e7ff', color: '#3730a3', fontSize: '0.75rem', fontWeight: '700', padding: '2px 8px', borderRadius: '4px' }}>
                 BILL PREVIEW (DRAFT)
               </div>
@@ -2083,9 +2100,9 @@ export default function Sales() {
                     <td style={{ padding: '6px 0', textAlign: 'center', color: '#475569' }}>
                       {typeof item.quantity === 'number' && item.quantity % 1 !== 0 ? item.quantity.toFixed(2) : item.quantity}
                     </td>
-                    <td style={{ padding: '6px 0', textAlign: 'right', color: '#475569' }}>Rs. {Number(item.sellPrice || 0).toFixed(2)}</td>
+                    <td style={{ padding: '6px 0', textAlign: 'right', color: '#475569' }}>Rs. {item.sellPrice.toFixed(2)}</td>
                     <td style={{ padding: '6px 0', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>
-                      Rs. {Number((item.sellPrice || 0) * (item.quantity || 1)).toFixed(2)}
+                      Rs. {(item.sellPrice * item.quantity).toFixed(2)}
                     </td>
                   </tr>
                 ))}
@@ -2598,7 +2615,7 @@ export default function Sales() {
           <div className="weight-entry-content">
             <div className="weight-item-banner">
               <h3>{weightItem.name}</h3>
-              <span className="weight-price-per-kg">Rs. {Number(weightItem.sellPrice || 0).toFixed(2)} / kg</span>
+              <span className="weight-price-per-kg">Rs. {weightItem.sellPrice.toFixed(2)} / kg</span>
               <span className="weight-stock-info">{weightItem.stock} kg available</span>
             </div>
 
@@ -2637,7 +2654,7 @@ export default function Sales() {
             {weightValue && parseFloat(weightValue) > 0 && (
               <div className="weight-total-preview">
                 <span>Total Price:</span>
-                <h2>Rs. {Number((weightItem.sellPrice || 0) * (parseFloat(weightValue) || 0)).toFixed(2)}</h2>
+                <h2>Rs. {(weightItem.sellPrice * parseFloat(weightValue)).toFixed(2)}</h2>
               </div>
             )}
 

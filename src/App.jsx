@@ -21,8 +21,8 @@ import Advertisements from './pages/Advertisements/Advertisements';
 import CashManager from './pages/CashManager/CashManager';
 import HomeUse from './pages/HomeUse/HomeUse';
 import Reload from './pages/Reload/Reload';
-import Settings from './pages/Settings/Settings';
 import Milling from './pages/Milling/Milling';
+import Settings from './pages/Settings/Settings';
 
 import './i18n/i18n';
 
@@ -132,18 +132,18 @@ function App() {
                 }
               />
               <Route
-                path="/settings"
-                element={
-                  <ProtectedRoute allowedRoles={['cashier', 'owner']}>
-                    <Settings />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
                 path="/milling"
                 element={
                   <ProtectedRoute allowedRoles={['cashier', 'owner']}>
                     <Milling />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute allowedRoles={['cashier', 'owner']}>
+                    <Settings />
                   </ProtectedRoute>
                 }
               />
