@@ -176,6 +176,12 @@ function generateBillPDF(billData) {
     ? billData.date.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' })
     : new Date().toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
 
+  const totalItemsCount = (billData.items || []).length;
+  const totalQuantity = (billData.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+  const itemsCountText = totalQuantity !== totalItemsCount 
+    ? `${totalItemsCount} (Qty: ${totalQuantity})`
+    : `${totalItemsCount}`;
+
   const totalSavings = billData.paymentMethod === 'credit' ? 0 : billData.items.reduce((sum, item) => {
     const mPrice = Number(item.markedPrice) || Number(item.sellPrice);
     const sPrice = Number(item.sellPrice);
@@ -294,6 +300,10 @@ function generateBillPDF(billData) {
   <div class="divider"></div>
 
   <div class="total-section">
+    <div class="total-row">
+      <span>භාණ්ඩ ගණන (Items):</span>
+      <span>${itemsCountText}</span>
+    </div>
     <div class="total-row grand-total">
       <span>මුළු එකතුව</span>
       <span>${billData.total.toFixed(2)}</span>
