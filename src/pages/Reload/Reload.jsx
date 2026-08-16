@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, updateDoc, increment, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -7,7 +7,7 @@ import Button from '../../components/ui/Button';
 import {
   FiZap, FiPhoneCall, FiDollarSign, FiCopy, FiCheck,
   FiPrinter, FiTrendingUp, FiCheckCircle, FiClock, FiUser, FiCreditCard, FiHome,
-  FiSearch, FiCalendar, FiFilter, FiX
+  FiSearch, FiCalendar, FiFilter, FiX, FiTrash2
 } from 'react-icons/fi';
 import './Reload.css';
 
@@ -749,7 +749,8 @@ export default function Reload() {
                     <th style={{ padding: '8px 4px' }}>{t('reload.phoneNumber')}</th>
                     <th style={{ padding: '8px 4px', textAlign: 'right' }}>{t('reload.amount')}</th>
                     <th style={{ padding: '8px 4px', textAlign: 'center' }}>ක්‍රමය</th>
-                    <th style={{ padding: '8px 4px', textAlign: 'right' }}>Print</th>
+                    <th style={{ padding: '8px 4px', textAlign: 'center' }}>Print</th>
+                    <th style={{ padding: '8px 4px', textAlign: 'center' }}>Delete</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -785,7 +786,7 @@ export default function Reload() {
                             {item.paymentMethod === 'credit' ? 'CREDIT' : item.paymentMethod === 'home_use' ? 'HOME' : 'CASH'}
                           </span>
                         </td>
-                        <td style={{ padding: '8px 4px', textAlign: 'right' }}>
+                        <td style={{ padding: '8px 4px', textAlign: 'center' }}>
                           <button
                             type="button"
                             onClick={() => generateReloadReceiptPDF(item)}
@@ -793,6 +794,29 @@ export default function Reload() {
                             title="Reprint Receipt"
                           >
                             <FiPrinter />
+                          </button>
+                        </td>
+                        <td style={{ padding: '8px 4px', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const confirmed = window.confirm(
+                                `මෙම Reload එක මකන්නද?\n\nNetwork: ${item.network}\nPhone: ${item.phone}\nAmount: Rs. ${parseFloat(item.amount || 0).toFixed(2)}\n\nමකා දැමූ පසු නැවත ලබා ගත නොහැක!`
+                              );
+                              if (confirmed) {
+                                try {
+                                  await deleteDoc(doc(db, 'reloads', item.id));
+                                  setReloadHistory(prev => prev.filter(r => r.id !== item.id));
+                                } catch (err) {
+                                  console.error('Delete reload error:', err);
+                                  alert('මැකීම අසාර්ථකයි: ' + err.message);
+                                }
+                              }
+                            }}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '4px' }}
+                            title="Delete Reload Record"
+                          >
+                            <FiTrash2 />
                           </button>
                         </td>
                       </tr>
