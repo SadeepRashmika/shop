@@ -1,16 +1,37 @@
-import { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { useState, useEffect, useMemo } from 'react';
+import { collection, getDocs } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../services/firebase';
 import Card from '../../components/ui/Card';
-import { useReactToPrint } from 'react-to-print';
 import {
   FiHome, FiPlus, FiPrinter, FiSearch, FiShoppingBag,
-  FiDollarSign, FiClock, FiUser, FiPackage, FiCalendar, FiTrendingUp
+  FiDollarSign, FiClock, FiUser, FiPackage, FiCalendar, FiTrendingUp, FiFilter, FiRefreshCw
 } from 'react-icons/fi';
 import './HomeUse.css';
+
+// Dynamic Shop information helper
+function getShopInfo() {
+  try {
+    const saved = localStorage.getItem('smartpos_settings');
+    if (saved) {
+      const data = JSON.parse(saved);
+      return {
+        name: data.shopName || 'සුමින්ද ස්ටෝර්ස්',
+        phone: data.shopPhone || '0777640334',
+        address: data.shopAddress || 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර',
+        email: data.shopEmail || 'sumindapradeep1111@gmail.com'
+      };
+    }
+  } catch {}
+  return {
+    name: 'සුමින්ද ස්ටෝර්ස්',
+    phone: '0777640334',
+    address: 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර',
+    email: 'sumindapradeep1111@gmail.com'
+  };
+}
 
 export default function HomeUse() {
   const { t } = useTranslation();
@@ -20,19 +41,10 @@ export default function HomeUse() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [stats, setStats] = useState({
-    todayTotal: 0,
-    monthTotal: 0,
-    allTimeTotal: 0,
-    totalRecords: 0,
-    totalItemsCount: 0,
-  });
 
-  const printRef = useRef();
-  const handlePrint = useReactToPrint({
-    content: () => printRef.current,
-    documentTitle: 'Home_Use_Items_Report',
-  });
+  // Date & Filter States
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]); // YYYY-MM-DD
+  const [dateMode, setDateMode] = useState('day'); // 'day', 'month', 'all'
 
   useEffect(() => {
     fetchHomeUseRecords();
@@ -41,64 +53,24 @@ export default function HomeUse() {
   const fetchHomeUseRecords = async () => {
     setLoading(true);
     try {
-      // Query transactions with paymentMethod == 'home_use'
       const snap = await getDocs(collection(db, 'transactions'));
       const homeTxns = [];
-      let todayTotal = 0;
-      let monthTotal = 0;
-      let allTimeTotal = 0;
-      let totalItemsCount = 0;
 
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-
-      snap.forEach(doc => {
-        const data = doc.data();
+      snap.forEach(docSnap => {
+        const data = docSnap.data();
         if (data.paymentMethod === 'home_use') {
-          const txn = { id: doc.id, ...data };
-          homeTxns.push(txn);
-
-          const total = Number(data.total) || 0;
-          allTimeTotal += total;
-
-          const tsDate = data.timestamp?.toDate
-            ? data.timestamp.toDate()
-            : data.timestamp?.seconds
-              ? new Date(data.timestamp.seconds * 1000)
-              : new Date();
-          const tsTime = tsDate.getTime();
-
-          if (tsTime >= todayStart) {
-            todayTotal += total;
-          }
-          if (tsTime >= monthStart) {
-            monthTotal += total;
-          }
-
-          if (data.items) {
-            data.items.forEach(i => {
-              totalItemsCount += Number(i.quantity) || 0;
-            });
-          }
+          homeTxns.push({ id: docSnap.id, ...data });
         }
       });
 
       // Sort descending by timestamp
       homeTxns.sort((a, b) => {
-        const tA = a.timestamp?.seconds || 0;
-        const tB = b.timestamp?.seconds || 0;
-        return tB - tA;
+        const timeA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : new Date(a.date || 0).getTime());
+        const timeB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : new Date(b.date || 0).getTime());
+        return timeB - timeA;
       });
 
       setRecords(homeTxns);
-      setStats({
-        todayTotal,
-        monthTotal,
-        allTimeTotal,
-        totalRecords: homeTxns.length,
-        totalItemsCount,
-      });
     } catch (err) {
       console.error('Error fetching home use records:', err);
     } finally {
@@ -106,21 +78,100 @@ export default function HomeUse() {
     }
   };
 
-  const filteredRecords = search
-    ? records.filter(r => {
+  // Filter records based on Date Mode, Selected Date, and Search Query
+  const filteredRecords = useMemo(() => {
+    return records.filter(r => {
+      const tsDate = r.timestamp?.toDate 
+        ? r.timestamp.toDate() 
+        : (r.timestamp?.seconds ? new Date(r.timestamp.seconds * 1000) : new Date(r.date || Date.now()));
+      
+      const recDateStr = tsDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const recMonthStr = recDateStr.substring(0, 7); // YYYY-MM
+
+      if (dateMode === 'day' && recDateStr !== selectedDate) return false;
+      if (dateMode === 'month' && recMonthStr !== selectedDate.substring(0, 7)) return false;
+
+      // Search query filter
+      if (search.trim()) {
         const q = search.toLowerCase();
         const billStr = r.billNumber ? String(r.billNumber) : '';
         const cashierStr = (r.cashierName || '').toLowerCase();
-        const itemsStr = (r.items || []).map(i => i.name.toLowerCase()).join(' ');
+        const itemsStr = (r.items || []).map(i => (i.name || '').toLowerCase()).join(' ');
         return billStr.includes(q) || cashierStr.includes(q) || itemsStr.includes(q);
-      })
-    : records;
+      }
+
+      return true;
+    });
+  }, [records, selectedDate, dateMode, search]);
+
+  // Dynamic Statistics based on All Records & Filtered Records
+  const stats = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const thisMonthStr = todayStr.substring(0, 7);
+
+    let todayTotal = 0;
+    let thisMonthTotal = 0;
+    let allTimeTotal = 0;
+    let allTimeItems = 0;
+
+    records.forEach(r => {
+      const tot = Number(r.total) || 0;
+      allTimeTotal += tot;
+
+      const tsDate = r.timestamp?.toDate 
+        ? r.timestamp.toDate() 
+        : (r.timestamp?.seconds ? new Date(r.timestamp.seconds * 1000) : new Date(r.date || Date.now()));
+      const dStr = tsDate.toISOString().split('T')[0];
+
+      if (dStr === todayStr) todayTotal += tot;
+      if (dStr.startsWith(thisMonthStr)) thisMonthTotal += tot;
+
+      if (r.items) {
+        r.items.forEach(i => {
+          allTimeItems += Number(i.quantity) || 0;
+        });
+      }
+    });
+
+    // Filtered Period Stats
+    let filteredTotal = 0;
+    let filteredItemsCount = 0;
+    filteredRecords.forEach(r => {
+      filteredTotal += Number(r.total) || 0;
+      if (r.items) {
+        r.items.forEach(i => {
+          filteredItemsCount += Number(i.quantity) || 0;
+        });
+      }
+    });
+
+    return {
+      todayTotal,
+      thisMonthTotal,
+      allTimeTotal,
+      allTimeItems,
+      filteredTotal,
+      filteredItemsCount,
+      filteredCount: filteredRecords.length
+    };
+  }, [records, filteredRecords]);
+
+  // Quick Date Selectors
+  const handleSetQuickDate = (mode, offsetDays = 0) => {
+    setDateMode(mode);
+    if (mode === 'all') return;
+
+    const d = new Date();
+    d.setDate(d.getDate() - offsetDays);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  };
 
   const formatCurrency = (val) => `Rs. ${Number(val || 0).toFixed(2)}`;
 
   const formatDateTime = (ts) => {
     if (!ts) return '—';
-    const date = ts.toDate ? ts.toDate() : new Date(ts.seconds * 1000);
+    const date = ts.toDate ? ts.toDate() : new Date(ts.seconds ? ts.seconds * 1000 : ts);
     return date.toLocaleString('en-LK', {
       year: 'numeric', month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit'
@@ -129,6 +180,121 @@ export default function HomeUse() {
 
   const handleStartHomeUseSale = () => {
     navigate('/sales', { state: { setPaymentMethod: 'home_use' } });
+  };
+
+  // Robust PDF / Print Report Generator
+  const handlePrintReport = () => {
+    const shopInfo = getShopInfo();
+    const periodTitle = dateMode === 'day' 
+      ? `දිනය: ${selectedDate}` 
+      : dateMode === 'month' 
+      ? `මාසය: ${selectedDate.substring(0, 7)}` 
+      : 'සියලුම කාලපරිච්ඡේදය (All Time)';
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>නිවසට ගත් භාණ්ඩ වාර්තාව - ${periodTitle}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800;900&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans Sinhala', 'Segoe UI', Arial, sans-serif; padding: 15mm 20mm; color: #000; }
+    .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 12px; }
+    .shop-name { font-size: 24px; font-weight: 900; -webkit-text-stroke: 0.6px #000; color: #000; margin-bottom: 4px; }
+    .shop-info { font-size: 13px; font-weight: 700; color: #333; }
+    .report-title { font-size: 19px; font-weight: 800; margin-top: 10px; color: #000; }
+    .report-meta { font-size: 13px; font-weight: 700; margin-top: 4px; color: #555; }
+    
+    .stats-row { display: flex; justify-content: space-around; background: #f8fafc; border: 1.5px solid #cbd5e1; padding: 12px; border-radius: 8px; margin-bottom: 20px; }
+    .stat-box { text-align: center; }
+    .stat-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; }
+    .stat-val { font-size: 18px; font-weight: 900; color: #0f172a; margin-top: 2px; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
+    th { background: #0f172a; color: #fff; font-weight: 800; font-size: 12px; }
+    .text-right { text-align: right; }
+    .item-tag { display: inline-block; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 3px 6px; border-radius: 4px; margin: 2px; font-size: 11px; font-weight: 600; }
+    .footer { margin-top: 25px; text-align: center; font-size: 11px; font-weight: 700; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 10px; }
+    @media print {
+      body { padding: 10mm; }
+      @page { size: auto; margin: 10mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="shop-name">${shopInfo.name}</div>
+    <div class="shop-info">${shopInfo.address} | Tel: ${shopInfo.phone}</div>
+    <div class="report-title">🏡 නිවසට ගත් භාණ්ඩ වාර්තාව (Home Use Items Report)</div>
+    <div class="report-meta">${periodTitle} • බිල්පත් ${filteredRecords.length} ක් • මුද්‍රණය කළ දිනය: ${new Date().toLocaleString('en-LK')}</div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-lbl">තෝරාගත් කාලයේ මුළු එකතුව (Total Value)</div>
+      <div class="stat-val" style="color:#10b981;">Rs. ${stats.filteredTotal.toFixed(2)}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-lbl">මුළු භාණ්ඩ ප්‍රමාණය (Items Qty)</div>
+      <div class="stat-val">${stats.filteredItemsCount}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-lbl">බිල්පත් ගණන (Bills Count)</div>
+      <div class="stat-val">${stats.filteredCount}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>දිනය සහ වේලාව</th>
+        <th>බිල්පත් අංකය</th>
+        <th>ලබාගත් භාණ්ඩ (Items)</th>
+        <th class="text-right">මුළු වටිනාකම (Rs.)</th>
+        <th>සටහන් කළේ</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${filteredRecords.map(r => {
+        const d = r.timestamp?.toDate ? r.timestamp.toDate() : new Date(r.timestamp?.seconds ? r.timestamp.seconds * 1000 : r.date || Date.now());
+        const dateStr = d.toLocaleDateString('en-LK', { year: 'numeric', month: 'short', day: 'numeric' });
+        const timeStr = d.toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' });
+        return `
+          <tr>
+            <td style="white-space:nowrap;">${dateStr}<br/><small style="color:#64748b;">${timeStr}</small></td>
+            <td style="font-weight:800; color:#3b82f6;">#${r.billNumber ? String(r.billNumber).padStart(6, '0') : '-'}</td>
+            <td>
+              ${(r.items || []).map(i => `<span class="item-tag">${i.name} <strong>x${i.quantity}</strong> (Rs. ${Number(i.sellPrice || 0).toFixed(2)})</span>`).join('')}
+            </td>
+            <td class="text-right" style="font-weight:800; color:#10b981;">Rs. ${Number(r.total || 0).toFixed(2)}</td>
+            <td>${r.cashierName || 'Cashier'}</td>
+          </tr>
+        `;
+      }).join('')}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    SmartPOS System • Generated by ${userData?.name || 'Owner'}
+  </div>
+
+  <script>
+    window.onload = function() { window.print(); };
+  </script>
+</body>
+</html>
+    `;
+
+    const printWin = window.open('', '_blank', 'width=850,height=900');
+    if (printWin) {
+      printWin.document.write(html);
+      printWin.document.close();
+    } else {
+      alert("කරුණාකර Popup windows වලට අවසර ලබා දෙන්න (Please allow popups to download PDF).");
+    }
   };
 
   if (loading) {
@@ -154,7 +320,7 @@ export default function HomeUse() {
         <div className="hu-header-actions">
           <button
             className="hu-btn hu-btn-outline"
-            onClick={handlePrint}
+            onClick={handlePrintReport}
             id="hu-print-btn"
           >
             <FiPrinter /> {t('homeUse.printReport')}
@@ -169,20 +335,80 @@ export default function HomeUse() {
         </div>
       </div>
 
+      {/* Date Filter & Range Selector Bar */}
+      <div className="milling-controls glass-card mb-6" style={{ padding: '12px 16px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div className="quick-date-group" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <button
+            className={`filter-btn ${dateMode === 'day' && selectedDate === new Date().toISOString().split('T')[0] ? 'active' : ''}`}
+            onClick={() => handleSetQuickDate('day', 0)}
+          >
+            📅 අද (Today)
+          </button>
+          <button
+            className={`filter-btn ${dateMode === 'day' && selectedDate === new Date(Date.now() - 86400000).toISOString().split('T')[0] ? 'active' : ''}`}
+            onClick={() => handleSetQuickDate('day', 1)}
+          >
+            ⏪ ඊයේ (Yesterday)
+          </button>
+          <button
+            className={`filter-btn ${dateMode === 'month' ? 'active' : ''}`}
+            onClick={() => handleSetQuickDate('month')}
+          >
+            📆 මාසිකව (Monthly)
+          </button>
+          <button
+            className={`filter-btn ${dateMode === 'all' ? 'active' : ''}`}
+            onClick={() => handleSetQuickDate('all')}
+          >
+            ♾️ සියලුම දින (All Time)
+          </button>
+        </div>
+
+        <div className="date-picker-wrap" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {dateMode === 'month' ? (
+            <input
+              type="month"
+              value={selectedDate.substring(0, 7)}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setSelectedDate(`${e.target.value}-01`);
+                  setDateMode('month');
+                }
+              }}
+              className="custom-date-input glass"
+              style={{ padding: '6px 12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-glass)', color: 'var(--text-primary)', fontWeight: 600 }}
+            />
+          ) : (
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setSelectedDate(e.target.value);
+                  setDateMode('day');
+                }
+              }}
+              className="custom-date-input glass"
+              style={{ padding: '6px 12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-glass)', color: 'var(--text-primary)', fontWeight: 600 }}
+            />
+          )}
+        </div>
+      </div>
+
       {/* Stats Cards */}
       <div className="hu-stats-grid">
         <Card hover={false} className="hu-stat-card">
           <div className="hu-stat-icon cyan"><FiHome /></div>
           <div className="hu-stat-info">
-            <span className="hu-stat-value">{formatCurrency(stats.todayTotal)}</span>
-            <span className="hu-stat-label">{t('homeUse.todayTotal')}</span>
+            <span className="hu-stat-value">{formatCurrency(dateMode === 'day' ? stats.filteredTotal : stats.todayTotal)}</span>
+            <span className="hu-stat-label">{dateMode === 'day' ? 'තෝරාගත් දින මුදල' : t('homeUse.todayTotal')}</span>
           </div>
         </Card>
         <Card hover={false} className="hu-stat-card">
           <div className="hu-stat-icon purple"><FiCalendar /></div>
           <div className="hu-stat-info">
-            <span className="hu-stat-value">{formatCurrency(stats.monthTotal)}</span>
-            <span className="hu-stat-label">{t('homeUse.monthTotal')}</span>
+            <span className="hu-stat-value">{formatCurrency(dateMode === 'month' ? stats.filteredTotal : stats.thisMonthTotal)}</span>
+            <span className="hu-stat-label">{dateMode === 'month' ? 'තෝරාගත් මාසයේ මුදල' : t('homeUse.monthTotal')}</span>
           </div>
         </Card>
         <Card hover={false} className="hu-stat-card">
@@ -197,8 +423,8 @@ export default function HomeUse() {
         <Card hover={false} className="hu-stat-card">
           <div className="hu-stat-icon orange"><FiPackage /></div>
           <div className="hu-stat-info">
-            <span className="hu-stat-value">{stats.totalItemsCount} ({stats.totalRecords})</span>
-            <span className="hu-stat-label">{t('homeUse.totalItemsTaken')}</span>
+            <span className="hu-stat-value">{stats.filteredItemsCount} ({stats.filteredCount})</span>
+            <span className="hu-stat-label">තෝරාගත් භාණ්ඩ (බිල්පත්)</span>
           </div>
         </Card>
       </div>
@@ -211,7 +437,7 @@ export default function HomeUse() {
               <FiSearch className="search-icon" />
               <input
                 type="text"
-                placeholder={t('homeUse.search')}
+                placeholder="බිල්පත් අංකය, භාණ්ඩ නම හෝ සටහන් කළ අය සොයන්න..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="search-input"
@@ -219,26 +445,18 @@ export default function HomeUse() {
               />
             </div>
           </div>
+          <button 
+            onClick={fetchHomeUseRecords}
+            className="hu-btn hu-btn-outline" 
+            style={{ padding: '8px 14px' }}
+            title="Refresh Data"
+          >
+            <FiRefreshCw /> Refresh
+          </button>
         </div>
 
         <Card hover={false}>
-          <div ref={printRef} className="hu-table-container">
-            <style type="text/css" media="print">
-              {`
-                @page { size: auto; margin: 20mm; }
-                .print-header { display: block !important; margin-bottom: 20px; }
-                .print-header h2 { font-size: 22px; color: #000; }
-                .print-header p { font-size: 13px; color: #666; }
-                .hu-table { width: 100%; border-collapse: collapse; }
-                .hu-table th, .hu-table td { border: 1px solid #ddd; padding: 10px; text-align: left; color: #000; }
-                .hu-table th { background-color: #f5f5f5; font-weight: bold; }
-              `}
-            </style>
-            <div className="print-header" style={{ display: 'none' }}>
-              <h2>{t('homeUse.title')}</h2>
-              <p>Printed on {new Date().toLocaleString()}</p>
-            </div>
-
+          <div className="hu-table-container">
             {filteredRecords.length > 0 ? (
               <table className="hu-table">
                 <thead>
@@ -287,7 +505,15 @@ export default function HomeUse() {
             ) : (
               <div className="empty-state">
                 <span className="empty-icon">🏡</span>
-                <p>{t('homeUse.noRecords')}</p>
+                <p>තෝරාගත් කාලපරිච්ඡේදය සඳහා නිවසට ගත් භාණ්ඩ සටහන් වී නොමැත.</p>
+                {(dateMode !== 'all' || search) && (
+                  <button 
+                    className="hu-btn hu-btn-outline mt-3"
+                    onClick={() => { setDateMode('all'); setSearch(''); }}
+                  >
+                    සියලුම දින පෙන්වන්න (Show All Time)
+                  </button>
+                )}
               </div>
             )}
           </div>

@@ -243,6 +243,40 @@
   background: rgba(34, 211, 238, 0.08);
 }
 
+/* Filter Buttons & Date Selector */
+.filter-btn {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-btn:hover {
+  border-color: var(--accent-400);
+  color: var(--accent-400);
+}
+
+.filter-btn.active {
+  background: linear-gradient(135deg, var(--primary-600), var(--primary-500));
+  border-color: var(--primary-500);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+}
+
+.custom-date-input {
+  color-scheme: dark light;
+  outline: none;
+  font-size: 0.85rem;
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
   .hu-title {
