@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { 
   FiHome, FiPackage, FiShoppingCart, FiUsers as FiUsersIcon, 
-  FiBarChart2, FiUserCheck, FiSearch, FiShoppingBag, FiUser, FiStar, FiDollarSign, FiZap
+  FiBarChart2, FiUserCheck, FiSearch, FiShoppingBag, FiUser, FiStar, FiDollarSign, FiZap, FiSettings
 } from 'react-icons/fi';
 import './Sidebar.css';
 
@@ -23,6 +23,7 @@ export default function Sidebar({ isOpen }) {
     { to: '/home-use', icon: <FiHome />, label: t('nav.homeUse') },
     { to: '/reports', icon: <FiBarChart2 />, label: t('nav.reports') },
     { to: '/orders', icon: <FiShoppingBag />, label: t('nav.orders') },
+    { to: '/settings', icon: <FiSettings />, label: 'Settings / සැකසුම්' },
     { to: '/ads', icon: <FiStar />, label: t('nav.ads') },
     { to: '/profile', icon: <FiUser />, label: 'My Profile' },
   ];
@@ -37,6 +38,7 @@ export default function Sidebar({ isOpen }) {
     { to: '/home-use', icon: <FiHome />, label: t('nav.homeUse') },
     { to: '/reports', icon: <FiBarChart2 />, label: t('nav.reports') },
     { to: '/orders', icon: <FiShoppingBag />, label: t('nav.orders') },
+    { to: '/settings', icon: <FiSettings />, label: 'Settings / සැකසුම්' },
     { to: '/profile', icon: <FiUser />, label: 'My Profile' },
   ];
 

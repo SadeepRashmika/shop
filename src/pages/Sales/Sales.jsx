@@ -15,13 +15,41 @@ import {
 
 import './Sales.css';
 
-// Shop information
-const SHOP_INFO = {
-  name: 'සුමින්ද ස්ටෝර්ස්',
-  phone: '0777640334',
-  email: 'sumindapradeep1111@gmail.com',
-  address: 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
-};
+// Dynamic Shop information & Settings helper
+function getShopInfo() {
+  try {
+    const saved = localStorage.getItem('smartpos_settings');
+    if (saved) {
+      const data = JSON.parse(saved);
+      return {
+        name: data.shopName || 'සුමින්ද ස්ටෝර්ස්',
+        phone: data.shopPhone || '0777640334',
+        email: data.shopEmail || 'sumindapradeep1111@gmail.com',
+        address: data.shopAddress || 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
+      };
+    }
+  } catch {}
+  return {
+    name: 'සුමින්ද ස්ටෝර්ස්',
+    phone: '0777640334',
+    email: 'sumindapradeep1111@gmail.com',
+    address: 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
+  };
+}
+
+function getMillingRates() {
+  try {
+    const saved = localStorage.getItem('smartpos_settings');
+    if (saved) {
+      const data = JSON.parse(saved);
+      return {
+        weeRate: data.weeRate !== undefined ? Number(data.weeRate) : 7,
+        polRate: data.polRate !== undefined ? Number(data.polRate) : 65
+      };
+    }
+  } catch {}
+  return { weeRate: 7, polRate: 65 };
+}
 
 // Networks
 const NETWORKS = [
@@ -34,6 +62,7 @@ const NETWORKS = [
 
 // Generate Reload Receipt PDF
 function generateReloadReceiptPDF(reloadRecord) {
+  const shopInfo = getShopInfo();
   const billNum = reloadRecord.billNumber ? String(reloadRecord.billNumber).padStart(6, '0') : '000000';
   const dateStr = reloadRecord.date instanceof Date
     ? reloadRecord.date.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' })
@@ -75,9 +104,9 @@ function generateReloadReceiptPDF(reloadRecord) {
 </head>
 <body>
   <div class="header">
-    <div class="shop-name">${SHOP_INFO.name}</div>
-    <div class="shop-info">${SHOP_INFO.address}</div>
-    <div class="shop-info">Tel: ${SHOP_INFO.phone}</div>
+    <div class="shop-name">${shopInfo.name}</div>
+    <div class="shop-info">${shopInfo.address}</div>
+    <div class="shop-info">Tel: ${shopInfo.phone}</div>
   </div>
 
   <div class="divider"></div>
@@ -132,6 +161,7 @@ function generateReloadReceiptPDF(reloadRecord) {
 
 // Generate Bill Receipt - opens in print window (supports Sinhala text)
 function generateBillPDF(billData) {
+  const shopInfo = getShopInfo();
   const billNum = billData.billNumber ? String(billData.billNumber).padStart(6, '0') : '000000';
   const dateStr = billData.date instanceof Date
     ? billData.date.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' })
@@ -220,10 +250,10 @@ function generateBillPDF(billData) {
 </head>
 <body>
   <div class="header">
-    <div class="shop-name">${SHOP_INFO.name}</div>
-    <div class="shop-info">${SHOP_INFO.address}</div>
-    <div class="shop-info">Tel: ${SHOP_INFO.phone}</div>
-    <div class="shop-info">${SHOP_INFO.email}</div>
+    <div class="shop-name">${shopInfo.name}</div>
+    <div class="shop-info">${shopInfo.address}</div>
+    <div class="shop-info">Tel: ${shopInfo.phone}</div>
+    <div class="shop-info">${shopInfo.email}</div>
   </div>
 
   <div class="divider"></div>
@@ -446,8 +476,9 @@ export default function Sales() {
   const millingKgInputRef = useRef(null);
 
   const handleOpenMillingModal = (type = 'wee') => {
+    const rates = getMillingRates();
     setMillingType(type);
-    setMillingRate(type === 'wee' ? '7' : '65');
+    setMillingRate(type === 'wee' ? String(rates.weeRate) : String(rates.polRate));
     setMillingKg('');
     setMillingModal(true);
     setTimeout(() => {
@@ -458,8 +489,9 @@ export default function Sales() {
   };
 
   const handleSelectMillingType = (type) => {
+    const rates = getMillingRates();
     setMillingType(type);
-    setMillingRate(type === 'wee' ? '7' : '65');
+    setMillingRate(type === 'wee' ? String(rates.weeRate) : String(rates.polRate));
     if (millingKgInputRef.current) {
       millingKgInputRef.current.focus();
     }
@@ -768,6 +800,15 @@ export default function Sales() {
 
         const debtorSnapshot = await getDocs(collection(db, 'debtors'));
         setDebtors(debtorSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+        try {
+          const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
+          if (settingsSnap.exists()) {
+            localStorage.setItem('smartpos_settings', JSON.stringify(settingsSnap.data()));
+          }
+        } catch (sErr) {
+          console.warn("Could not sync settings in Sales:", sErr);
+        }
 
         // Initialize from orders page if navigating from 'Bill It'
         if (location.state?.orderItems) {

@@ -11,15 +11,29 @@ import {
 } from 'react-icons/fi';
 import './Reload.css';
 
-// Shop info for receipt
-const SHOP_INFO = {
-  name: 'සුමින්ද ස්ටෝර්ස්',
-  phone: '0777640334',
-  address: 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
-};
+// Dynamic Shop information helper
+function getShopInfo() {
+  try {
+    const saved = localStorage.getItem('smartpos_settings');
+    if (saved) {
+      const data = JSON.parse(saved);
+      return {
+        name: data.shopName || 'සුමින්ද ස්ටෝර්ස්',
+        phone: data.shopPhone || '0777640334',
+        address: data.shopAddress || 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
+      };
+    }
+  } catch {}
+  return {
+    name: 'සුමින්ද ස්ටෝර්ස්',
+    phone: '0777640334',
+    address: 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
+  };
+}
 
 // Generate Reload Receipt PDF
 function generateReloadReceiptPDF(reloadRecord) {
+  const shopInfo = getShopInfo();
   const billNum = reloadRecord.billNumber ? String(reloadRecord.billNumber).padStart(6, '0') : '000000';
   const dateStr = reloadRecord.date instanceof Date
     ? reloadRecord.date.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' })
@@ -61,9 +75,9 @@ function generateReloadReceiptPDF(reloadRecord) {
 </head>
 <body>
   <div class="header">
-    <div class="shop-name">${SHOP_INFO.name}</div>
-    <div class="shop-info">${SHOP_INFO.address}</div>
-    <div class="shop-info">Tel: ${SHOP_INFO.phone}</div>
+    <div class="shop-name">${shopInfo.name}</div>
+    <div class="shop-info">${shopInfo.address}</div>
+    <div class="shop-info">Tel: ${shopInfo.phone}</div>
   </div>
 
   <div class="divider"></div>
