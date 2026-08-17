@@ -195,10 +195,7 @@ function generateBillPDF(billData) {
   const dateStr = formatSriLankaDateTime(billData.date || billData.timestamp || getNow());
 
   const totalItemsCount = (billData.items || []).length;
-  const totalQuantity = (billData.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-  const itemsCountText = totalQuantity !== totalItemsCount 
-    ? `${totalItemsCount} (Qty: ${totalQuantity})`
-    : `${totalItemsCount}`;
+  const itemsCountText = `${totalItemsCount}`;
 
   const totalSavings = billData.paymentMethod === 'credit' ? 0 : billData.items.reduce((sum, item) => {
     const mPrice = Number(item.markedPrice) || Number(item.sellPrice);
