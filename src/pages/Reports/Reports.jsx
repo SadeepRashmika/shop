@@ -2,6 +2,22 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
+import { 
+  getNow, 
+  getTodayStart, 
+  getTodayEnd, 
+  getMonthStart, 
+  getMonthEnd, 
+  getTodayDateString, 
+  getCurrentMonthString, 
+  getCurrentYearString, 
+  isToday, 
+  isThisMonth, 
+  isThisYear, 
+  toDateObject, 
+  calibrateFromTimestamp,
+  subscribeTimeSync
+} from '../../services/timeService';
 import Button from '../../components/ui/Button';
 import { 
   FiBarChart2, FiDollarSign, FiShoppingBag, FiTrendingUp, 
@@ -35,25 +51,15 @@ export default function Reports() {
   const [itemChartData, setItemChartData] = useState([]);
   const [expandedTxnId, setExpandedTxnId] = useState(null);
 
-  // Date selection states
-  const [selectedDailyDate, setSelectedDailyDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedMonthDate, setSelectedMonthDate] = useState(new Date().toISOString().slice(0, 7));
-  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
+  // Date selection states (calibrated to real synchronized network time)
+  const [selectedDailyDate, setSelectedDailyDate] = useState(getTodayDateString());
+  const [selectedMonthDate, setSelectedMonthDate] = useState(getCurrentMonthString());
+  const [selectedYear, setSelectedYear] = useState(getCurrentYearString());
 
   useEffect(() => {
     const fetchReports = async () => {
       setLoading(true);
       try {
-        // Get today's start and month start
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        const todayTimestamp = Timestamp.fromDate(today);
-
-        const monthStart = new Date();
-        monthStart.setDate(1);
-        monthStart.setHours(0,0,0,0);
-        const monthTimestamp = Timestamp.fromDate(monthStart);
-
         // Fetch Inventory Stats FIRST to calculate profit accurately
         const itemSnapshot = await getDocs(collection(db, 'items'));
         let totalItems = 0;
@@ -85,6 +91,10 @@ export default function Reports() {
           const data = doc.data();
           const total = data.total || 0;
           
+          if (data.timestamp?.seconds) {
+            calibrateFromTimestamp(data.timestamp.seconds);
+          }
+
           // Calculate Profit for this transaction
           let txnCost = 0;
           if (data.items) {
@@ -98,17 +108,17 @@ export default function Reports() {
           const txnData = { id: doc.id, profit: profit, ...data };
           transactions.push(txnData);
           
-          const txnDate = data.timestamp?.seconds ? new Date(data.timestamp.seconds * 1000) : null;
+          const txnDate = toDateObject(data.timestamp || data.date);
 
-          // Today's sales
-          if (data.timestamp && data.timestamp.seconds >= todayTimestamp.seconds) {
+          // Today's sales (calibrated real time check)
+          if (isToday(data.timestamp || data.date)) {
             todaySales += total;
             todayProfit += profit;
             todayCount++;
           }
 
-          // This month's sales
-          if (data.timestamp && data.timestamp.seconds >= monthTimestamp.seconds) {
+          // This month's sales (calibrated real time check)
+          if (isThisMonth(data.timestamp || data.date)) {
             monthSales += total;
             monthProfit += profit;
             monthCount++;
@@ -133,18 +143,22 @@ export default function Reports() {
           .map(([name, qty]) => ({ name, qty }));
         setChartData(sortedItems);
 
-        // Daily sales chart data (last 7 days)
+        // Daily sales chart data (last 7 days based on synced real time)
         const last7Days = [];
+        const now = getNow();
         for (let i = 6; i >= 0; i--) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
+          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
           const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
           last7Days.push({ name: key, sales: dailySalesMap[key] || 0 });
         }
         setDailyChartData(last7Days);
 
         // Sort transactions
-        transactions.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+        transactions.sort((a, b) => {
+          const tB = toDateObject(b.timestamp || b.date)?.getTime() || 0;
+          const tA = toDateObject(a.timestamp || a.date)?.getTime() || 0;
+          return tB - tA;
+        });
         setAllTxns(transactions);
         setRecentTxns(transactions.slice(0, 10));
 
@@ -276,28 +290,17 @@ export default function Reports() {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
     XLSX.utils.book_append_sheet(workbook, itemWorksheet, "Item Sell Details");
     
-    XLSX.writeFile(workbook, `${title}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `${title}_${getTodayDateString()}.xlsx`);
   };
 
   const downloadDailyReport = () => {
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const todayTxns = allTxns.filter(txn => {
-      const txnTime = txn.timestamp?.seconds || 0;
-      return txnTime >= today.getTime() / 1000;
-    });
-    generateExcel(todayTxns, 'Daily_Sales_Report');
+    const todayTxns = allTxns.filter(txn => isToday(txn.timestamp || txn.date));
+    generateExcel(todayTxns, `Daily_Sales_Report_${getTodayDateString()}`);
   };
 
   const downloadMonthlyReport = () => {
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0,0,0,0);
-    const monthTxns = allTxns.filter(txn => {
-      const txnTime = txn.timestamp?.seconds || 0;
-      return txnTime >= monthStart.getTime() / 1000;
-    });
-    generateExcel(monthTxns, 'Monthly_Sales_Report');
+    const monthTxns = allTxns.filter(txn => isThisMonth(txn.timestamp || txn.date));
+    generateExcel(monthTxns, `Monthly_Sales_Report_${getCurrentMonthString()}`);
   };
 
   const handlePrintReport = () => {
@@ -308,17 +311,17 @@ export default function Reports() {
     setItemSearchQuery(''); // clear query
     setSelectedItemForChart(itemName);
     
-    // Generate data array for last 30 days
+    // Generate data array for last 30 days based on synced real time
     const dailyMap = {};
+    const now = getNow();
     for (let i = 29; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
       const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       dailyMap[key] = 0;
     }
 
     allTxns.forEach(txn => {
-      const txnDate = txn.timestamp?.seconds ? new Date(txn.timestamp.seconds * 1000) : null;
+      const txnDate = toDateObject(txn.timestamp || txn.date);
       if (txnDate && txn.items) {
         const itemInTxn = txn.items.find(i => i.name === itemName);
         if (itemInTxn) {
@@ -336,9 +339,12 @@ export default function Reports() {
 
   // Calculations for specific selected date in Daily tab
   const filteredDailyTxns = allTxns.filter(txn => {
-    if (!txn.timestamp?.seconds) return false;
-    const d = new Date(txn.timestamp.seconds * 1000);
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const d = toDateObject(txn.timestamp || txn.date);
+    if (!d) return false;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${day}`;
     return dateStr === selectedDailyDate;
   });
   const dailyTotalSales = filteredDailyTxns.reduce((acc, t) => acc + (t.total || 0), 0);
@@ -346,9 +352,11 @@ export default function Reports() {
 
   // Calculations for specific selected month in Monthly tab
   const filteredMonthlyTxns = allTxns.filter(txn => {
-    if (!txn.timestamp?.seconds) return false;
-    const d = new Date(txn.timestamp.seconds * 1000);
-    const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const d = toDateObject(txn.timestamp || txn.date);
+    if (!d) return false;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const monthStr = `${y}-${m}`;
     return monthStr === selectedMonthDate;
   });
   const monthlyTotalSales = filteredMonthlyTxns.reduce((acc, t) => acc + (t.total || 0), 0);
@@ -356,16 +364,17 @@ export default function Reports() {
 
   // Calculations for specific selected year in Yearly tab
   const filteredYearlyTxns = allTxns.filter(txn => {
-    if (!txn.timestamp?.seconds) return false;
-    const d = new Date(txn.timestamp.seconds * 1000);
+    const d = toDateObject(txn.timestamp || txn.date);
+    if (!d) return false;
     return String(d.getFullYear()) === selectedYear;
   });
   const yearlyTotalSales = filteredYearlyTxns.reduce((acc, t) => acc + (t.total || 0), 0);
   const yearlyTotalProfit = filteredYearlyTxns.reduce((acc, t) => acc + (t.profit || 0), 0);
 
   // Get unique years from transactions for dropdown
-  const availableYears = [...new Set(allTxns.filter(t => t.timestamp?.seconds).map(t => new Date(t.timestamp.seconds * 1000).getFullYear()))].sort((a, b) => b - a);
-  if (availableYears.length === 0) availableYears.push(new Date().getFullYear());
+  const availableYears = [...new Set(allTxns.map(t => toDateObject(t.timestamp || t.date)?.getFullYear()).filter(Boolean))].sort((a, b) => b - a);
+  const currentYearNum = parseInt(getCurrentYearString(), 10);
+  if (!availableYears.includes(currentYearNum)) availableYears.unshift(currentYearNum);
 
   // Helper to render transaction detail row
   const renderTxnDetailRow = (txn) => (

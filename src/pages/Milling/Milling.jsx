@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, doc, deleteDoc, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { getNow, toDateObject, getTodayDateString, calibrateFromTimestamp } from '../../services/timeService';
 import Button from '../../components/ui/Button';
 import { 
   FiSettings, FiCalendar, FiFilter, FiPrinter, FiSearch, 
@@ -15,7 +16,7 @@ export default function Milling() {
   const [loading, setLoading] = useState(true);
 
   // Filters
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]); // YYYY-MM-DD
+  const [selectedDate, setSelectedDate] = useState(getTodayDateString()); // YYYY-MM-DD
   const [filterType, setFilterType] = useState('all'); // 'all', 'wee', 'pol'
   const [dateMode, setDateMode] = useState('day'); // 'day', 'month', 'all'
   const [searchQuery, setSearchQuery] = useState('');
@@ -123,9 +124,13 @@ export default function Milling() {
       if (filterType === 'pol' && rec.millingType !== 'pol') return false;
 
       // Date filter
-      const recDate = rec.timestamp ? (rec.timestamp.toDate ? rec.timestamp.toDate() : new Date(rec.timestamp)) : new Date(rec.date);
-      const recDateStr = recDate.toISOString().split('T')[0]; // YYYY-MM-DD
-      const recMonthStr = recDateStr.substring(0, 7); // YYYY-MM
+      const recDate = toDateObject(rec.timestamp || rec.date);
+      if (!recDate) return false;
+      const y = recDate.getFullYear();
+      const m = String(recDate.getMonth() + 1).padStart(2, '0');
+      const d = String(recDate.getDate()).padStart(2, '0');
+      const recDateStr = `${y}-${m}-${d}`;
+      const recMonthStr = `${y}-${m}`;
 
       if (dateMode === 'day' && recDateStr !== selectedDate) return false;
       if (dateMode === 'month' && recMonthStr !== selectedDate.substring(0, 7)) return false;
@@ -180,9 +185,12 @@ export default function Milling() {
     setDateMode(mode);
     if (mode === 'all') return;
 
-    const d = new Date();
-    d.setDate(d.getDate() - offsetDays);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    const now = getNow();
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offsetDays);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    setSelectedDate(`${y}-${m}-${day}`);
   };
 
   // Print Report PDF
@@ -310,13 +318,13 @@ export default function Milling() {
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             <button
               onClick={() => handleSetQuickDate('day', 0)}
-              className={`filter-btn ${dateMode === 'day' && selectedDate === new Date().toISOString().split('T')[0] ? 'active' : ''}`}
+              className={`filter-btn ${dateMode === 'day' && selectedDate === getTodayDateString() ? 'active' : ''}`}
             >
               📅 අද (Today)
             </button>
             <button
               onClick={() => handleSetQuickDate('day', 1)}
-              className={`filter-btn ${dateMode === 'day' && selectedDate !== new Date().toISOString().split('T')[0] ? 'active' : ''}`}
+              className={`filter-btn ${dateMode === 'day' && selectedDate !== getTodayDateString() ? 'active' : ''}`}
             >
               ⏪ ඊයේ (Yesterday)
             </button>

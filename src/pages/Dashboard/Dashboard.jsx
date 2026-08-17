@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../services/firebase';
+import { isToday, toDateObject, calibrateFromTimestamp } from '../../services/timeService';
 import Card from '../../components/ui/Card';
 import Modal from '../../components/ui/Modal';
 import { useReactToPrint } from 'react-to-print';
@@ -39,11 +40,6 @@ export default function Dashboard() {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        // Today's timestamp
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayTS = Timestamp.fromDate(today);
-
         // Fetch items count and low stock first to calculate profit
         let totalItems = 0;
         let lowStockCount = 0;
@@ -82,8 +78,12 @@ export default function Dashboard() {
             totalSales += total;
             txns.push({ id: doc.id, ...data });
 
-            // Check if today
-            if (data.timestamp && data.timestamp.seconds >= todayTS.seconds) {
+            if (data.timestamp?.seconds) {
+              calibrateFromTimestamp(data.timestamp.seconds);
+            }
+
+            // Check if today (calibrated real time)
+            if (isToday(data.timestamp || data.date)) {
               todaySales += total;
               
               // Calculate cost and profit for today's transactions
@@ -103,7 +103,11 @@ export default function Dashboard() {
         }
 
         // Sort by timestamp descending
-        txns.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+        txns.sort((a, b) => {
+          const tB = toDateObject(b.timestamp || b.date)?.getTime() || 0;
+          const tA = toDateObject(a.timestamp || a.date)?.getTime() || 0;
+          return tB - tA;
+        });
         setRecentTxns(txns.slice(0, 5));
 
         // Fetch users / debtors
@@ -234,8 +238,8 @@ export default function Dashboard() {
   const displayStats = isOwner ? ownerStats : cashierStats;
 
   const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp.seconds * 1000);
+    const date = toDateObject(timestamp);
+    if (!date) return '';
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
 

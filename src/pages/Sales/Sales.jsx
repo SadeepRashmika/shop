@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { getNow, toDateObject, isToday, getTodayDateString } from '../../services/timeService';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
@@ -64,9 +65,8 @@ const NETWORKS = [
 function generateReloadReceiptPDF(reloadRecord) {
   const shopInfo = getShopInfo();
   const billNum = reloadRecord.billNumber ? String(reloadRecord.billNumber).padStart(6, '0') : '000000';
-  const dateStr = reloadRecord.date instanceof Date
-    ? reloadRecord.date.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' })
-    : new Date().toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
+  const recDate = toDateObject(reloadRecord.date || reloadRecord.timestamp) || getNow();
+  const dateStr = recDate.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
 
   const html = `
 <!DOCTYPE html>
@@ -83,22 +83,21 @@ function generateReloadReceiptPDF(reloadRecord) {
       margin: 0 auto;
       padding: 5mm;
       color: #000;
-      font-size: 11px;
-      font-weight: 700;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
+      background: #fff;
     }
-    .header { text-align: center; margin-bottom: 8px; }
-    .shop-name { font-size: 22px; font-weight: 900; -webkit-text-stroke: 0.6px #000; margin-bottom: 4px; color: #000; letter-spacing: 0.5px; }
-    .shop-info { font-size: 12px; font-weight: 700; color: #000; line-height: 1.4; }
+    .header { text-align: center; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 6px; }
+    .shop-name { font-size: 16px; font-weight: 800; text-transform: uppercase; margin-bottom: 2px; }
+    .shop-info { font-size: 11px; margin-bottom: 2px; }
+    .badge { display: inline-block; border: 1px solid #000; padding: 1px 6px; font-size: 10px; font-weight: 700; border-radius: 3px; margin: 3px 0; }
+    .meta-row { display: flex; justify-content: space-between; font-size: 11px; margin: 2px 0; }
     .divider { border-top: 1px dashed #000; margin: 6px 0; }
-    .title { text-align: center; font-size: 15px; font-weight: 800; margin: 4px 0; color: #000; }
-    .meta-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin: 3px 0; color: #000; }
-    .amount-box { text-align: center; font-size: 17px; font-weight: 800; margin: 8px 0; padding: 6px; border: 2px solid #000; color: #000; }
-    .footer { text-align: center; margin-top: 10px; font-size: 12px; font-weight: 700; color: #000; }
+    .amount-box { text-align: center; border: 2px solid #000; border-radius: 6px; padding: 8px 4px; margin: 8px 0; }
+    .amount-label { font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .amount-val { font-size: 22px; font-weight: 900; }
+    .footer { text-align: center; font-size: 10px; margin-top: 8px; border-top: 1px dashed #000; padding-top: 6px; }
     @media print {
-      body { width: 80mm; margin: 0; padding: 3mm; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: #000; font-weight: 700; }
-      @page { size: 80mm auto; margin: 0; }
+      @page { margin: 0; size: 80mm auto; }
+      body { width: 80mm; margin: 0; padding: 4mm; }
     }
   </style>
 </head>
@@ -107,64 +106,58 @@ function generateReloadReceiptPDF(reloadRecord) {
     <div class="shop-name">${shopInfo.name}</div>
     <div class="shop-info">${shopInfo.address}</div>
     <div class="shop-info">Tel: ${shopInfo.phone}</div>
+    <div><span class="badge">RELOAD RECEIPT</span></div>
   </div>
 
-  <div class="divider"></div>
-
-  <div class="title">RELOAD RECEIPT #${billNum}</div>
-
   <div class="meta-row">
+    <span>Bill No: <strong>#${billNum}</strong></span>
     <span>Date: ${dateStr}</span>
-    <span>Cashier: ${reloadRecord.cashierName || 'Cashier'}</span>
   </div>
+  <div class="meta-row">
+    <span>Cashier: ${reloadRecord.cashierName || 'Cashier'}</span>
+    <span>Method: ${reloadRecord.paymentMethod ? reloadRecord.paymentMethod.toUpperCase() : 'CASH'}</span>
+  </div>
+  ${reloadRecord.debtorName ? `<div class="meta-row"><span>Debtor: <strong>${reloadRecord.debtorName}</strong></span></div>` : ''}
 
   <div class="divider"></div>
 
-  <div class="meta-row">
-    <span>Network / ජාලය:</span>
-    <span style="font-weight:800;text-transform:uppercase;">${reloadRecord.network}</span>
+  <div class="meta-row" style="font-size: 13px;">
+    <span>Network:</span>
+    <strong style="text-transform: uppercase;">${reloadRecord.network}</strong>
   </div>
-  <div class="meta-row">
-    <span>Phone Number / අංකය:</span>
-    <span style="font-weight:800;">${reloadRecord.phone}</span>
+  <div class="meta-row" style="font-size: 14px; margin: 4px 0;">
+    <span>Phone:</span>
+    <strong style="letter-spacing: 1px;">${reloadRecord.phone}</strong>
   </div>
 
   <div class="amount-box">
-    RELOAD: Rs. ${parseFloat(reloadRecord.amount).toFixed(2)}
-  </div>
-
-  <div class="meta-row" style="justify-content:center;">
-    <span>Payment: ${reloadRecord.paymentMethod === 'cash' ? 'CASH' : reloadRecord.paymentMethod === 'credit' ? 'CREDIT' : 'HOME USE'}</span>
+    <div class="amount-label">Reload Amount</div>
+    <div class="amount-val">Rs. ${parseFloat(reloadRecord.amount || 0).toFixed(2)}</div>
   </div>
 
   <div class="divider"></div>
 
   <div class="footer">
-    <div style="font-weight:800; font-size: 13px;">ස්තූතියි! Thank You!</div>
-    <div>SmartPOS Reload Service</div>
+    <div>ස්තූතියි! නැවත එන්න!</div>
+    <div style="margin-top: 2px;">Thank you for your reload!</div>
   </div>
 
   <script>
-    function doPrint() {
-      try {
-        window.focus();
-        window.print();
-      } catch (e) {}
-    }
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(doPrint, 40);
-    } else {
-      window.addEventListener('DOMContentLoaded', doPrint);
-      setTimeout(doPrint, 120);
-    }
+    window.onload = function() {
+      window.print();
+      setTimeout(function() { window.close(); }, 500);
+    };
   </script>
 </body>
 </html>`;
 
-  const printWindow = window.open('', '_blank', 'width=400,height=600');
+  const printWindow = window.open('', '_blank', 'width=380,height=600');
   if (printWindow) {
+    printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
+  } else {
+    alert('කරුණාකර Popup blocker අක්‍රිය කරන්න (Please allow popups to print receipt).');
   }
 }
 
@@ -172,9 +165,8 @@ function generateReloadReceiptPDF(reloadRecord) {
 function generateBillPDF(billData) {
   const shopInfo = getShopInfo();
   const billNum = billData.billNumber ? String(billData.billNumber).padStart(6, '0') : '000000';
-  const dateStr = billData.date instanceof Date
-    ? billData.date.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' })
-    : new Date().toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
+  const recDate = toDateObject(billData.date || billData.timestamp) || getNow();
+  const dateStr = recDate.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
 
   const totalItemsCount = (billData.items || []).length;
   const totalQuantity = (billData.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
@@ -759,7 +751,7 @@ export default function Sales() {
         cashierId: userData?.uid || 'unknown',
         cashierName: userData?.name || 'Cashier',
         timestamp: serverTimestamp(),
-        date: new Date()
+        date: getNow()
       };
 
       await setDoc(doc(db, 'reloads', reloadId), reloadRecord);
@@ -800,7 +792,7 @@ export default function Sales() {
             amount: numAmount,
             note: `${selectedNet.name} Reload #${cleanPhone}`,
             billNumber,
-            time: new Date().toISOString()
+            time: getNow().toISOString()
           };
           await updateDoc(doc(db, 'cashSessions', openDoc.id), {
             entries: [...existingEntries, saleEntry]
@@ -1376,7 +1368,7 @@ export default function Sales() {
             cashierId: userData?.uid || 'unknown',
             cashierName: userData?.name || 'Cashier',
             timestamp: serverTimestamp(),
-            date: new Date()
+            date: getNow()
           };
 
           if (paymentMethod === 'credit' && selectedDebtor) {
@@ -1399,7 +1391,7 @@ export default function Sales() {
             cashierId: userData?.uid || 'unknown',
             cashierName: userData?.name || 'Cashier',
             timestamp: serverTimestamp(),
-            date: new Date()
+            date: getNow()
           };
           await setDoc(doc(db, 'millingRecords', millingId), millingRecord);
         } else if (item.id && !item.isCustom) {
@@ -1439,7 +1431,7 @@ export default function Sales() {
               amount: subtotal,
               note: `Bill #${formattedBillNo}`,
               billNumber: billNumber,
-              time: new Date().toISOString()
+              time: getNow().toISOString()
             };
             await updateDoc(doc(db, 'cashSessions', openDoc.id), {
               entries: [...existingEntries, saleEntry]
@@ -1466,7 +1458,7 @@ export default function Sales() {
         tenderedAmount: parseFloat(tenderedAmount) || 0,
         cashierName: userData?.name || 'Unknown',
         debtorName: paymentMethod === 'credit' ? selectedDebtor?.name : null,
-        date: new Date()
+        date: getNow()
       };
 
       setLastTransactionId(transactionId);
@@ -1669,7 +1661,7 @@ export default function Sales() {
               amount: Math.abs(totalDiff),
               note: `Bill #${billNoFormatted} Edit Adjustment`,
               billNumber: editingBill.billNumber,
-              time: new Date().toISOString()
+              time: getNow().toISOString()
             };
             await updateDoc(doc(db, 'cashSessions', openDoc.id), {
               entries: [...existingEntries, adjustEntry]
@@ -1688,7 +1680,7 @@ export default function Sales() {
         tenderedAmount: parseFloat(tenderedAmount) || newTotal,
         cashierName: editingBill.cashierName || userData?.name || 'Cashier',
         debtorName: paymentMethod === 'credit' ? (selectedDebtor?.name || editingBill.debtorName) : null,
-        date: new Date()
+        date: getNow()
       };
 
       generateBillPDF(billData);
@@ -1725,7 +1717,7 @@ export default function Sales() {
       paymentMethod: bill.paymentMethod,
       cashierName: bill.cashierName || 'N/A',
       debtorName: bill.debtorName || null,
-      date: bill.timestamp?.toDate ? bill.timestamp.toDate() : new Date()
+      date: toDateObject(bill.timestamp || bill.date) || getNow()
     };
     generateBillPDF(billData);
   };
@@ -2137,8 +2129,8 @@ export default function Sales() {
             </div>
 
             <div style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
-              <span>Date: {new Date().toLocaleDateString('en-LK', { dateStyle: 'medium' })}</span>
-              <span>Time: {new Date().toLocaleTimeString('en-LK', { timeStyle: 'short' })}</span>
+              <span>Date: {getNow().toLocaleDateString('en-LK', { dateStyle: 'medium' })}</span>
+              <span>Time: {getNow().toLocaleTimeString('en-LK', { timeStyle: 'short' })}</span>
             </div>
 
             <table style={{ width: '100%', fontSize: '0.825rem', borderCollapse: 'collapse', marginBottom: '0.75rem' }}>
@@ -2265,7 +2257,7 @@ export default function Sales() {
                   total: subtotal,
                   paymentMethod: paymentMethod,
                   cashierName: userData?.name || 'Cashier',
-                  date: new Date()
+                  date: getNow()
                 };
                 generateBillPDF(previewBillData);
               }}
@@ -3001,7 +2993,7 @@ export default function Sales() {
                           </thead>
                           <tbody>
                             {filtered.map(item => {
-                              const dObj = item.timestamp?.seconds ? new Date(item.timestamp.seconds * 1000) : (item.date ? new Date(item.date) : new Date());
+                              const dObj = toDateObject(item.timestamp || item.date) || getNow();
                               return (
                                 <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                   <td style={{ padding: '6px 4px', color: 'var(--text-muted)', fontSize: '11px' }}>

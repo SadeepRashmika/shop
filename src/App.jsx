@@ -25,6 +25,7 @@ import Milling from './pages/Milling/Milling';
 import Settings from './pages/Settings/Settings';
 
 import './i18n/i18n';
+import './services/timeService';
 
 function App() {
   return (

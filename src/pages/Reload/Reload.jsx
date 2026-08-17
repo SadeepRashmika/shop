@@ -3,6 +3,7 @@ import { collection, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, increme
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { getNow, toDateObject, isToday, getTodayDateString, calibrateFromTimestamp } from '../../services/timeService';
 import Button from '../../components/ui/Button';
 import {
   FiZap, FiPhoneCall, FiDollarSign, FiCopy, FiCheck,
@@ -54,9 +55,8 @@ async function getNextBillNumber() {
 function generateReloadReceiptPDF(reloadRecord) {
   const shopInfo = getShopInfo();
   const billNum = reloadRecord.billNumber ? String(reloadRecord.billNumber).padStart(6, '0') : '000000';
-  const dateStr = reloadRecord.date instanceof Date
-    ? reloadRecord.date.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' })
-    : new Date().toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
+  const recDate = toDateObject(reloadRecord.date || reloadRecord.timestamp) || getNow();
+  const dateStr = recDate.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
 
   const html = `
 <!DOCTYPE html>
@@ -338,7 +338,7 @@ export default function Reload() {
         cashierId: userData?.uid || 'unknown',
         cashierName: userData?.name || 'Cashier',
         timestamp: serverTimestamp(),
-        date: new Date()
+        date: getNow()
       };
 
       if (paymentMethod === 'credit') {
@@ -401,7 +401,7 @@ export default function Reload() {
               amount: numAmount,
               note: `${selectedNetObj.name} Reload #${phone}`,
               billNumber,
-              time: new Date().toISOString()
+              time: getNow().toISOString()
             };
             await updateDoc(doc(db, 'cashSessions', openDoc.id), {
               entries: [...existingEntries, saleEntry]
@@ -433,13 +433,8 @@ export default function Reload() {
   const allTimeTotalAmount = reloadHistory.reduce((acc, r) => acc + (parseFloat(r.amount) || 0), 0);
   const allTimeTotalProfit = reloadHistory.reduce((acc, r) => acc + (parseFloat(r.profit) || 0), 0);
 
-  // Today Stats
-  const todayStr = new Date().toDateString();
-  const todayReloads = reloadHistory.filter(r => {
-    const dateObj = r.timestamp?.seconds ? new Date(r.timestamp.seconds * 1000) : (r.date ? new Date(r.date) : null);
-    if (!dateObj) return false;
-    return dateObj.toDateString() === todayStr;
-  });
+  // Today Stats (synchronized real time)
+  const todayReloads = reloadHistory.filter(r => isToday(r.timestamp || r.date));
   const todayTotalAmount = todayReloads.reduce((acc, r) => acc + (parseFloat(r.amount) || 0), 0);
   const todayTotalProfit = todayReloads.reduce((acc, r) => acc + (parseFloat(r.profit) || 0), 0);
 
@@ -872,7 +867,7 @@ export default function Reload() {
                 </thead>
                 <tbody>
                   {filteredHistory.map(item => {
-                    const dateObj = item.timestamp?.seconds ? new Date(item.timestamp.seconds * 1000) : (item.date ? new Date(item.date) : new Date());
+                    const dateObj = toDateObject(item.timestamp || item.date) || getNow();
                     return (
                       <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                         <td style={{ padding: '8px 4px', color: 'var(--text-muted)', fontSize: '11px' }}>
