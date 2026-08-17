@@ -989,7 +989,7 @@ export default function Sales() {
         return;
       }
 
-      // If Weight Modal is open: handle Escape key to close, and Left/Right Arrow keys to switch mode
+      // If Weight Modal is open: handle Escape key to close, Left/Right Arrow keys, and K / G shortcut keys
       if (weightModal) {
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -999,6 +999,30 @@ export default function Sales() {
           setWeightGrams('');
           setWeightPrice('');
           setTimeout(() => barcodeInputRef.current?.focus(), 50);
+          return;
+        }
+
+        // K key -> Switch to Kilograms (kg)
+        if (e.key === 'k' || e.key === 'K') {
+          e.preventDefault();
+          setWeightMode('weight');
+          setWeightUnit('kg');
+          setTimeout(() => {
+            weightInputRef.current?.focus();
+            weightInputRef.current?.select();
+          }, 50);
+          return;
+        }
+
+        // G key -> Switch to Grams (g)
+        if (e.key === 'g' || e.key === 'G') {
+          e.preventDefault();
+          setWeightMode('weight');
+          setWeightUnit('g');
+          setTimeout(() => {
+            weightGramsInputRef.current?.focus();
+            weightGramsInputRef.current?.select();
+          }, 50);
           return;
         }
 
@@ -2864,6 +2888,22 @@ export default function Sales() {
                       } else if (e.key === 'ArrowRight') {
                         e.preventDefault();
                         setWeightMode('weight');
+                      } else if (e.key === 'k' || e.key === 'K') {
+                        e.preventDefault();
+                        setWeightMode('weight');
+                        setWeightUnit('kg');
+                        setTimeout(() => {
+                          weightInputRef.current?.focus();
+                          weightInputRef.current?.select();
+                        }, 50);
+                      } else if (e.key === 'g' || e.key === 'G') {
+                        e.preventDefault();
+                        setWeightMode('weight');
+                        setWeightUnit('g');
+                        setTimeout(() => {
+                          weightGramsInputRef.current?.focus();
+                          weightGramsInputRef.current?.select();
+                        }, 50);
                       }
                     }}
                     className="weight-number-input weight-price-input"
@@ -2924,7 +2964,7 @@ export default function Sales() {
                         }, 50);
                       }}
                     >
-                      Kilograms (kg)
+                      Kilograms (kg) <span style={{ opacity: 0.8, fontSize: '10px' }}>[K]</span>
                     </button>
                     <button
                       type="button"
@@ -2937,7 +2977,7 @@ export default function Sales() {
                         }, 50);
                       }}
                     >
-                      Grams (g)
+                      Grams (g) <span style={{ opacity: 0.8, fontSize: '10px' }}>[G]</span>
                     </button>
                   </div>
                 </div>
@@ -2959,6 +2999,13 @@ export default function Sales() {
                         } else if (e.key === 'ArrowLeft') {
                           e.preventDefault();
                           setWeightMode('price');
+                        } else if (e.key === 'g' || e.key === 'G') {
+                          e.preventDefault();
+                          setWeightUnit('g');
+                          setTimeout(() => {
+                            weightGramsInputRef.current?.focus();
+                            weightGramsInputRef.current?.select();
+                          }, 50);
                         }
                       }}
                       className="weight-number-input"
@@ -2983,6 +3030,13 @@ export default function Sales() {
                         } else if (e.key === 'ArrowLeft') {
                           e.preventDefault();
                           setWeightMode('price');
+                        } else if (e.key === 'k' || e.key === 'K') {
+                          e.preventDefault();
+                          setWeightUnit('kg');
+                          setTimeout(() => {
+                            weightInputRef.current?.focus();
+                            weightInputRef.current?.select();
+                          }, 50);
                         }
                       }}
                       className="weight-number-input"
