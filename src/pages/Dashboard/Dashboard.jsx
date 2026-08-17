@@ -8,7 +8,7 @@ import { isToday, toDateObject, calibrateFromTimestamp, subscribeTimeSync, forma
 import Card from '../../components/ui/Card';
 import Modal from '../../components/ui/Modal';
 import { useReactToPrint } from 'react-to-print';
-import { FiShoppingCart, FiPackage, FiUsers, FiTrendingUp, FiDollarSign, FiClock, FiAlertTriangle, FiPrinter } from 'react-icons/fi';
+import { FiShoppingCart, FiPackage, FiUsers, FiTrendingUp, FiDollarSign, FiClock, FiAlertTriangle, FiPrinter, FiSearch } from 'react-icons/fi';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -29,6 +29,9 @@ export default function Dashboard() {
   const [lowStockItems, setLowStockItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isLowStockModalOpen, setIsLowStockModalOpen] = useState(false);
+  const [lowStockSearch, setLowStockSearch] = useState('');
+  const [lowStockCategory, setLowStockCategory] = useState('සියල්ල');
+  const [lowStockSort, setLowStockSort] = useState('stock-asc');
 
   const lowStockRef = useRef();
   const handlePrintLowStock = useReactToPrint({
@@ -392,69 +395,137 @@ export default function Dashboard() {
       {/* Low Stock Modal */}
       <Modal
         isOpen={isLowStockModalOpen}
-        onClose={() => setIsLowStockModalOpen(false)}
+        onClose={() => { setIsLowStockModalOpen(false); setLowStockSearch(''); setLowStockCategory('සියල්ල'); }}
         title={<><FiAlertTriangle className="text-error" style={{ display: 'inline', marginRight: '8px' }} />{t('dashboard.lowStockItems')}</>}
       >
-        <div className="section-header-flex">
-          <h3 style={{ margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', fontWeight: '500' }}>
-            {lowStockItems.length} exact match(es) for low stock (≤ 5)
-          </h3>
-          <button className="icon-btn-text" onClick={handlePrintLowStock}>
-            <FiPrinter /> {t('dashboard.printPdf')}
-          </button>
-        </div>
-        
-        <div ref={lowStockRef} className="print-container" style={{ marginTop: 'var(--space-4)', maxHeight: '60vh', overflowY: 'auto' }}>
-          <style type="text/css" media="print">
-            {`
-              @page { size: auto; margin: 20mm; }
-              .print-header { display: block !important; margin-bottom: 20px; }
-              .print-header h2 { font-size: 24px; margin-bottom: 5px; color: #000; }
-              .print-header p { font-size: 14px; color: #666; }
-              .dashboard-table { width: 100%; border-collapse: collapse; }
-              .dashboard-table th, .dashboard-table td { border: 1px solid #ddd; padding: 12px; text-align: left; color: #000; }
-              .dashboard-table th { background-color: #f5f5f5; font-weight: bold; }
-              .stock-badge { color: #d32f2f; font-weight: bold; }
-            `}
-          </style>
-          <div className="print-header" style={{ display: 'none' }}>
-            <h2>{t('dashboard.lowStockItems')} Report</h2>
-            <p>Generated on {new Date().toLocaleString()}</p>
-          </div>
-          {lowStockItems.length > 0 ? (
-            <div className="table-responsive">
-              <table className="dashboard-table">
-                <thead>
-                  <tr>
-                    <th>No.</th>
-                    <th>{t('inventory.table.item')}</th>
-                    <th>{t('inventory.table.category')}</th>
-                    <th>{t('inventory.table.stock')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lowStockItems.map(item => (
-                    <tr key={item.id}>
-                      <td className="font-bold text-secondary">#{item.itemNo || '-'}</td>
-                      <td className="font-medium">{item.name}</td>
-                      <td>{item.category}</td>
-                      <td>
-                        <span className="stock-badge low-stock">
-                          {item.stock} {t('inventory.table.inStock')}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="empty-state">
-              <span className="empty-icon">📦</span>
-              <p>{t('inventory.table.empty')}</p>
-            </div>
-          )}
-        </div>
+        {(() => {
+          // Derive categories from items
+          const categories = ['සියල්ල', ...Array.from(new Set(lowStockItems.map(i => i.category).filter(Boolean))).sort()];
+
+          // Filter by category + search
+          let filtered = lowStockItems.filter(item => {
+            const matchCat = lowStockCategory === 'සියල්ල' || item.category === lowStockCategory;
+            const s = lowStockSearch.trim().toLowerCase();
+            const matchSearch = !s || item.name?.toLowerCase().includes(s) || item.category?.toLowerCase().includes(s);
+            return matchCat && matchSearch;
+          });
+
+          // Sort
+          if (lowStockSort === 'stock-asc') filtered = [...filtered].sort((a, b) => a.stock - b.stock);
+          else if (lowStockSort === 'stock-desc') filtered = [...filtered].sort((a, b) => b.stock - a.stock);
+          else if (lowStockSort === 'name') filtered = [...filtered].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          else if (lowStockSort === 'category') filtered = [...filtered].sort((a, b) => (a.category || '').localeCompare(b.category || ''));
+
+          return (
+            <>
+              <div className="low-stock-modal-header">
+                {/* Top row: info + search + sort + print */}
+                <div className="low-stock-top-row">
+                  <h3 style={{ margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                    {filtered.length} / {lowStockItems.length} item{lowStockItems.length !== 1 ? 's' : ''} · stock ≤ 5
+                  </h3>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div className="low-stock-search-wrapper">
+                      <FiSearch className="low-stock-search-icon" />
+                      <input
+                        className="low-stock-search-input"
+                        type="text"
+                        placeholder="භාණ්ඩය සොයන්න..."
+                        value={lowStockSearch}
+                        onChange={e => setLowStockSearch(e.target.value)}
+                      />
+                    </div>
+                    <select
+                      className="low-stock-sort-select"
+                      value={lowStockSort}
+                      onChange={e => setLowStockSort(e.target.value)}
+                    >
+                      <option value="stock-asc">Stock: අඩු → වැඩි</option>
+                      <option value="stock-desc">Stock: වැඩි → අඩු</option>
+                      <option value="name">නම (A-Z)</option>
+                      <option value="category">කාණ්ඩය</option>
+                    </select>
+                    <button className="icon-btn-text" onClick={handlePrintLowStock}>
+                      <FiPrinter /> PDF
+                    </button>
+                  </div>
+                </div>
+
+                {/* Category pill filter bar */}
+                <div className="low-stock-category-bar">
+                  {categories.map(cat => {
+                    const count = cat === 'සියල්ල'
+                      ? lowStockItems.length
+                      : lowStockItems.filter(i => i.category === cat).length;
+                    return (
+                      <button
+                        key={cat}
+                        className={`category-pill${lowStockCategory === cat ? ' active' : ''}`}
+                        onClick={() => setLowStockCategory(cat)}
+                      >
+                        {cat}
+                        <span className="category-pill-count">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div ref={lowStockRef} className="print-container" style={{ maxHeight: '52vh', overflowY: 'auto' }}>
+                <style type="text/css" media="print">
+                  {`
+                    @page { size: auto; margin: 20mm; }
+                    .print-header { display: block !important; margin-bottom: 20px; }
+                    .print-header h2 { font-size: 24px; margin-bottom: 5px; color: #000; }
+                    .print-header p { font-size: 14px; color: #666; }
+                    .dashboard-table { width: 100%; border-collapse: collapse; }
+                    .dashboard-table th, .dashboard-table td { border: 1px solid #ddd; padding: 12px; text-align: left; color: #000; }
+                    .dashboard-table th { background-color: #f5f5f5; font-weight: bold; }
+                    .stock-badge { color: #d32f2f; font-weight: bold; }
+                  `}
+                </style>
+                <div className="print-header" style={{ display: 'none' }}>
+                  <h2>{t('dashboard.lowStockItems')} Report</h2>
+                  <p>Generated on {new Date().toLocaleString()}</p>
+                </div>
+
+                {filtered.length > 0 ? (
+                  <div className="table-responsive">
+                    <table className="dashboard-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: 55 }}>No.</th>
+                          <th>{t('inventory.table.item')}</th>
+                          <th>{t('inventory.table.category')}</th>
+                          <th style={{ textAlign: 'right' }}>{t('inventory.table.stock')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.map(item => (
+                          <tr key={item.id} style={item.stock === 0 ? { background: 'rgba(239,68,68,0.04)' } : {}}>
+                            <td className="font-bold text-secondary" style={{ fontSize: 13 }}>#{item.itemNo || '-'}</td>
+                            <td className="font-medium">{item.name}</td>
+                            <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{item.category || '—'}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <span className={`stock-badge low-stock${item.stock === 0 ? ' sold-badge hot' : ''}`}>
+                                {item.stock === 0 ? '🚫 0 ඉතිරි නෑ' : `${item.stock} ඉතිරිව ඇත`}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <span className="empty-icon">📦</span>
+                    <p>ගැළපෙන භාණ්ඩ නෑ</p>
+                  </div>
+                )}
+              </div>
+            </>
+          );
+        })()}
       </Modal>
     </div>
   );
