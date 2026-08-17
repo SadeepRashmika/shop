@@ -462,11 +462,21 @@ export default function Sales() {
   // Barcode input focus
   const barcodeInputRef = useRef(null);
   const tenderedInputRef = useRef(null);
+  const weightInputRef = useRef(null);
 
   // Weight entry for weighed items
   const [weightModal, setWeightModal] = useState(false);
   const [weightItem, setWeightItem] = useState(null);
   const [weightValue, setWeightValue] = useState('');
+
+  useEffect(() => {
+    if (weightModal) {
+      setTimeout(() => {
+        weightInputRef.current?.focus();
+        weightInputRef.current?.select();
+      }, 50);
+    }
+  }, [weightModal]);
 
   // Custom Item Modal (නොමැති භාණ්ඩ)
   const [customItemModal, setCustomItemModal] = useState(false);
@@ -945,6 +955,18 @@ export default function Sales() {
         return;
       }
 
+      // If Weight Modal is open: handle Escape key to close
+      if (weightModal) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setWeightModal(false);
+          setWeightItem(null);
+          setWeightValue('');
+          setTimeout(() => barcodeInputRef.current?.focus(), 50);
+          return;
+        }
+      }
+
       // If Bill Preview Modal or Checkout Modal is open: handle Arrow keys & Enter key
       if (previewModal || checkoutModal) {
         // Arrow Right or Arrow Down -> Move selection to next bill type (Cash -> Credit -> Home Use)
@@ -1006,7 +1028,7 @@ export default function Sales() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor]);
+  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor]);
 
   const addToCart = (item) => {
     if (item.name?.includes('වී කෙටීම')) {
@@ -1028,6 +1050,7 @@ export default function Sales() {
       setWeightItem(item);
       setWeightValue('');
       setWeightModal(true);
+      setSearch('');
       return;
     }
 
@@ -1233,7 +1256,9 @@ export default function Sales() {
       if (exactBarcodeMatch) {
         addToCart(exactBarcodeMatch);
         setSearch('');
-        setTimeout(() => barcodeInputRef.current?.focus(), 50);
+        if (exactBarcodeMatch.itemType !== 'weighed') {
+          setTimeout(() => barcodeInputRef.current?.focus(), 50);
+        }
         return;
       }
 
@@ -1249,7 +1274,9 @@ export default function Sales() {
       if (exactItemNoMatch) {
         addToCart(exactItemNoMatch);
         setSearch('');
-        setTimeout(() => barcodeInputRef.current?.focus(), 50);
+        if (exactItemNoMatch.itemType !== 'weighed') {
+          setTimeout(() => barcodeInputRef.current?.focus(), 50);
+        }
         return;
       }
 
@@ -1257,7 +1284,9 @@ export default function Sales() {
       if (filteredItems.length === 1) {
         addToCart(filteredItems[0]);
         setSearch('');
-        setTimeout(() => barcodeInputRef.current?.focus(), 50);
+        if (filteredItems[0].itemType !== 'weighed') {
+          setTimeout(() => barcodeInputRef.current?.focus(), 50);
+        }
         return;
       }
     }
@@ -2662,7 +2691,7 @@ export default function Sales() {
 
 
       {/* Weight Entry Modal for Weighed Items */}
-      <Modal isOpen={weightModal} onClose={() => setWeightModal(false)} title="⚖️ බර ඇතුලත් කරන්න / Enter Weight">
+      <Modal isOpen={weightModal} onClose={() => { setWeightModal(false); setWeightItem(null); setWeightValue(''); setTimeout(() => barcodeInputRef.current?.focus(), 50); }} title="⚖️ බර ඇතුලත් කරන්න / Enter Weight">
         {weightItem && (
           <div className="weight-entry-content">
             <div className="weight-item-banner">
@@ -2675,13 +2704,19 @@ export default function Sales() {
               <label className="input-label">Weight (kg)</label>
               <div className="weight-input-row">
                 <input
+                  ref={weightInputRef}
                   type="number"
                   step="0.01"
                   min="0.01"
                   max={weightItem.stock}
                   value={weightValue}
                   onChange={(e) => setWeightValue(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addWeighedToCart()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addWeighedToCart();
+                    }
+                  }}
                   className="weight-number-input"
                   placeholder="0.00"
                   autoFocus
@@ -2695,7 +2730,10 @@ export default function Sales() {
                     key={w}
                     type="button"
                     className="weight-quick-btn"
-                    onClick={() => setWeightValue(String(w))}
+                    onClick={() => {
+                      setWeightValue(String(w));
+                      weightInputRef.current?.focus();
+                    }}
                   >
                     {w} kg
                   </button>
@@ -2711,7 +2749,7 @@ export default function Sales() {
             )}
 
             <div className="modal-actions mt-6">
-              <Button variant="secondary" onClick={() => setWeightModal(false)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => { setWeightModal(false); setWeightItem(null); setWeightValue(''); setTimeout(() => barcodeInputRef.current?.focus(), 50); }}>Cancel</Button>
               <Button onClick={addWeighedToCart} icon={<FiPlus />}>Add to Cart</Button>
             </div>
           </div>
