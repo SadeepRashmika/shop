@@ -7,7 +7,6 @@ import { db } from '../../services/firebase';
 import { isToday, toDateObject, calibrateFromTimestamp, subscribeTimeSync, formatSriLankaTime } from '../../services/timeService';
 import Card from '../../components/ui/Card';
 import Modal from '../../components/ui/Modal';
-import { useReactToPrint } from 'react-to-print';
 import { FiShoppingCart, FiPackage, FiUsers, FiTrendingUp, FiDollarSign, FiClock, FiAlertTriangle, FiPrinter, FiSearch } from 'react-icons/fi';
 import './Dashboard.css';
 
@@ -34,10 +33,52 @@ export default function Dashboard() {
   const [lowStockSort, setLowStockSort] = useState('stock-asc');
 
   const lowStockRef = useRef();
-  const handlePrintLowStock = useReactToPrint({
-    content: () => lowStockRef.current,
-    documentTitle: 'Low_Stock_Report',
-  });
+
+  const generateLowStockPDF = (filteredItems) => {
+    const rows = filteredItems.map(item => `
+      <tr style="border-bottom:1px solid #e2e8f0;">
+        <td style="padding:10px 8px;font-weight:700;color:#7c3aed;">#${item.itemNo || '-'}</td>
+        <td style="padding:10px 8px;font-weight:500;">${item.name || ''}</td>
+        <td style="padding:10px 8px;color:#64748b;">${item.category || '-'}</td>
+        <td style="padding:10px 8px;text-align:right;">
+          <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;${item.stock === 0 ? 'background:#fee2e2;color:#dc2626;' : 'background:#fef3c7;color:#d97706;'}">
+            ${item.stock === 0 ? '🚫 Out of Stock' : item.stock + ' remaining'}
+          </span>
+        </td>
+      </tr>
+    `).join('');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Low Stock Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; color: #1e293b; }
+    h1 { font-size: 22px; color: #7c3aed; margin-bottom: 4px; }
+    p.sub { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f8fafc; padding: 10px 8px; text-align: left; font-size: 13px; color: #475569; border-bottom: 2px solid #e2e8f0; }
+    th:last-child, td:last-child { text-align: right; }
+    td { font-size: 13px; }
+    @media print { body { margin: 10mm; } }
+  </style>
+</head>
+<body>
+  <h1>⚠️ Low Stock Report</h1>
+  <p class="sub">Generated: ${new Date().toLocaleString('en-LK')} &nbsp;|&nbsp; ${filteredItems.length} item(s) with stock ≤ 5</p>
+  <table>
+    <thead><tr><th>No.</th><th>Item</th><th>Category</th><th style="text-align:right;">Stock</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <script>window.onload=function(){window.print();}<\/script>
+</body>
+</html>`;
+
+    const w = window.open('', '_blank', 'width=800,height=600');
+    if (w) { w.document.write(html); w.document.close(); }
+    else alert('Please allow popups for this site to print PDF.');
+  };
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -445,7 +486,7 @@ export default function Dashboard() {
                       <option value="name">නම (A-Z)</option>
                       <option value="category">කාණ්ඩය</option>
                     </select>
-                    <button className="icon-btn-text" onClick={handlePrintLowStock}>
+                    <button className="icon-btn-text" onClick={() => generateLowStockPDF(filtered)}>
                       <FiPrinter /> PDF
                     </button>
                   </div>
