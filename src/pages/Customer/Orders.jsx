@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy, doc, getDoc, setDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, doc, getDoc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { FiShoppingBag, FiClock, FiCheckCircle, FiXCircle, FiDollarSign } from 'react-icons/fi';
+import { FiShoppingBag, FiClock, FiCheckCircle, FiXCircle, FiDollarSign, FiTrash2 } from 'react-icons/fi';
 import Button from '../../components/ui/Button';
 import './Customer.css';
 
@@ -26,6 +26,58 @@ export default function Orders() {
         customerId: order.customerId 
       } 
     });
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    if (!isOwner) {
+      alert("මෙම ක්‍රියාවලිය සඳහා අවසර ඇත්තේ Owner හට පමණි.");
+      return;
+    }
+    const inputPass = prompt("ඇණවුම මකා දැමීමට කරුණාකර Master Password එක ඇතුළත් කරන්න:");
+    if (inputPass === null) return;
+    if (inputPass !== "723412641") {
+      alert("වැරදි මුරපදයක් (Incorrect password). ක්‍රියාවලිය අවලංගු විය.");
+      return;
+    }
+
+    if (!window.confirm("⚠️ මෙම ඇණවුම ස්ථිරවම මකා දැමීමට (Delete) අවශ්‍යද?")) return;
+
+    try {
+      await deleteDoc(doc(db, 'orders', orderId));
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+    } catch (err) {
+      console.error("Error deleting order:", err);
+      alert("ඇණවුම මකා දැමීමට නොහැකි විය.");
+    }
+  };
+
+  const handleClearAllOrders = async () => {
+    if (!isOwner) {
+      alert("මෙම ක්‍රියාවලිය සඳහා අවසර ඇත්තේ Owner හට පමණි.");
+      return;
+    }
+    const inputPass = prompt("සියලුම ඇණවුම් (All Orders) එකවර මකා දැමීමට කරුණාකර Master Password එක ඇතුළත් කරන්න:");
+    if (inputPass === null) return;
+    if (inputPass !== "723412641") {
+      alert("වැරදි මුරපදයක් (Incorrect password). ක්‍රියාවලිය අවලංගු විය.");
+      return;
+    }
+
+    if (!window.confirm("⚠️ ඔබට පද්ධතියේ ඇති සියලුම ඇණවුම් (All Orders) එකවර ස්ථිරවම මකා දැමීමට අවශ්‍යද?\n\nමෙය ආපසු හැරවිය නොහැක.")) return;
+
+    setLoading(true);
+    try {
+      const snap = await getDocs(collection(db, 'orders'));
+      const deletePromises = snap.docs.map(d => deleteDoc(doc(db, 'orders', d.id)));
+      await Promise.all(deletePromises);
+      setOrders([]);
+      alert("සියලුම ඇණවුම් සාර්ථකව මකා දමන ලදී (All orders cleared successfully).");
+    } catch (err) {
+      console.error("Error clearing all orders:", err);
+      alert("සියලු ඇණවුම් මකා දැමීමට නොහැකි විය.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -95,9 +147,22 @@ export default function Orders() {
 
   return (
     <div className="orders-page fade-in">
-      <div className="page-header">
-        <h1 className="page-title gradient-text">{t('nav.orders')}</h1>
-        <p className="page-subtitle">{t('orders.subtitle')}</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <h1 className="page-title gradient-text">{t('nav.orders')}</h1>
+          <p className="page-subtitle">{t('orders.subtitle')}</p>
+        </div>
+        {isOwner && orders.length > 0 && (
+          <Button 
+            variant="danger" 
+            size="sm" 
+            onClick={handleClearAllOrders}
+            icon={<FiTrash2 />}
+            style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+          >
+            සියලු ඇණවුම් මකන්න (Clear All)
+          </Button>
+        )}
       </div>
 
       {loading ? (
@@ -127,11 +192,25 @@ export default function Orders() {
                 <span className={`order-status ${order.status || 'pending'}`}>
                   {order.status || 'pending'}
                 </span>
-                {(isOwner || isCashier) && order.status !== 'completed' && order.status !== 'cancelled' && (
-                  <Button size="sm" onClick={() => handleBillOrder(order)} icon={<FiDollarSign />}>
-                    Bill It
-                  </Button>
-                )}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {(isOwner || isCashier) && order.status !== 'completed' && order.status !== 'cancelled' && (
+                    <Button size="sm" onClick={() => handleBillOrder(order)} icon={<FiDollarSign />}>
+                      Bill It
+                    </Button>
+                  )}
+                  {isOwner && (
+                    <Button 
+                      size="sm" 
+                      variant="danger" 
+                      onClick={() => handleDeleteOrder(order.id)} 
+                      icon={<FiTrash2 />}
+                      title="ඇණවුම මකන්න (Delete Order)"
+                      style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '6px 10px' }}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
