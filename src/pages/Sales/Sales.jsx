@@ -989,7 +989,7 @@ export default function Sales() {
         return;
       }
 
-      // If Weight Modal is open: handle Escape key to close
+      // If Weight Modal is open: handle Escape key to close, and Left/Right Arrow keys to switch mode
       if (weightModal) {
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -999,6 +999,19 @@ export default function Sales() {
           setWeightGrams('');
           setWeightPrice('');
           setTimeout(() => barcodeInputRef.current?.focus(), 50);
+          return;
+        }
+
+        // Left / Right Arrow keys to switch between "මුදල අනුව (By Price)" and "බර අනුව (By Weight)"
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          setWeightMode('weight');
+          return;
+        }
+
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          setWeightMode('price');
           return;
         }
       }
@@ -1064,7 +1077,7 @@ export default function Sales() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor]);
+  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightMode, weightUnit, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor]);
 
   const handleCloseWeightModal = () => {
     setWeightModal(false);
@@ -2848,6 +2861,9 @@ export default function Sales() {
                       if (e.key === 'Enter') {
                         e.preventDefault();
                         addWeighedToCart();
+                      } else if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        setWeightMode('weight');
                       }
                     }}
                     className="weight-number-input weight-price-input"
@@ -2940,6 +2956,9 @@ export default function Sales() {
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           addWeighedToCart();
+                        } else if (e.key === 'ArrowLeft') {
+                          e.preventDefault();
+                          setWeightMode('price');
                         }
                       }}
                       className="weight-number-input"
@@ -2961,6 +2980,9 @@ export default function Sales() {
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           addWeighedToCart();
+                        } else if (e.key === 'ArrowLeft') {
+                          e.preventDefault();
+                          setWeightMode('price');
                         }
                       }}
                       className="weight-number-input"
