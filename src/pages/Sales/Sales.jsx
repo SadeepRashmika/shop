@@ -397,6 +397,7 @@ export default function Sales() {
     } catch { return []; }
   });
   const [activeCartId, setActiveCartId] = useState(null);
+  const [currentOrderId, setCurrentOrderId] = useState(location.state?.orderId || null);
 
   const toggleFavorite = async (item) => {
     const itemId = item.id;
@@ -840,6 +841,9 @@ export default function Sales() {
 
         // Initialize from orders page if navigating from 'Bill It'
         if (location.state?.orderItems) {
+          if (location.state.orderId) {
+            setCurrentOrderId(location.state.orderId);
+          }
           const initialCart = location.state.orderItems.map(orderItem => {
             const matchedItem = loadedItems.find(i => i.id === orderItem.id);
             return {
@@ -1440,11 +1444,16 @@ export default function Sales() {
         }
       }
 
-      // if billing from an order, mark it completed
-      if (location.state?.orderId) {
-        await updateDoc(doc(db, 'orders', location.state.orderId), {
-          status: 'completed'
-        });
+      // if billing from an order, mark it completed in orders collection
+      const orderIdToComplete = currentOrderId || location.state?.orderId;
+      if (orderIdToComplete) {
+        try {
+          await updateDoc(doc(db, 'orders', orderIdToComplete), {
+            status: 'completed'
+          });
+        } catch (oErr) {
+          console.warn("Could not update order status to completed:", oErr);
+        }
       }
 
       // Store bill data for receipt
@@ -1464,6 +1473,7 @@ export default function Sales() {
       setLastBillData(billData);
       setCheckoutModal(false);
       setCart([]);
+      setCurrentOrderId(null);
       setSelectedDebtor(null);
       setPaymentMethod('cash');
       setDebtorSearch('');
