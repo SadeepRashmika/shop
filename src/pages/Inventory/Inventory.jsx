@@ -498,12 +498,48 @@ export default function Inventory() {
         <div>
           <h1 className="page-title gradient-text">{t('inventory.title')}</h1>
           <p className="page-subtitle">{t('inventory.subtitle')}</p>
-          {isOwner && (
-            <div className="mt-2 text-sm" style={{background: 'rgba(139, 92, 246, 0.1)', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(139, 92, 246, 0.3)', display: 'inline-block'}}>
-              <span className="text-secondary mr-2" style={{marginRight: '8px'}}>Full Shop Inventory Value:</span>
-              <span className="text-primary font-bold text-lg">Rs. {items.reduce((acc, item) => acc + ((item.stock || 0) * (item.sellPrice || item.price || 0)), 0).toFixed(2)}</span>
+          <div className="inventory-summary-badges mt-2" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* Total Items Count Badge */}
+            <div style={{
+              background: 'rgba(59, 130, 246, 0.1)', 
+              padding: '8px 14px', 
+              borderRadius: '8px', 
+              border: '1px solid rgba(59, 130, 246, 0.3)', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '8px'
+            }}>
+              <FiPackage style={{ color: '#3b82f6', fontSize: '18px' }} />
+              <span className="text-secondary" style={{ fontSize: '13px' }}>මුළු භාණ්ඩ ගණන (Total Items):</span>
+              <span style={{ color: '#3b82f6', fontWeight: 'bold', fontSize: '16px' }}>
+                {items.length}
+              </span>
+              {search.trim() && (
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                  (පෙන්වන්නේ: {filteredItems.length})
+                </span>
+              )}
             </div>
-          )}
+
+            {/* Total Inventory Value Badge (for Owner) */}
+            {isOwner && (
+              <div style={{
+                background: 'rgba(139, 92, 246, 0.1)', 
+                padding: '8px 14px', 
+                borderRadius: '8px', 
+                border: '1px solid rgba(139, 92, 246, 0.3)', 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '8px'
+              }}>
+                <FiDollarSign style={{ color: '#8b5cf6', fontSize: '18px' }} />
+                <span className="text-secondary" style={{ fontSize: '13px' }}>Full Shop Inventory Value:</span>
+                <span className="text-primary font-bold" style={{ fontSize: '16px' }}>
+                  Rs. {items.reduce((acc, item) => acc + ((Number(item.stock) || 0) * (Number(item.sellPrice || item.price) || 0)), 0).toFixed(2)}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
         <Button onClick={handleOpenAdd} icon={<FiPlus />}>
           {t('items.addItem')}
