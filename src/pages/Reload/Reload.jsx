@@ -3,7 +3,7 @@ import { collection, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, increme
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { getNow, toDateObject, isToday, getTodayDateString, calibrateFromTimestamp } from '../../services/timeService';
+import { getNow, toDateObject, isToday, getTodayDateString, calibrateFromTimestamp, formatSriLankaDateTime, formatSriLankaDate, formatSriLankaTime } from '../../services/timeService';
 import Button from '../../components/ui/Button';
 import {
   FiZap, FiPhoneCall, FiDollarSign, FiCopy, FiCheck,
@@ -55,8 +55,7 @@ async function getNextBillNumber() {
 function generateReloadReceiptPDF(reloadRecord) {
   const shopInfo = getShopInfo();
   const billNum = reloadRecord.billNumber ? String(reloadRecord.billNumber).padStart(6, '0') : '000000';
-  const recDate = toDateObject(reloadRecord.date || reloadRecord.timestamp) || getNow();
-  const dateStr = recDate.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
+  const dateStr = formatSriLankaDateTime(reloadRecord.date || reloadRecord.timestamp || getNow());
 
   const html = `
 <!DOCTYPE html>
@@ -867,13 +866,12 @@ export default function Reload() {
                 </thead>
                 <tbody>
                   {filteredHistory.map(item => {
-                    const dateObj = toDateObject(item.timestamp || item.date) || getNow();
                     return (
                       <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                         <td style={{ padding: '8px 4px', color: 'var(--text-muted)', fontSize: '11px' }}>
-                          {dateObj.toLocaleDateString('en-LK', { year: 'numeric', month: 'short', day: 'numeric' })}<br />
+                          {formatSriLankaDate(item.timestamp || item.date)}<br />
                           <span style={{ color: 'var(--primary-400)', fontWeight: 600 }}>
-                            {dateObj.toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' })}
+                            {formatSriLankaTime(item.timestamp || item.date)}
                           </span>
                         </td>
                         <td style={{ padding: '8px 4px', fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary-400)' }}>

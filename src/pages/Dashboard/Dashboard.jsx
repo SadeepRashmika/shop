@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../services/firebase';
-import { isToday, toDateObject, calibrateFromTimestamp } from '../../services/timeService';
+import { isToday, toDateObject, calibrateFromTimestamp, subscribeTimeSync, formatSriLankaTime } from '../../services/timeService';
 import Card from '../../components/ui/Card';
 import Modal from '../../components/ui/Modal';
 import { useReactToPrint } from 'react-to-print';
@@ -147,6 +147,14 @@ export default function Dashboard() {
     } else {
       setLoading(false);
     }
+
+    const unsubscribe = subscribeTimeSync(() => {
+      if (isOwner || isCashier) {
+        fetchDashboardData();
+      }
+    });
+
+    return unsubscribe;
   }, [isOwner, isCashier]);
 
   const handleClearBillsOnly = async () => {
@@ -238,9 +246,7 @@ export default function Dashboard() {
   const displayStats = isOwner ? ownerStats : cashierStats;
 
   const formatTime = (timestamp) => {
-    const date = toDateObject(timestamp);
-    if (!date) return '';
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return formatSriLankaTime(timestamp);
   };
 
   return (

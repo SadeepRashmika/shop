@@ -15,6 +15,10 @@ import {
   isThisMonth, 
   isThisYear, 
   toDateObject, 
+  toUtcSeconds,
+  formatSriLankaDate,
+  formatSriLankaTime,
+  formatSriLankaDateTime,
   calibrateFromTimestamp,
   subscribeTimeSync
 } from '../../services/timeService';
@@ -181,17 +185,23 @@ export default function Reports() {
     };
 
     fetchReports();
+
+    // Re-calculate automatically as soon as time synchronizes
+    const unsubscribe = subscribeTimeSync(() => {
+      fetchReports();
+      setSelectedDailyDate(getTodayDateString());
+      setSelectedMonthDate(getCurrentMonthString());
+      setSelectedYear(getCurrentYearString());
+    });
+
+    return unsubscribe;
   }, []);
 
   const COLORS = ['#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b'];
 
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp.seconds * 1000);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric', month: 'short', day: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
+    return formatSriLankaDateTime(timestamp);
   };
 
   // ---- Excel/Download Helpers ----

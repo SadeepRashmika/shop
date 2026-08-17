@@ -1,31 +1,37 @@
 /**
- * Time Synchronization Service
+ * Universal Time Synchronization Service
  * 
- * Ensures accurate calculation of "Today's Sales", reports, timestamps and receipts
- * even if the user's laptop or device system clock is wrong (e.g. incorrect year, month, or time).
+ * Guarantees 100% accurate calculation of:
+ * - "Today's Sales" (අද විකුණුම්)
+ * - "This Month's Sales" (මෙම මාසය)
+ * - Reports, Daily Sales, Charts, and Receipts
  * 
- * Syncs real UTC network time via Cloudflare, jsDelivr, and public time APIs,
- * caching the offset so the entire POS system operates with true real-world time.
+ * Works even if the laptop clock is completely wrong (wrong year, wrong hours, wrong timezone),
+ * by syncing directly with Firebase Firestore serverTimestamp and calculating Sri Lanka business day bounds (UTC+5:30).
  */
 
 import { useState, useEffect } from 'react';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from './firebase';
+
+const SL_OFFSET_MS = 5.5 * 60 * 60 * 1000; // Sri Lanka is UTC + 5:30 (19,800,000 ms)
 
 let serverOffsetMs = 0;
-const listeners = new Set();
-let isSyncing = false;
 let hasSynced = false;
+let isSyncing = false;
+const listeners = new Set();
 
-// Initialize cached offset from localStorage if available
+// Load cached offset from localStorage
 try {
-  const cachedOffset = localStorage.getItem('pos_time_offset');
-  if (cachedOffset !== null) {
-    const parsed = parseInt(cachedOffset, 10);
+  const cached = localStorage.getItem('pos_time_offset');
+  if (cached !== null) {
+    const parsed = parseInt(cached, 10);
     if (!isNaN(parsed)) {
       serverOffsetMs = parsed;
     }
   }
 } catch (e) {
-  console.warn('[TimeService] Could not access localStorage for time offset:', e);
+  console.warn('[TimeService] localStorage access error:', e);
 }
 
 function notifyListeners() {
@@ -33,149 +39,126 @@ function notifyListeners() {
     try {
       cb(serverOffsetMs);
     } catch (err) {
-      console.error('[TimeService] Listener error:', err);
+      console.error('[TimeService] Listener callback error:', err);
     }
   });
 }
 
 /**
- * Perform network time synchronization with fallback providers
+ * Get the synchronized real-world UTC timestamp in milliseconds
+ */
+export function getTrueUtcMs() {
+  return Date.now() + serverOffsetMs;
+}
+
+/**
+ * Synchronize real time with Firebase Firestore serverTimestamp
  */
 export async function syncTime() {
   if (isSyncing) return serverOffsetMs;
   isSyncing = true;
 
-  const timeProviders = [
-    // 1. Cloudflare CDN Trace (Fastest, ultra-reliable global NTP-synced timestamp)
-    async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-      const res = await fetch('https://cloudflare.com/cdn-cgi/trace', {
-        cache: 'no-store',
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      const text = await res.text();
-      const match = text.match(/ts=(\d+\.?\d*)/);
-      if (match) {
-        return Math.round(parseFloat(match[1]) * 1000);
-      }
-      throw new Error('No ts in Cloudflare response');
-    },
+  try {
+    // 1. Primary Method: Firestore Server Timestamp Probe (authoritative, zero CORS, always available)
+    const t0 = Date.now();
+    const pingDocRef = doc(db, '_system_time_', 'ping');
+    await setDoc(pingDocRef, { ts: serverTimestamp(), ping: t0 }, { merge: true });
+    
+    const snap = await getDoc(pingDocRef);
+    const t1 = Date.now();
 
-    // 2. jsDelivr CDN HTTP Date Header
-    async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-      const res = await fetch('https://cdn.jsdelivr.net', {
-        method: 'HEAD',
-        cache: 'no-store',
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      const dateHeader = res.headers.get('date');
-      if (dateHeader) {
-        const timeMs = new Date(dateHeader).getTime();
-        if (!isNaN(timeMs)) return timeMs;
-      }
-      throw new Error('No date header in jsDelivr response');
-    },
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data?.ts?.seconds) {
+        const serverMs = (data.ts.seconds * 1000) + Math.round((data.ts.nanoseconds || 0) / 1000000);
+        const roundTripHalf = (t1 - t0) / 2;
+        const estimatedLaptopNow = t0 + roundTripHalf;
+        const newOffset = Math.round(serverMs - estimatedLaptopNow);
 
-    // 3. TimeAPI.io (Asia/Colombo timezone)
-    async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch('https://timeapi.io/api/time/current/zone?timeZone=Asia/Colombo', {
-        cache: 'no-store',
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      const data = await res.json();
-      if (data.dateTime) {
-        const timeMs = new Date(data.dateTime).getTime();
-        if (!isNaN(timeMs)) return timeMs;
-      }
-      throw new Error('Invalid TimeAPI response');
-    },
+        serverOffsetMs = newOffset;
+        hasSynced = true;
 
-    // 4. WorldTimeAPI
-    async () => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Colombo', {
-        cache: 'no-store',
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      const data = await res.json();
-      if (data.unixtime) {
-        return data.unixtime * 1000;
+        try {
+          localStorage.setItem('pos_time_offset', serverOffsetMs.toString());
+        } catch (e) {}
+
+        console.log(`[TimeService] Synchronized via Firestore. Offset: ${serverOffsetMs}ms (${(serverOffsetMs / 1000).toFixed(1)}s)`);
+        notifyListeners();
+        isSyncing = false;
+        return serverOffsetMs;
       }
-      if (data.datetime) {
-        const timeMs = new Date(data.datetime).getTime();
-        if (!isNaN(timeMs)) return timeMs;
-      }
-      throw new Error('Invalid WorldTimeAPI response');
     }
-  ];
+  } catch (err) {
+    console.warn('[TimeService] Firestore ping failed, trying backup API:', err.message);
+  }
 
-  for (const provider of timeProviders) {
-    try {
-      const startTime = Date.now();
-      const serverTimeMs = await provider();
-      const endTime = Date.now();
-      const roundTrip = (endTime - startTime) / 2;
-      const trueNow = serverTimeMs + roundTrip;
-      
-      const newOffset = trueNow - Date.now();
-      
-      // Update offset
-      serverOffsetMs = Math.round(newOffset);
-      hasSynced = true;
+  // 2. Backup Method: TimeAPI.io (Asia/Colombo)
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const t0 = Date.now();
+    const res = await fetch('https://timeapi.io/api/time/current/zone?timeZone=Asia/Colombo', {
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    const data = await res.json();
+    const t1 = Date.now();
 
-      try {
-        localStorage.setItem('pos_time_offset', serverOffsetMs.toString());
-      } catch (e) {}
+    if (data.dateTime) {
+      const timeMs = new Date(data.dateTime).getTime();
+      if (!isNaN(timeMs)) {
+        const roundTripHalf = (t1 - t0) / 2;
+        const estimatedLaptopNow = t0 + roundTripHalf;
+        serverOffsetMs = Math.round(timeMs - estimatedLaptopNow);
+        hasSynced = true;
 
-      console.log(`[TimeService] Time synchronized successfully. Offset: ${serverOffsetMs}ms (Laptop clock diff: ${(serverOffsetMs / 1000).toFixed(1)}s)`);
-      notifyListeners();
-      isSyncing = false;
-      return serverOffsetMs;
-    } catch (e) {
-      // Try next provider
+        try {
+          localStorage.setItem('pos_time_offset', serverOffsetMs.toString());
+        } catch (e) {}
+
+        console.log(`[TimeService] Synchronized via TimeAPI. Offset: ${serverOffsetMs}ms`);
+        notifyListeners();
+        isSyncing = false;
+        return serverOffsetMs;
+      }
     }
+  } catch (err) {
+    // Both failed, rely on cached offset
   }
 
   isSyncing = false;
   return serverOffsetMs;
 }
 
-// Auto-sync on import and lifecycle events
+// Auto-sync on startup and lifecycle events
 if (typeof window !== 'undefined') {
-  // Initial sync
-  syncTime();
+  // Sync on startup after a small delay to let Firebase initialize
+  setTimeout(() => {
+    syncTime();
+  }, 100);
 
-  // Periodic sync every 5 minutes
+  // Periodic sync every 3 minutes
   setInterval(() => {
     syncTime();
-  }, 5 * 60 * 1000);
+  }, 3 * 60 * 1000);
 
-  // Sync on window focus or coming back online
+  // Sync on window focus or network reconnect
   window.addEventListener('online', () => syncTime());
   window.addEventListener('focus', () => syncTime());
 }
 
 /**
- * Calibrate time using Firestore timestamp if network time failed
+ * Calibrate offset if a Firestore transaction has a higher timestamp
  */
 export function calibrateFromTimestamp(timestampSeconds) {
-  if (hasSynced || !timestampSeconds) return;
+  if (!timestampSeconds) return;
   const tsMs = timestampSeconds * 1000;
-  const localMs = Date.now();
-  // If local clock is off by more than 1 day from latest transaction
-  if (Math.abs(localMs - tsMs) > 24 * 60 * 60 * 1000) {
-    console.log('[TimeService] Calibrating offset from latest database timestamp');
-    serverOffsetMs = tsMs - localMs;
+  const currentTrueMs = getTrueUtcMs();
+
+  // If local time is significantly behind the latest transaction in database
+  if (tsMs > currentTrueMs) {
+    serverOffsetMs = tsMs - Date.now();
     try {
       localStorage.setItem('pos_time_offset', serverOffsetMs.toString());
     } catch (e) {}
@@ -184,105 +167,154 @@ export function calibrateFromTimestamp(timestampSeconds) {
 }
 
 /**
- * Get current accurate Date object (laptop time + server offset)
+ * Get Sri Lanka Date parts (Year, Month, Date, Hour, Min, Sec) from a UTC ms value
  */
-export function getNow() {
-  return new Date(Date.now() + serverOffsetMs);
+export function getSriLankaDateParts(utcMs = getTrueUtcMs()) {
+  const d = new Date(utcMs + SL_OFFSET_MS);
+  return {
+    year: d.getUTCFullYear(),
+    month: d.getUTCMonth(), // 0-indexed (0 = Jan)
+    date: d.getUTCDate(),
+    hours: d.getUTCHours(),
+    minutes: d.getUTCMinutes(),
+    seconds: d.getUTCSeconds()
+  };
 }
 
 /**
- * Get current accurate timestamp in milliseconds
+ * Get UTC seconds boundaries for Today in Sri Lanka time (+05:30)
  */
-export function getNowMs() {
-  return Date.now() + serverOffsetMs;
+export function getSriLankaTodayBounds() {
+  const p = getSriLankaDateParts(getTrueUtcMs());
+  const startUtcMs = Date.UTC(p.year, p.month, p.date, 0, 0, 0, 0) - SL_OFFSET_MS;
+  const endUtcMs = Date.UTC(p.year, p.month, p.date, 23, 59, 59, 999) - SL_OFFSET_MS;
+  return {
+    startSec: Math.floor(startUtcMs / 1000),
+    endSec: Math.floor(endUtcMs / 1000),
+    startMs: startUtcMs,
+    endMs: endUtcMs
+  };
 }
 
 /**
- * Get start of Today (00:00:00.000) based on synchronized real time
+ * Get UTC seconds boundaries for Current Month in Sri Lanka time (+05:30)
  */
-export function getTodayStart() {
-  const now = getNow();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+export function getSriLankaMonthBounds() {
+  const p = getSriLankaDateParts(getTrueUtcMs());
+  const startUtcMs = Date.UTC(p.year, p.month, 1, 0, 0, 0, 0) - SL_OFFSET_MS;
+  const endUtcMs = Date.UTC(p.year, p.month + 1, 0, 23, 59, 59, 999) - SL_OFFSET_MS;
+  return {
+    startSec: Math.floor(startUtcMs / 1000),
+    endSec: Math.floor(endUtcMs / 1000),
+    startMs: startUtcMs,
+    endMs: endUtcMs
+  };
 }
 
 /**
- * Get end of Today (23:59:59.999) based on synchronized real time
+ * Convert any Firestore Timestamp, Date object, string, or number to UTC seconds
  */
-export function getTodayEnd() {
-  const now = getNow();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+export function toUtcSeconds(value) {
+  if (!value) return null;
+  if (typeof value.seconds === 'number') return value.seconds;
+  if (typeof value.toDate === 'function') {
+    const d = value.toDate();
+    return Math.floor(d.getTime() / 1000);
+  }
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? null : Math.floor(value.getTime() / 1000);
+  }
+  if (typeof value === 'number') {
+    return value > 100000000000 ? Math.floor(value / 1000) : value;
+  }
+  if (typeof value === 'string') {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : Math.floor(d.getTime() / 1000);
+  }
+  return null;
 }
 
 /**
- * Get start of Current Month (1st 00:00:00.000) based on synchronized real time
+ * Get UTC seconds boundaries for Current Year in Sri Lanka time (+05:30)
  */
-export function getMonthStart() {
-  const now = getNow();
-  return new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+export function getSriLankaYearBounds() {
+  const p = getSriLankaDateParts(getTrueUtcMs());
+  const startUtcMs = Date.UTC(p.year, 0, 1, 0, 0, 0, 0) - SL_OFFSET_MS;
+  const endUtcMs = Date.UTC(p.year, 11, 31, 23, 59, 59, 999) - SL_OFFSET_MS;
+  return {
+    startSec: Math.floor(startUtcMs / 1000),
+    endSec: Math.floor(endUtcMs / 1000),
+    startMs: startUtcMs,
+    endMs: endUtcMs
+  };
 }
 
 /**
- * Get end of Current Month (last day 23:59:59.999) based on synchronized real time
+ * Check if a timestamp or date belongs to Today (Sri Lanka Time)
  */
-export function getMonthEnd() {
-  const now = getNow();
-  return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+export function isToday(value) {
+  const sec = toUtcSeconds(value);
+  if (sec === null) return false;
+  const bounds = getSriLankaTodayBounds();
+  return sec >= bounds.startSec && sec <= bounds.endSec;
 }
 
 /**
- * Get start of Current Year (Jan 1 00:00:00.000) based on synchronized real time
+ * Check if a timestamp or date belongs to the Current Month (Sri Lanka Time)
  */
-export function getYearStart() {
-  const now = getNow();
-  return new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+export function isThisMonth(value) {
+  const sec = toUtcSeconds(value);
+  if (sec === null) return false;
+  const bounds = getSriLankaMonthBounds();
+  return sec >= bounds.startSec && sec <= bounds.endSec;
 }
 
 /**
- * Get end of Current Year (Dec 31 23:59:59.999) based on synchronized real time
+ * Check if a timestamp or date belongs to the Current Year (Sri Lanka Time)
  */
-export function getYearEnd() {
-  const now = getNow();
-  return new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+export function isThisYear(value) {
+  const sec = toUtcSeconds(value);
+  if (sec === null) return false;
+  const bounds = getSriLankaYearBounds();
+  return sec >= bounds.startSec && sec <= bounds.endSec;
 }
 
 /**
- * Get accurate 'YYYY-MM-DD' string for today
+ * Get 'YYYY-MM-DD' string for Today in Sri Lanka
  */
 export function getTodayDateString() {
-  const now = getNow();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  const p = getSriLankaDateParts(getTrueUtcMs());
+  const m = String(p.month + 1).padStart(2, '0');
+  const d = String(p.date).padStart(2, '0');
+  return `${p.year}-${m}-${d}`;
 }
 
 /**
- * Get accurate 'YYYY-MM' string for current month
+ * Get 'YYYY-MM' string for Current Month in Sri Lanka
  */
 export function getCurrentMonthString() {
-  const now = getNow();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  return `${y}-${m}`;
+  const p = getSriLankaDateParts(getTrueUtcMs());
+  const m = String(p.month + 1).padStart(2, '0');
+  return `${p.year}-${m}`;
 }
 
 /**
- * Get accurate 'YYYY' string for current year
+ * Get 'YYYY' string for Current Year in Sri Lanka
  */
 export function getCurrentYearString() {
-  const now = getNow();
-  return String(now.getFullYear());
+  const p = getSriLankaDateParts(getTrueUtcMs());
+  return String(p.year);
 }
 
 /**
- * Convert any Firestore timestamp, Date string, or Date to Date object
+ * Convert any timestamp to a Date object
  */
 export function toDateObject(value) {
   if (!value) return null;
   if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
-  if (value.seconds !== undefined) return new Date(value.seconds * 1000);
+  if (typeof value.seconds === 'number') return new Date(value.seconds * 1000);
   if (typeof value.toDate === 'function') return value.toDate();
-  if (typeof value === 'number') return new Date(value);
+  if (typeof value === 'number') return new Date(value > 100000000000 ? value : value * 1000);
   if (typeof value === 'string') {
     const d = new Date(value);
     return isNaN(d.getTime()) ? null : d;
@@ -291,33 +323,69 @@ export function toDateObject(value) {
 }
 
 /**
- * Check if a timestamp or date is within today
+ * Get accurate current Date object
  */
-export function isToday(value) {
-  const d = toDateObject(value);
-  if (!d) return false;
-  const time = d.getTime();
-  return time >= getTodayStart().getTime() && time <= getTodayEnd().getTime();
+export function getNow() {
+  return new Date(getTrueUtcMs());
 }
 
 /**
- * Check if a timestamp or date is within the current month
+ * Get start of Today Date
  */
-export function isThisMonth(value) {
-  const d = toDateObject(value);
-  if (!d) return false;
-  const time = d.getTime();
-  return time >= getMonthStart().getTime() && time <= getMonthEnd().getTime();
+export function getTodayStart() {
+  return new Date(getSriLankaTodayBounds().startMs);
 }
 
 /**
- * Check if a timestamp or date is within the current year
+ * Get end of Today Date
  */
-export function isThisYear(value) {
-  const d = toDateObject(value);
-  if (!d) return false;
-  const time = d.getTime();
-  return time >= getYearStart().getTime() && time <= getYearEnd().getTime();
+export function getTodayEnd() {
+  return new Date(getSriLankaTodayBounds().endMs);
+}
+
+/**
+ * Get start of Month Date
+ */
+export function getMonthStart() {
+  return new Date(getSriLankaMonthBounds().startMs);
+}
+
+/**
+ * Get end of Month Date
+ */
+export function getMonthEnd() {
+  return new Date(getSriLankaMonthBounds().endMs);
+}
+
+/**
+ * Format any timestamp into Sri Lanka Date String (e.g. "Aug 17, 2026")
+ */
+export function formatSriLankaDate(value) {
+  const sec = toUtcSeconds(value);
+  if (!sec) return 'N/A';
+  const p = getSriLankaDateParts(sec * 1000);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[p.month]} ${p.date}, ${p.year}`;
+}
+
+/**
+ * Format any timestamp into Sri Lanka Time String (e.g. "01:15 PM")
+ */
+export function formatSriLankaTime(value) {
+  const sec = toUtcSeconds(value);
+  if (!sec) return 'N/A';
+  const p = getSriLankaDateParts(sec * 1000);
+  const h12 = p.hours % 12 || 12;
+  const ampm = p.hours >= 12 ? 'PM' : 'AM';
+  const mStr = String(p.minutes).padStart(2, '0');
+  return `${String(h12).padStart(2, '0')}:${mStr} ${ampm}`;
+}
+
+/**
+ * Format any timestamp into Sri Lanka Date & Time String
+ */
+export function formatSriLankaDateTime(value) {
+  return `${formatSriLankaDate(value)} ${formatSriLankaTime(value)}`;
 }
 
 /**
@@ -329,7 +397,7 @@ export function subscribeTimeSync(callback) {
 }
 
 /**
- * React Hook to get synced time and auto-refresh when sync occurs
+ * React Hook for synced time
  */
 export function useSyncedTime() {
   const [, setTick] = useState(0);

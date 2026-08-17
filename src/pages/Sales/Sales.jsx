@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { getNow, toDateObject, isToday, getTodayDateString } from '../../services/timeService';
+import { getNow, toDateObject, isToday, getTodayDateString, formatSriLankaDateTime, formatSriLankaDate, formatSriLankaTime } from '../../services/timeService';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
@@ -65,8 +65,7 @@ const NETWORKS = [
 function generateReloadReceiptPDF(reloadRecord) {
   const shopInfo = getShopInfo();
   const billNum = reloadRecord.billNumber ? String(reloadRecord.billNumber).padStart(6, '0') : '000000';
-  const recDate = toDateObject(reloadRecord.date || reloadRecord.timestamp) || getNow();
-  const dateStr = recDate.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
+  const dateStr = formatSriLankaDateTime(reloadRecord.date || reloadRecord.timestamp || getNow());
 
   const html = `
 <!DOCTYPE html>
@@ -165,8 +164,7 @@ function generateReloadReceiptPDF(reloadRecord) {
 function generateBillPDF(billData) {
   const shopInfo = getShopInfo();
   const billNum = billData.billNumber ? String(billData.billNumber).padStart(6, '0') : '000000';
-  const recDate = toDateObject(billData.date || billData.timestamp) || getNow();
-  const dateStr = recDate.toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short' });
+  const dateStr = formatSriLankaDateTime(billData.date || billData.timestamp || getNow());
 
   const totalItemsCount = (billData.items || []).length;
   const totalQuantity = (billData.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
@@ -2129,8 +2127,8 @@ export default function Sales() {
             </div>
 
             <div style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
-              <span>Date: {getNow().toLocaleDateString('en-LK', { dateStyle: 'medium' })}</span>
-              <span>Time: {getNow().toLocaleTimeString('en-LK', { timeStyle: 'short' })}</span>
+              <span>Date: {formatSriLankaDate(getNow())}</span>
+              <span>Time: {formatSriLankaTime(getNow())}</span>
             </div>
 
             <table style={{ width: '100%', fontSize: '0.825rem', borderCollapse: 'collapse', marginBottom: '0.75rem' }}>
@@ -2993,11 +2991,10 @@ export default function Sales() {
                           </thead>
                           <tbody>
                             {filtered.map(item => {
-                              const dObj = toDateObject(item.timestamp || item.date) || getNow();
                               return (
                                 <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                   <td style={{ padding: '6px 4px', color: 'var(--text-muted)', fontSize: '11px' }}>
-                                    {dObj.toLocaleDateString('en-LK', { year: 'numeric', month: 'short', day: 'numeric' })} {dObj.toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' })}
+                                    {formatSriLankaDateTime(item.timestamp || item.date)}
                                   </td>
                                   <td style={{ padding: '6px 4px', textTransform: 'capitalize', fontWeight: 600 }}>{item.network}</td>
                                   <td style={{ padding: '6px 4px', fontWeight: 'bold' }}>{item.phone}</td>
