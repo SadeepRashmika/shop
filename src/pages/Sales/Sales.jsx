@@ -160,6 +160,34 @@ function generateReloadReceiptPDF(reloadRecord) {
   }
 }
 
+// Format bill quantity: < 1 kg displayed in grams (e.g. 500g, 250g), >= 1 kg in kg (e.g. 1.5 kg, 2 kg)
+export function formatBillQty(item) {
+  if (!item) return '1';
+  const qty = Number(item.quantity);
+  if (isNaN(qty)) return item.quantity || '1';
+
+  const isWeighed = item.itemType === 'weighed' || item.isWeighed || (qty % 1 !== 0 && qty < 100);
+
+  if (isWeighed) {
+    if (qty < 1) {
+      const grams = Math.round(qty * 1000);
+      return `${grams}g`;
+    } else {
+      const formattedKg = qty % 1 === 0 ? qty : qty.toFixed(3).replace(/\.?0+$/, '');
+      return `${formattedKg} kg`;
+    }
+  }
+
+  if (item.isMilling) {
+    if (qty < 1) {
+      return `${Math.round(qty * 1000)}g`;
+    }
+    return `${qty} kg`;
+  }
+
+  return `${qty}`;
+}
+
 // Generate Bill Receipt - opens in print window (supports Sinhala text)
 function generateBillPDF(billData) {
   const shopInfo = getShopInfo();
@@ -183,12 +211,13 @@ function generateBillPDF(billData) {
     const mPrice = Number(item.markedPrice) || Number(item.sellPrice);
     const sPrice = Number(item.sellPrice);
     const subtotal = Number(item.subtotal || (sPrice * item.quantity));
+    const formattedQty = formatBillQty(item);
     return `
       <tr style="border-top: 1px solid #000;">
         <td colspan="4" style="font-weight: 800; padding: 5px 2px 2px 2px; font-size: 14px; color: #000;">${item.name}</td>
       </tr>
       <tr style="border-bottom: 1px solid #000;">
-        <td style="text-align:left; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 700; color: #000;">${item.quantity}</td>
+        <td style="text-align:left; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 700; color: #000;">${formattedQty}</td>
         <td style="text-align:right; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 700; color: #000;">${mPrice.toFixed(2)}</td>
         <td style="text-align:right; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 700; color: #000;">${sPrice.toFixed(2)}</td>
         <td style="text-align:right; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 800; color: #000;">${subtotal.toFixed(2)}</td>
@@ -454,20 +483,34 @@ export default function Sales() {
   const barcodeInputRef = useRef(null);
   const tenderedInputRef = useRef(null);
   const weightInputRef = useRef(null);
+  const weightPriceInputRef = useRef(null);
+  const weightGramsInputRef = useRef(null);
 
   // Weight entry for weighed items
   const [weightModal, setWeightModal] = useState(false);
   const [weightItem, setWeightItem] = useState(null);
-  const [weightValue, setWeightValue] = useState('');
+  const [weightMode, setWeightMode] = useState('price'); // 'price' or 'weight'
+  const [weightUnit, setWeightUnit] = useState('kg'); // 'kg' or 'g'
+  const [weightValue, setWeightValue] = useState(''); // in kg
+  const [weightGrams, setWeightGrams] = useState(''); // in grams
+  const [weightPrice, setWeightPrice] = useState(''); // in Rs
 
   useEffect(() => {
     if (weightModal) {
       setTimeout(() => {
-        weightInputRef.current?.focus();
-        weightInputRef.current?.select();
+        if (weightMode === 'price') {
+          weightPriceInputRef.current?.focus();
+          weightPriceInputRef.current?.select();
+        } else if (weightUnit === 'g') {
+          weightGramsInputRef.current?.focus();
+          weightGramsInputRef.current?.select();
+        } else {
+          weightInputRef.current?.focus();
+          weightInputRef.current?.select();
+        }
       }, 50);
     }
-  }, [weightModal]);
+  }, [weightModal, weightMode, weightUnit]);
 
   // Custom Item Modal (නොමැති භාණ්ඩ)
   const [customItemModal, setCustomItemModal] = useState(false);
@@ -956,6 +999,8 @@ export default function Sales() {
           setWeightModal(false);
           setWeightItem(null);
           setWeightValue('');
+          setWeightGrams('');
+          setWeightPrice('');
           setTimeout(() => barcodeInputRef.current?.focus(), 50);
           return;
         }
@@ -1024,6 +1069,58 @@ export default function Sales() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor]);
 
+  const handleCloseWeightModal = () => {
+    setWeightModal(false);
+    setWeightItem(null);
+    setWeightValue('');
+    setWeightGrams('');
+    setWeightPrice('');
+    setTimeout(() => barcodeInputRef.current?.focus(), 50);
+  };
+
+  const handleWeightKgChange = (val, item = weightItem) => {
+    setWeightValue(val);
+    const kg = parseFloat(val);
+    if (!isNaN(kg) && kg >= 0) {
+      setWeightGrams(String(Math.round(kg * 1000)));
+      if (item && item.sellPrice) {
+        setWeightPrice((kg * item.sellPrice).toFixed(2));
+      }
+    } else {
+      setWeightGrams('');
+      setWeightPrice('');
+    }
+  };
+
+  const handleWeightGramsChange = (val, item = weightItem) => {
+    setWeightGrams(val);
+    const g = parseFloat(val);
+    if (!isNaN(g) && g >= 0) {
+      const kg = Math.round((g / 1000) * 10000) / 10000;
+      setWeightValue(String(kg));
+      if (item && item.sellPrice) {
+        setWeightPrice(((g / 1000) * item.sellPrice).toFixed(2));
+      }
+    } else {
+      setWeightValue('');
+      setWeightPrice('');
+    }
+  };
+
+  const handleWeightPriceChange = (val, item = weightItem) => {
+    setWeightPrice(val);
+    const price = parseFloat(val);
+    if (!isNaN(price) && price >= 0 && item && item.sellPrice > 0) {
+      const kg = price / item.sellPrice;
+      const roundedKg = Math.round(kg * 1000) / 1000;
+      setWeightValue(String(roundedKg));
+      setWeightGrams(String(Math.round(kg * 1000)));
+    } else {
+      setWeightValue('');
+      setWeightGrams('');
+    }
+  };
+
   const addToCart = (item) => {
     if (item.name?.includes('වී කෙටීම')) {
       handleOpenMillingModal('wee');
@@ -1043,6 +1140,8 @@ export default function Sales() {
     if (item.itemType === 'weighed') {
       setWeightItem(item);
       setWeightValue('');
+      setWeightGrams('');
+      setWeightPrice('');
       setWeightModal(true);
       setSearch('');
       return;
@@ -1081,11 +1180,11 @@ export default function Sales() {
   const addWeighedToCart = () => {
     const weight = parseFloat(weightValue);
     if (!weight || weight <= 0) {
-      alert('Please enter a valid weight.');
+      alert('කරුණාකර වලංගු බරක් හෝ මුදලක් ඇතුලත් කරන්න (Please enter a valid weight or amount).');
       return;
     }
     if (weight > weightItem.stock) {
-      alert(`Only ${weightItem.stock} kg available in stock!`);
+      alert(`තොගයේ ඇත්තේ ${weightItem.stock} kg පමණි! (Only ${weightItem.stock} kg available in stock!)`);
       return;
     }
 
@@ -1094,11 +1193,8 @@ export default function Sales() {
     const markedPrice = weightItem.markedPrice ? Number(weightItem.markedPrice) : Number(weightItem.sellPrice);
     setCart([{ ...weightItem, markedPrice, quantity: weight, cartId }, ...cart]);
     setActiveCartId(cartId);
-    setWeightModal(false);
-    setWeightItem(null);
-    setWeightValue('');
+    handleCloseWeightModal();
     setSearch('');
-    setTimeout(() => barcodeInputRef.current?.focus(), 50);
   };
 
   const removeFromCart = (itemId, cartId, itemName) => {
@@ -2154,8 +2250,8 @@ export default function Sales() {
                 {cart.map((item, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '6px 0', fontWeight: '600', color: '#0f172a' }}>{item.name}</td>
-                    <td style={{ padding: '6px 0', textAlign: 'center', color: '#475569' }}>
-                      {typeof item.quantity === 'number' && item.quantity % 1 !== 0 ? item.quantity.toFixed(2) : item.quantity}
+                    <td style={{ padding: '6px 0', textAlign: 'center', color: '#475569', fontWeight: '600' }}>
+                      {formatBillQty(item)}
                     </td>
                     <td style={{ padding: '6px 0', textAlign: 'right', color: '#475569' }}>Rs. {item.sellPrice.toFixed(2)}</td>
                     <td style={{ padding: '6px 0', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>
@@ -2614,7 +2710,7 @@ export default function Sales() {
                 <div key={idx} className="bill-table-row">
                   <span className="font-bold text-secondary">#{item.itemNo || '-'}</span>
                   <span className="bill-item-name">{item.name}</span>
-                  <span>{item.quantity}</span>
+                  <span>{formatBillQty(item)}</span>
                   <span>Rs. {item.sellPrice?.toFixed(2)}</span>
                   <span>Rs. {item.subtotal?.toFixed(2)}</span>
                 </div>
@@ -2691,66 +2787,258 @@ export default function Sales() {
 
 
       {/* Weight Entry Modal for Weighed Items */}
-      <Modal isOpen={weightModal} onClose={() => { setWeightModal(false); setWeightItem(null); setWeightValue(''); setTimeout(() => barcodeInputRef.current?.focus(), 50); }} title="⚖️ බර ඇතුලත් කරන්න / Enter Weight">
+      <Modal isOpen={weightModal} onClose={handleCloseWeightModal} title="⚖️ බර හෝ මුදල ඇතුලත් කරන්න / Enter Weight or Amount">
         {weightItem && (
           <div className="weight-entry-content">
             <div className="weight-item-banner">
               <h3>{weightItem.name}</h3>
-              <span className="weight-price-per-kg">Rs. {weightItem.sellPrice.toFixed(2)} / kg</span>
-              <span className="weight-stock-info">{weightItem.stock} kg available</span>
+              <div className="weight-banner-rates">
+                <span className="weight-price-per-kg">Rs. {weightItem.sellPrice.toFixed(2)} / kg</span>
+                <span className="weight-price-per-100g">(Rs. {(weightItem.sellPrice / 10).toFixed(2)} / 100g)</span>
+              </div>
+              <span className="weight-stock-info">📦 {weightItem.stock} kg available in stock</span>
             </div>
 
-            <div className="weight-input-group">
-              <label className="input-label">Weight (kg)</label>
-              <div className="weight-input-row">
-                <input
-                  ref={weightInputRef}
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  max={weightItem.stock}
-                  value={weightValue}
-                  onChange={(e) => setWeightValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addWeighedToCart();
-                    }
-                  }}
-                  className="weight-number-input"
-                  placeholder="0.00"
-                  autoFocus
-                />
-                <span className="weight-kg-label">kg</span>
-              </div>
-
-              <div className="weight-quick-btns">
-                {[0.25, 0.5, 1, 2, 5, 10, 25, 50, 100, 500, 1000, 5000].map(w => (
-                  <button
-                    key={w}
-                    type="button"
-                    className="weight-quick-btn"
-                    onClick={() => {
-                      setWeightValue(String(w));
+            {/* Mode Switch Tabs: By Price vs By Weight */}
+            <div className="weight-mode-tabs">
+              <button
+                type="button"
+                className={`weight-mode-tab ${weightMode === 'price' ? 'active' : ''}`}
+                onClick={() => {
+                  setWeightMode('price');
+                  setTimeout(() => {
+                    weightPriceInputRef.current?.focus();
+                    weightPriceInputRef.current?.select();
+                  }, 50);
+                }}
+              >
+                💵 මුදල අනුව (By Price - Rs.)
+              </button>
+              <button
+                type="button"
+                className={`weight-mode-tab ${weightMode === 'weight' ? 'active' : ''}`}
+                onClick={() => {
+                  setWeightMode('weight');
+                  setTimeout(() => {
+                    if (weightUnit === 'g') {
+                      weightGramsInputRef.current?.focus();
+                      weightGramsInputRef.current?.select();
+                    } else {
                       weightInputRef.current?.focus();
-                    }}
-                  >
-                    {w} kg
-                  </button>
-                ))}
-              </div>
+                      weightInputRef.current?.select();
+                    }
+                  }, 50);
+                }}
+              >
+                ⚖️ බර අනුව (By Weight - kg / g)
+              </button>
             </div>
 
+            {/* MODE 1: BY TARGET PRICE (මිල අනුව) */}
+            {weightMode === 'price' && (
+              <div className="weight-input-group">
+                <label className="input-label">අවශ්‍ය මුළු මුදල (Target Amount in Rs.)</label>
+                <div className="weight-input-row">
+                  <span className="weight-prefix-label">Rs.</span>
+                  <input
+                    ref={weightPriceInputRef}
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={weightPrice}
+                    onChange={(e) => handleWeightPriceChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addWeighedToCart();
+                      }
+                    }}
+                    className="weight-number-input weight-price-input"
+                    placeholder="0.00"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Auto Calculated Live Result */}
+                {weightPrice && parseFloat(weightPrice) > 0 && (
+                  <div className="weight-auto-calc-card">
+                    <div className="weight-auto-calc-header">
+                      <span>✨ ස්වයංක්‍රීයව ගණනය වූ බර:</span>
+                      <strong>{weightValue} kg ({weightGrams} g)</strong>
+                    </div>
+                    <div className="weight-auto-calc-formula">
+                      Rs. {Number(weightPrice).toFixed(2)} ÷ Rs. {weightItem.sellPrice.toFixed(2)}/kg = {weightValue} kg
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick Price Preset Buttons */}
+                <div className="weight-quick-section">
+                  <span className="weight-quick-title">Quick Amounts (රුපියල්):</span>
+                  <div className="weight-quick-btns">
+                    {[50, 100, 150, 200, 250, 500, 1000, 2000].map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        className={`weight-quick-btn ${parseFloat(weightPrice) === amt ? 'active' : ''}`}
+                        onClick={() => {
+                          handleWeightPriceChange(String(amt));
+                          weightPriceInputRef.current?.focus();
+                        }}
+                      >
+                        Rs. {amt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODE 2: BY WEIGHT (බර අනුව - kg හෝ ග්‍රෑම්) */}
+            {weightMode === 'weight' && (
+              <div className="weight-input-group">
+                <div className="weight-unit-toggle-row">
+                  <label className="input-label">බර ඇතුලත් කරන්න (Enter Weight)</label>
+                  <div className="weight-unit-toggle">
+                    <button
+                      type="button"
+                      className={`unit-toggle-btn ${weightUnit === 'kg' ? 'active' : ''}`}
+                      onClick={() => {
+                        setWeightUnit('kg');
+                        setTimeout(() => {
+                          weightInputRef.current?.focus();
+                          weightInputRef.current?.select();
+                        }, 50);
+                      }}
+                    >
+                      Kilograms (kg)
+                    </button>
+                    <button
+                      type="button"
+                      className={`unit-toggle-btn ${weightUnit === 'g' ? 'active' : ''}`}
+                      onClick={() => {
+                        setWeightUnit('g');
+                        setTimeout(() => {
+                          weightGramsInputRef.current?.focus();
+                          weightGramsInputRef.current?.select();
+                        }, 50);
+                      }}
+                    >
+                      Grams (g)
+                    </button>
+                  </div>
+                </div>
+
+                {weightUnit === 'kg' ? (
+                  <div className="weight-input-row">
+                    <input
+                      ref={weightInputRef}
+                      type="number"
+                      step="0.001"
+                      min="0.001"
+                      max={weightItem.stock}
+                      value={weightValue}
+                      onChange={(e) => handleWeightKgChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addWeighedToCart();
+                        }
+                      }}
+                      className="weight-number-input"
+                      placeholder="0.000"
+                      autoFocus
+                    />
+                    <span className="weight-kg-label">kg</span>
+                  </div>
+                ) : (
+                  <div className="weight-input-row">
+                    <input
+                      ref={weightGramsInputRef}
+                      type="number"
+                      step="10"
+                      min="1"
+                      value={weightGrams}
+                      onChange={(e) => handleWeightGramsChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addWeighedToCart();
+                        }
+                      }}
+                      className="weight-number-input"
+                      placeholder="0"
+                      autoFocus
+                    />
+                    <span className="weight-kg-label">g</span>
+                  </div>
+                )}
+
+                {/* Conversion Hint */}
+                {weightValue && parseFloat(weightValue) > 0 && (
+                  <div className="weight-conversion-badge">
+                    {weightUnit === 'kg' 
+                      ? `= ${weightGrams || Math.round(parseFloat(weightValue) * 1000)} g (ග්‍රෑම්)`
+                      : `= ${weightValue} kg (කිලෝග්‍රෑම්)`}
+                  </div>
+                )}
+
+                {/* Quick Weight Preset Buttons */}
+                <div className="weight-quick-section">
+                  <span className="weight-quick-title">Quick Weights (ප්‍රමාණ):</span>
+                  <div className="weight-quick-btns">
+                    {[
+                      { label: '50 g', kg: 0.05 },
+                      { label: '100 g', kg: 0.1 },
+                      { label: '250 g', kg: 0.25 },
+                      { label: '500 g', kg: 0.5 },
+                      { label: '750 g', kg: 0.75 },
+                      { label: '1 kg', kg: 1 },
+                      { label: '1.5 kg', kg: 1.5 },
+                      { label: '2 kg', kg: 2 },
+                      { label: '5 kg', kg: 5 },
+                      { label: '10 kg', kg: 10 },
+                      { label: '25 kg', kg: 25 },
+                      { label: '50 kg', kg: 50 }
+                    ].map(w => (
+                      <button
+                        key={w.label}
+                        type="button"
+                        className={`weight-quick-btn ${parseFloat(weightValue) === w.kg ? 'active' : ''}`}
+                        onClick={() => {
+                          handleWeightKgChange(String(w.kg));
+                          if (weightUnit === 'g') {
+                            weightGramsInputRef.current?.focus();
+                          } else {
+                            weightInputRef.current?.focus();
+                          }
+                        }}
+                      >
+                        {w.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Total Price & Summary Preview */}
             {weightValue && parseFloat(weightValue) > 0 && (
               <div className="weight-total-preview">
-                <span>Total Price:</span>
-                <h2>Rs. {(weightItem.sellPrice * parseFloat(weightValue)).toFixed(2)}</h2>
+                <div className="weight-preview-left">
+                  <span className="weight-preview-label">මුළු එකතුව / Total Price:</span>
+                  <h2>Rs. {weightPrice ? Number(weightPrice).toFixed(2) : (weightItem.sellPrice * parseFloat(weightValue)).toFixed(2)}</h2>
+                </div>
+                <div className="weight-preview-right">
+                  <span className="weight-preview-qty">{weightValue} kg</span>
+                  <span className="weight-preview-sub">({weightGrams || Math.round(parseFloat(weightValue) * 1000)} g)</span>
+                </div>
               </div>
             )}
 
             <div className="modal-actions mt-6">
-              <Button variant="secondary" onClick={() => { setWeightModal(false); setWeightItem(null); setWeightValue(''); setTimeout(() => barcodeInputRef.current?.focus(), 50); }}>Cancel</Button>
-              <Button onClick={addWeighedToCart} icon={<FiPlus />}>Add to Cart</Button>
+              <Button variant="secondary" onClick={handleCloseWeightModal}>Cancel</Button>
+              <Button onClick={addWeighedToCart} icon={<FiPlus />}>Add to Cart (Enter)</Button>
             </div>
           </div>
         )}

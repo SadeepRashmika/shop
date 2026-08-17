@@ -422,14 +422,21 @@ export default function Reports() {
               </tr>
             </thead>
             <tbody>
-              {txn.items.map((item, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                  <td style={{ padding: '5px 8px', color: '#e2e8f0' }}>{item.name || 'N/A'}</td>
-                  <td style={{ padding: '5px 8px', textAlign: 'center', color: '#94a3b8' }}>{item.quantity}</td>
-                  <td style={{ padding: '5px 8px', textAlign: 'right', color: '#94a3b8' }}>Rs. {Number(item.price || 0).toFixed(2)}</td>
-                  <td style={{ padding: '5px 8px', textAlign: 'right', color: '#10b981', fontWeight: 600 }}>Rs. {(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</td>
-                </tr>
-              ))}
+              {txn.items.map((item, idx) => {
+                const qtyNum = Number(item.quantity);
+                const isWeighed = item.itemType === 'weighed' || (qtyNum % 1 !== 0 && qtyNum < 100);
+                const displayQty = isWeighed
+                  ? (qtyNum < 1 ? `${Math.round(qtyNum * 1000)}g` : `${qtyNum % 1 === 0 ? qtyNum : qtyNum.toFixed(3).replace(/\.?0+$/, '')} kg`)
+                  : item.quantity;
+                return (
+                  <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                    <td style={{ padding: '5px 8px', color: '#e2e8f0' }}>{item.name || 'N/A'}</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'center', color: '#94a3b8', fontWeight: 600 }}>{displayQty}</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'right', color: '#94a3b8' }}>Rs. {Number(item.price || 0).toFixed(2)}</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'right', color: '#10b981', fontWeight: 600 }}>Rs. {(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
