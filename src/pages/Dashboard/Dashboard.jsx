@@ -31,53 +31,103 @@ export default function Dashboard() {
   const [lowStockSearch, setLowStockSearch] = useState('');
   const [lowStockCategory, setLowStockCategory] = useState('සියල්ල');
   const [lowStockSort, setLowStockSort] = useState('stock-asc');
+  const [lowStockThreshold, setLowStockThreshold] = useState(5);
 
   const lowStockRef = useRef();
 
-  const generateLowStockPDF = (filteredItems) => {
-    const rows = filteredItems.map(item => `
-      <tr style="border-bottom:1px solid #e2e8f0;">
-        <td style="padding:10px 8px;font-weight:700;color:#7c3aed;">#${item.itemNo || '-'}</td>
-        <td style="padding:10px 8px;font-weight:500;">${item.name || ''}</td>
-        <td style="padding:10px 8px;color:#64748b;">${item.category || '-'}</td>
-        <td style="padding:10px 8px;text-align:right;">
-          <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;${item.stock === 0 ? 'background:#fee2e2;color:#dc2626;' : 'background:#fef3c7;color:#d97706;'}">
-            ${item.stock === 0 ? '🚫 Out of Stock' : item.stock + ' remaining'}
-          </span>
-        </td>
-      </tr>
-    `).join('');
+  const printLowStockReceipt = (filteredItems, threshold) => {
+    // Get shop info from localStorage (same as Sales.jsx)
+    let shopName = 'සුමින්ද ස්ටෝර්ස්';
+    let shopPhone = '0777640334';
+    let shopAddress = 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර';
+    try {
+      const saved = localStorage.getItem('smartpos_settings');
+      if (saved) {
+        const d = JSON.parse(saved);
+        shopName = d.shopName || shopName;
+        shopPhone = d.shopPhone || shopPhone;
+        shopAddress = d.shopAddress || shopAddress;
+      }
+    } catch {}
+
+    const dateStr = new Date().toLocaleString('en-LK');
+    const rows = filteredItems.map((item, idx) => `
+  <div class="row">
+    <span class="row-num">${String(idx + 1).padStart(2, '0')}.</span>
+    <span class="row-name">${item.name || ''}</span>
+    <span class="row-stock ${item.stock === 0 ? 'zero' : 'low'}">${item.stock === 0 ? 'OUT' : item.stock}</span>
+  </div>`).join('');
 
     const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Low Stock Report</title>
+  <title>Low Stock Bill</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; color: #1e293b; }
-    h1 { font-size: 22px; color: #7c3aed; margin-bottom: 4px; }
-    p.sub { font-size: 13px; color: #64748b; margin-bottom: 20px; }
-    table { width: 100%; border-collapse: collapse; }
-    th { background: #f8fafc; padding: 10px 8px; text-align: left; font-size: 13px; color: #475569; border-bottom: 2px solid #e2e8f0; }
-    th:last-child, td:last-child { text-align: right; }
-    td { font-size: 13px; }
-    @media print { body { margin: 10mm; } }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      color: #000;
+      width: 78mm;
+      padding: 4mm 3mm;
+    }
+    .center { text-align: center; }
+    .shop-name { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 2px; }
+    .shop-sub { font-size: 10px; text-align: center; color: #333; }
+    .divider { border: none; border-top: 1px dashed #000; margin: 5px 0; }
+    .title { font-size: 12px; font-weight: bold; text-align: center; margin: 4px 0; letter-spacing: 1px; }
+    .info { font-size: 10px; color: #333; margin-bottom: 3px; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 3px 0;
+      border-bottom: 1px dotted #ccc;
+      gap: 4px;
+    }
+    .row-num { width: 20px; flex-shrink: 0; color: #555; }
+    .row-name { flex: 1; word-break: break-word; }
+    .row-stock {
+      width: 30px;
+      text-align: right;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .row-stock.zero { color: #d00; }
+    .row-stock.low { color: #c60; }
+    .footer { text-align: center; margin-top: 6px; font-size: 10px; color: #444; }
+    @media print {
+      body { width: 80mm; }
+      @page { margin: 0; size: 80mm auto; }
+    }
   </style>
 </head>
 <body>
-  <h1>⚠️ Low Stock Report</h1>
-  <p class="sub">Generated: ${new Date().toLocaleString('en-LK')} &nbsp;|&nbsp; ${filteredItems.length} item(s) with stock ≤ 5</p>
-  <table>
-    <thead><tr><th>No.</th><th>Item</th><th>Category</th><th style="text-align:right;">Stock</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
+  <div class="shop-name">${shopName}</div>
+  <div class="shop-sub">${shopAddress}</div>
+  <div class="shop-sub">${shopPhone}</div>
+  <hr class="divider">
+  <div class="title">⚠ LOW STOCK LIST</div>
+  <div class="info">දිනය: ${dateStr}</div>
+  <div class="info">Stock සීමාව: ≤ ${threshold} | Items: ${filteredItems.length}</div>
+  <hr class="divider">
+  <div style="display:flex;justify-content:space-between;padding:2px 0;font-weight:bold;font-size:10px;">
+    <span style="width:20px;">No.</span>
+    <span style="flex:1;">භාණ්ඩය</span>
+    <span style="width:30px;text-align:right;">Stock</span>
+  </div>
+  <hr class="divider">
+  ${rows}
+  <hr class="divider">
+  <div class="footer">Total: ${filteredItems.length} items | SmartPOS</div>
   <script>window.onload=function(){window.print();}<\/script>
 </body>
 </html>`;
 
-    const w = window.open('', '_blank', 'width=800,height=600');
+    const w = window.open('', '_blank', 'width=340,height=600');
     if (w) { w.document.write(html); w.document.close(); }
-    else alert('Please allow popups for this site to print PDF.');
+    else alert('Please allow popups for this site to print.');
   };
 
   useEffect(() => {
@@ -96,8 +146,8 @@ export default function Dashboard() {
             const data = doc.data();
             itemsMap[doc.id] = data;
             if (data.name) itemsMap[data.name] = data;
-            
-            if (data.stock <= 5) {
+            // Store ALL items with stock <= max possible threshold (50) so user can filter dynamically
+            if (data.stock <= 50) {
               lowStockCount++;
               lowStockArr.push({ id: doc.id, ...data });
             }
@@ -440,11 +490,12 @@ export default function Dashboard() {
         title={<><FiAlertTriangle className="text-error" style={{ display: 'inline', marginRight: '8px' }} />{t('dashboard.lowStockItems')}</>}
       >
         {(() => {
-          // Derive categories from items
-          const categories = ['සියල්ල', ...Array.from(new Set(lowStockItems.map(i => i.category).filter(Boolean))).sort()];
+          // Derive categories from items filtered by threshold
+          const thresholdFiltered = lowStockItems.filter(i => i.stock <= lowStockThreshold);
+          const categories = ['සියල්ල', ...Array.from(new Set(thresholdFiltered.map(i => i.category).filter(Boolean))).sort()];
 
           // Filter by category + search
-          let filtered = lowStockItems.filter(item => {
+          let filtered = thresholdFiltered.filter(item => {
             const matchCat = lowStockCategory === 'සියල්ල' || item.category === lowStockCategory;
             const s = lowStockSearch.trim().toLowerCase();
             const matchSearch = !s || item.name?.toLowerCase().includes(s) || item.category?.toLowerCase().includes(s);
@@ -462,9 +513,23 @@ export default function Dashboard() {
               <div className="low-stock-modal-header">
                 {/* Top row: info + search + sort + print */}
                 <div className="low-stock-top-row">
-                  <h3 style={{ margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                    {filtered.length} / {lowStockItems.length} item{lowStockItems.length !== 1 ? 's' : ''} · stock ≤ 5
-                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <h3 style={{ margin: 0, fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                      {filtered.length} / {lowStockItems.length} items
+                    </h3>
+                    {/* Threshold input */}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '4px 10px' }}>
+                      Stock ≤
+                      <input
+                        type="number"
+                        min={0}
+                        max={200}
+                        value={lowStockThreshold}
+                        onChange={e => setLowStockThreshold(Number(e.target.value) || 0)}
+                        style={{ width: 42, background: 'transparent', border: 'none', outline: 'none', color: 'var(--primary-400)', fontWeight: 700, fontSize: 13, textAlign: 'center' }}
+                      />
+                    </label>
+                  </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <div className="low-stock-search-wrapper">
                       <FiSearch className="low-stock-search-icon" />
@@ -486,18 +551,19 @@ export default function Dashboard() {
                       <option value="name">නම (A-Z)</option>
                       <option value="category">කාණ්ඩය</option>
                     </select>
-                    <button className="icon-btn-text" onClick={() => generateLowStockPDF(filtered)}>
-                      <FiPrinter /> PDF
+                    <button className="icon-btn-text" onClick={() => printLowStockReceipt(filtered, lowStockThreshold)}
+                      title="80mm Printer ලෙස Print කරන්න">
+                      <FiPrinter /> Print Bill
                     </button>
                   </div>
                 </div>
 
-                {/* Category pill filter bar */}
+                {/* Category pill filter bar - based on threshold-filtered items */}
                 <div className="low-stock-category-bar">
                   {categories.map(cat => {
                     const count = cat === 'සියල්ල'
-                      ? lowStockItems.length
-                      : lowStockItems.filter(i => i.category === cat).length;
+                      ? thresholdFiltered.length
+                      : thresholdFiltered.filter(i => i.category === cat).length;
                     return (
                       <button
                         key={cat}
