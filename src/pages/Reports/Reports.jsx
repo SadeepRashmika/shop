@@ -88,6 +88,7 @@ export default function Reports() {
         let todayProfit = 0;
         let monthProfit = 0;
         const itemFreq = {};
+        const itemRevenue = {};
         const transactions = [];
         const dailySalesMap = {};
 
@@ -131,6 +132,7 @@ export default function Reports() {
           // Count items for top selling
           data.items?.forEach(item => {
              itemFreq[item.name] = (itemFreq[item.name] || 0) + item.quantity;
+             itemRevenue[item.name] = (itemRevenue[item.name] || 0) + (Number(item.subtotal) || (Number(item.sellPrice) * Number(item.quantity)) || 0);
           });
 
           // Daily sales chart (last 7 days)
@@ -144,7 +146,7 @@ export default function Reports() {
         const sortedItems = Object.entries(itemFreq)
           .sort((a, b) => b[1] - a[1])
           .slice(0, 5)
-          .map(([name, qty]) => ({ name, qty }));
+          .map(([name, qty]) => ({ name, qty, revenue: itemRevenue[name] || 0 }));
         setChartData(sortedItems);
 
         // Daily sales chart data (last 7 days based on synced real time)
@@ -627,10 +629,21 @@ export default function Reports() {
                           contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px' }}
                           labelStyle={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}
                           itemStyle={{ color: 'var(--primary-400)', fontWeight: '600', fontSize: '13px' }}
-                          formatter={(value) => [
-                            typeof value === 'number' ? (Number.isInteger(value) ? value : Number(value).toFixed(2)) : value,
-                            'Quantity Sold'
-                          ]}
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              const d = payload[0].payload;
+                              const qty = d.qty;
+                              const qtyDisplay = typeof qty === 'number' ? (Number.isInteger(qty) ? qty : qty.toFixed(3)) : qty;
+                              return (
+                                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px', minWidth: '160px' }}>
+                                  <div style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>{label}</div>
+                                  <div style={{ color: 'var(--primary-400)', fontWeight: '600', fontSize: '13px', marginBottom: '4px' }}>ප්‍රමාණය : {qtyDisplay}</div>
+                                  {d.revenue > 0 && <div style={{ color: '#10b981', fontWeight: '700', fontSize: '13px' }}>ආදායම : Rs. {Number(d.revenue).toFixed(2)}</div>}
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
                         />
                         <Bar dataKey="qty" radius={[4, 4, 0, 0]}>
                           {chartData.map((entry, index) => (
