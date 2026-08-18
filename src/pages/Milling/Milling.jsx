@@ -514,7 +514,7 @@ export default function Milling() {
     setPaddyBags('');
     setPaddyRate('');
     setPaddyTotalAmount('');
-    setPaddyPaidAmount('');
+    setPaddyPaidAmount('0');
     setPaddyNotes('');
   };
 
@@ -552,7 +552,7 @@ export default function Milling() {
     const kgNum = parseFloat(paddyKg) || 0;
     const rateNum = parseFloat(paddyRate) || 0;
     const totalNum = paddyTotalAmount !== '' ? (parseFloat(paddyTotalAmount) || 0) : (kgNum * rateNum);
-    const paidNum = paddyPaidAmount !== '' ? (parseFloat(paddyPaidAmount) || 0) : totalNum;
+    const paidNum = parseFloat(paddyPaidAmount) || 0; // User enters manually, no auto-fill
     const balNum = Math.max(0, totalNum - paidNum);
 
     if (kgNum <= 0 && totalNum <= 0) {
@@ -1892,7 +1892,7 @@ export default function Milling() {
                   if (!isNaN(kg) && !isNaN(rate) && rate > 0) {
                     const tot = (kg * rate).toFixed(2);
                     setPaddyTotalAmount(tot);
-                    if (paddyPaidAmount === '') setPaddyPaidAmount(tot);
+                    // No auto-fill paidAmount — user enters manually
                   }
                 }}
                 className="search-input"
@@ -1934,7 +1934,7 @@ export default function Milling() {
                   if (!isNaN(kg) && !isNaN(rate) && kg > 0) {
                     const tot = (kg * rate).toFixed(2);
                     setPaddyTotalAmount(tot);
-                    if (paddyPaidAmount === '') setPaddyPaidAmount(tot);
+                    // No auto-fill paidAmount — user enters manually
                   }
                 }}
                 className="search-input"
@@ -1954,7 +1954,7 @@ export default function Milling() {
                 value={paddyTotalAmount}
                 onChange={(e) => {
                   setPaddyTotalAmount(e.target.value);
-                  if (paddyPaidAmount === '') setPaddyPaidAmount(e.target.value);
+                  // No auto-fill paidAmount — user enters manually
                 }}
                 className="search-input"
                 style={{ width: '100%', fontWeight: 800, color: '#8b5cf6' }}
