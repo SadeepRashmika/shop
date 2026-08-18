@@ -4,6 +4,42 @@
   margin: 0 auto;
 }
 
+.milling-main-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.milling-main-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border-color);
+  background: var(--bg-glass);
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.milling-main-tab:hover {
+  background: var(--bg-glass-hover);
+  border-color: var(--primary-400);
+}
+
+.milling-main-tab.active {
+  background: var(--primary-500);
+  color: #ffffff;
+  border-color: var(--primary-400);
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.35);
+}
+
 .milling-page .filter-btn {
   padding: 8px 14px;
   border-radius: 10px;
