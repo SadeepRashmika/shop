@@ -419,13 +419,13 @@ export default function Reports() {
       </div>
       {expandedTxnId === txn.id && txn.items && txn.items.length > 0 && (
         <div style={{ padding: '0 10px 12px 20px', animation: 'fadeIn 0.2s ease' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
-              <tr style={{ color: '#64748b', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>භාණ්ඩය</th>
-                <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600 }}>ප්‍රමාණය</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>මිල</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>එකතුව</th>
+              <tr style={{ color: 'var(--text-secondary, #475569)', borderBottom: '1.5px solid var(--border-color, rgba(0,0,0,0.1))' }}>
+                <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 700 }}>භාණ්ඩය</th>
+                <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 700 }}>ප්‍රමාණය</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 700 }}>මිල</th>
+                <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 700 }}>එකතුව</th>
               </tr>
             </thead>
             <tbody>
@@ -440,11 +440,11 @@ export default function Reports() {
                 const itemSubtotal = Number(item.subtotal ?? (itemPrice * qtyNum)) || 0;
 
                 return (
-                  <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                    <td style={{ padding: '5px 8px', color: '#e2e8f0' }}>{item.name || 'N/A'}</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'center', color: '#94a3b8', fontWeight: 600 }}>{displayQty}</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right', color: '#94a3b8' }}>Rs. {itemPrice.toFixed(2)}</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right', color: '#ef4444', fontWeight: 600 }}>Rs. {itemSubtotal.toFixed(2)}</td>
+                  <tr key={idx} style={{ borderBottom: '1px solid var(--border-color, rgba(0,0,0,0.06))' }}>
+                    <td style={{ padding: '6px 8px', color: 'var(--text-primary, #0f172a)', fontWeight: 700 }}>{item.name || 'N/A'}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'center', color: 'var(--text-primary, #0f172a)', fontWeight: 700 }}>{displayQty}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--text-primary, #0f172a)', fontWeight: 700 }}>Rs. {itemPrice.toFixed(2)}</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'right', color: '#ef4444', fontWeight: 800 }}>Rs. {itemSubtotal.toFixed(2)}</td>
                   </tr>
                 );
               })}
