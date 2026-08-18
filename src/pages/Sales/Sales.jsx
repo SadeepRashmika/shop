@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, getDoc, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, getDoc, query, where, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../../services/firebase';
@@ -1532,24 +1532,24 @@ export default function Sales() {
         status: 'completed'
       };
 
-      if (paymentMethod === 'credit') {
-        if (!selectedDebtor) throw new Error("Please select a debtor for credit sale.");
-        transactionData.debtorId = selectedDebtor.id;
-        transactionData.debtorName = selectedDebtor.name;
+      // Use Firestore writeBatch to commit all updates in a single lightning-fast network request
+      const batch = writeBatch(db);
 
-        // Calculate actual credit/loan amount: total amount minus any upfront payment made (tenderedAmount)
+      // 1. Transaction doc
+      const txnRef = doc(db, 'transactions', transactionId);
+      batch.set(txnRef, transactionData);
+
+      // 2. Debtor totalOwed update if credit
+      if (paymentMethod === 'credit' && selectedDebtor) {
         const upfrontPayment = parseFloat(tenderedAmount) || 0;
         const creditAmount = Math.max(0, subtotal - upfrontPayment);
-        transactionData.creditAmount = creditAmount;
-        transactionData.upfrontPayment = upfrontPayment;
-
-        // Update debtor totalOwed with only the unpaid balance
-        await updateDoc(doc(db, 'debtors', selectedDebtor.id), {
+        const debtorRef = doc(db, 'debtors', selectedDebtor.id);
+        batch.update(debtorRef, {
           totalOwed: increment(creditAmount)
         });
       }
 
-      // Update Stock for each item & handle Reload records
+      // 3. Update stock and extra docs in batch
       for (const item of cart) {
         if (item.isReload) {
           const reloadId = `RLD${Date.now()}_${Math.floor(Math.random() * 1000)}`;
@@ -1576,7 +1576,8 @@ export default function Sales() {
             reloadRecord.debtorName = selectedDebtor.name;
           }
 
-          await setDoc(doc(db, 'reloads', reloadId), reloadRecord);
+          const rRef = doc(db, 'reloads', reloadId);
+          batch.set(rRef, reloadRecord);
         } else if (item.isMilling || (item.name && (item.name.includes('වී කෙටීම') || item.name.includes('පොල් කෙටීම')))) {
           const millingId = `MIL${Date.now()}_${Math.floor(Math.random() * 1000)}`;
           const millingType = item.millingType || (item.name?.includes('පොල්') ? 'pol' : 'wee');
@@ -1593,65 +1594,52 @@ export default function Sales() {
             timestamp: serverTimestamp(),
             date: getNow()
           };
-          await setDoc(doc(db, 'millingRecords', millingId), millingRecord);
+          const mRef = doc(db, 'millingRecords', millingId);
+          batch.set(mRef, millingRecord);
         } else if (item.id && !item.isCustom) {
-          // Check if item document still exists before updating stock
           const itemRef = doc(db, 'items', item.id);
-          const itemSnap = await getDoc(itemRef);
-          if (itemSnap.exists()) {
-            await updateDoc(itemRef, {
-              stock: increment(-item.quantity)
-            });
-          } else {
-            console.warn(`Item ${item.id} (${item.name}) not found in database, skipping stock update.`);
-          }
+          batch.update(itemRef, {
+            stock: increment(-item.quantity)
+          });
         }
       }
 
-      // Save Transaction
-      await setDoc(doc(db, 'transactions', transactionId), transactionData);
+      // Commit ALL writes in ONE single parallel request!
+      await batch.commit();
 
-      // Automatically update active cash session for real-time balance update in Cash Manager
+      // Non-blocking background sync for cash session & order completion
       if (paymentMethod === 'cash') {
-        try {
-          const currentUid = user?.uid || userData?.uid;
-          const qSession = query(
-            collection(db, 'cashSessions'),
-            where('status', '==', 'open')
-          );
-          const sessionSnap = await getDocs(qSession);
-          if (!sessionSnap.empty) {
-            const openDoc = sessionSnap.docs.find(d => d.data().cashierId === currentUid) || sessionSnap.docs[0];
-            const sessData = openDoc.data();
-            const existingEntries = sessData.entries || [];
-            const formattedBillNo = String(billNumber).padStart(6, '0');
-            const saleEntry = {
-              type: 'in',
-              isSale: true,
-              amount: subtotal,
-              note: `Bill #${formattedBillNo}`,
-              billNumber: billNumber,
-              time: getNow().toISOString()
-            };
-            await updateDoc(doc(db, 'cashSessions', openDoc.id), {
-              entries: [...existingEntries, saleEntry]
-            });
+        (async () => {
+          try {
+            const currentUid = user?.uid || userData?.uid;
+            const qSession = query(collection(db, 'cashSessions'), where('status', '==', 'open'));
+            const sessionSnap = await getDocs(qSession);
+            if (!sessionSnap.empty) {
+              const openDoc = sessionSnap.docs.find(d => d.data().cashierId === currentUid) || sessionSnap.docs[0];
+              const sessData = openDoc.data();
+              const existingEntries = sessData.entries || [];
+              const formattedBillNo = String(billNumber).padStart(6, '0');
+              const saleEntry = {
+                type: 'in',
+                isSale: true,
+                amount: subtotal,
+                note: `Bill #${formattedBillNo}`,
+                billNumber: billNumber,
+                time: getNow().toISOString()
+              };
+              await updateDoc(doc(db, 'cashSessions', openDoc.id), {
+                entries: [...existingEntries, saleEntry]
+              });
+            }
+          } catch (csErr) {
+            console.warn("Could not sync sale with active cash session:", csErr);
           }
-        } catch (csErr) {
-          console.warn("Could not sync sale with active cash session:", csErr);
-        }
+        })();
       }
 
-      // if billing from an order, mark it completed in orders collection
       const orderIdToComplete = currentOrderId || location.state?.orderId;
       if (orderIdToComplete) {
-        try {
-          await updateDoc(doc(db, 'orders', orderIdToComplete), {
-            status: 'completed'
-          });
-        } catch (oErr) {
-          console.warn("Could not update order status to completed:", oErr);
-        }
+        updateDoc(doc(db, 'orders', orderIdToComplete), { status: 'completed' }).catch(() => {});
       }
 
       // Store bill data for receipt
@@ -1677,14 +1665,19 @@ export default function Sales() {
       setDebtorSearch('');
       setTenderedAmount('');
 
-      // Auto-print receipt immediately after successful checkout
+      // Auto-print receipt immediately
       generateBillPDF(billData);
 
       setIsSuccessModal(true);
 
-      // Refresh data to reflect stock changes
-      const itemSnapshot = await getDocs(collection(db, 'items'));
-      setItems(itemSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      // Instantly update in-memory stock with zero network lag
+      setItems(prevItems => prevItems.map(it => {
+        const cItem = cart.find(c => c.id === it.id);
+        if (cItem) {
+          return { ...it, stock: (parseFloat(it.stock) || 0) - (parseFloat(cItem.quantity) || 0) };
+        }
+        return it;
+      }));
     } catch (err) {
       console.error(err);
       alert(err.message || "Failed to process transaction.");
@@ -1813,7 +1806,9 @@ export default function Sales() {
       const oldTotal = editingBill.originalTotal || 0;
       const totalDiff = newTotal - oldTotal;
 
-      // 1. Stock Adjustments (compare originalItems vs current cart)
+      const batch = writeBatch(db);
+
+      // 1. Stock Adjustments in batch
       for (const origItem of originalItems) {
         if (!origItem.id || origItem.isCustom || origItem.isReload) continue;
         const currentItem = updatedCartItems.find(ci => ci.id === origItem.id);
@@ -1823,10 +1818,7 @@ export default function Sales() {
 
         if (qtyDiff !== 0) {
           const itemRef = doc(db, 'items', origItem.id);
-          const itemSnap = await getDoc(itemRef);
-          if (itemSnap.exists()) {
-            await updateDoc(itemRef, { stock: increment(qtyDiff) });
-          }
+          batch.update(itemRef, { stock: increment(qtyDiff) });
         }
       }
 
@@ -1836,46 +1828,49 @@ export default function Sales() {
         const wasInOrig = originalItems.find(oi => oi.id === newItem.id);
         if (!wasInOrig) {
           const itemRef = doc(db, 'items', newItem.id);
-          const itemSnap = await getDoc(itemRef);
-          if (itemSnap.exists()) {
-            await updateDoc(itemRef, { stock: increment(-parseFloat(newItem.quantity)) });
-          }
+          batch.update(itemRef, { stock: increment(-parseFloat(newItem.quantity)) });
         }
       }
 
-      // 2. Update Transaction document
-      await updateDoc(doc(db, 'transactions', editingBill.id), {
+      // 2. Update Transaction document in batch
+      const txnRef = doc(db, 'transactions', editingBill.id);
+      batch.update(txnRef, {
         items: updatedCartItems,
         total: newTotal,
         paymentMethod,
         editedAt: serverTimestamp()
       });
 
-      // 3. Cash Session Adjustment
+      // Commit batch
+      await batch.commit();
+
+      // 3. Cash Session Adjustment in background
       if (paymentMethod === 'cash' && Math.abs(totalDiff) > 0.001) {
-        try {
-          const qSession = query(collection(db, 'cashSessions'), where('status', '==', 'open'));
-          const sessionSnap = await getDocs(qSession);
-          if (!sessionSnap.empty) {
-            const openDoc = sessionSnap.docs[0];
-            const existingEntries = openDoc.data().entries || [];
-            const billNoFormatted = String(editingBill.billNumber).padStart(6, '0');
-            const adjustEntry = {
-              type: totalDiff > 0 ? 'in' : 'out',
-              isSale: true,
-              isAdjustment: true,
-              amount: Math.abs(totalDiff),
-              note: `Bill #${billNoFormatted} Edit Adjustment`,
-              billNumber: editingBill.billNumber,
-              time: getNow().toISOString()
-            };
-            await updateDoc(doc(db, 'cashSessions', openDoc.id), {
-              entries: [...existingEntries, adjustEntry]
-            });
+        (async () => {
+          try {
+            const qSession = query(collection(db, 'cashSessions'), where('status', '==', 'open'));
+            const sessionSnap = await getDocs(qSession);
+            if (!sessionSnap.empty) {
+              const openDoc = sessionSnap.docs[0];
+              const existingEntries = openDoc.data().entries || [];
+              const billNoFormatted = String(editingBill.billNumber).padStart(6, '0');
+              const adjustEntry = {
+                type: totalDiff > 0 ? 'in' : 'out',
+                isSale: true,
+                isAdjustment: true,
+                amount: Math.abs(totalDiff),
+                note: `Bill #${billNoFormatted} Edit Adjustment`,
+                billNumber: editingBill.billNumber,
+                time: getNow().toISOString()
+              };
+              await updateDoc(doc(db, 'cashSessions', openDoc.id), {
+                entries: [...existingEntries, adjustEntry]
+              });
+            }
+          } catch (csErr) {
+            console.warn('Could not sync cash session adjustment:', csErr);
           }
-        } catch (csErr) {
-          console.warn('Could not sync cash session adjustment:', csErr);
-        }
+        })();
       }
 
       const billData = {
@@ -1893,9 +1888,18 @@ export default function Sales() {
 
       alert(`Bill #${String(editingBill.billNumber).padStart(6, '0')} සාර්ථකව Update කර Print කරන ලදී!`);
 
-      // Refresh items to show updated stock
-      const itemSnapshot = await getDocs(collection(db, 'items'));
-      setItems(itemSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      // Update in-memory stock
+      setItems(prevItems => prevItems.map(it => {
+        const origItem = originalItems.find(oi => oi.id === it.id);
+        const currentItem = updatedCartItems.find(ci => ci.id === it.id);
+        const origQty = origItem ? (parseFloat(origItem.quantity) || 0) : 0;
+        const newQty = currentItem ? (parseFloat(currentItem.quantity) || 0) : 0;
+        const diff = origQty - newQty;
+        if (diff !== 0) {
+          return { ...it, stock: (parseFloat(it.stock) || 0) + diff };
+        }
+        return it;
+      }));
 
       setEditingBill(null);
       setCart([]);
