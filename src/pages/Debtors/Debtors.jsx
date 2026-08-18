@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
-import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiUser, FiPhone, FiCreditCard, FiDownload, FiDollarSign, FiList } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiUser, FiPhone, FiCreditCard, FiDownload, FiDollarSign, FiList, FiUsers } from 'react-icons/fi';
 import JsBarcode from 'jsbarcode';
 import * as XLSX from 'xlsx';
 import './Debtors.css';
@@ -380,6 +380,9 @@ export default function Debtors() {
     }
   };
 
+  const totalDebt = debtors.reduce((acc, d) => acc + (Number(d.totalOwed) || 0), 0);
+  const activeDebtorsCount = debtors.filter(d => (Number(d.totalOwed) || 0) > 0).length;
+
   const filteredDebtors = debtors.filter(d => {
     const s = search.toLowerCase().trim();
     if (!s) return true;
@@ -403,6 +406,65 @@ export default function Debtors() {
           <Button onClick={() => downloadReport('all')} variant="secondary" icon={<FiDownload />} size="sm">All Debtors</Button>
           <Button onClick={handleOpenAdd} icon={<FiPlus />}>{t('debtors.addDebtor')}</Button>
         </div>
+      </div>
+
+      {/* Debt Summary Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+        
+        {/* Total Debt Card */}
+        <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #ef4444' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              📝 මුළු ණය එකතුව (Total Debt)
+            </span>
+            <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '6px', borderRadius: '10px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FiDollarSign />
+            </span>
+          </div>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#ef4444', margin: '10px 0 4px 0' }}>
+            Rs. {totalDebt.toFixed(2)}
+          </h2>
+          <div style={{ fontSize: '0.8rem', opacity: 0.85, fontWeight: 600, color: 'var(--text-muted)' }}>
+            පාරිභෝගිකයින්ගෙන් අයවීමට ඇති මුළු ශේෂය
+          </div>
+        </div>
+
+        {/* Total Debtors Count */}
+        <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #3b82f6' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              👥 ලියාපදිංචි ණයගැතියන්
+            </span>
+            <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '6px', borderRadius: '10px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FiUsers />
+            </span>
+          </div>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary, #0f172a)', margin: '10px 0 4px 0' }}>
+            {debtors.length}
+          </h2>
+          <div style={{ fontSize: '0.8rem', opacity: 0.85, fontWeight: 600, color: 'var(--text-muted)' }}>
+            මුළු ලියාපදිංචි පාරිභෝගිකයින් ගණන
+          </div>
+        </div>
+
+        {/* Active Debtors (With Debt > 0) */}
+        <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #f59e0b' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              ⚠️ ණය ගෙවීමට ඇති අය
+            </span>
+            <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '6px', borderRadius: '10px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FiCreditCard />
+            </span>
+          </div>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#f59e0b', margin: '10px 0 4px 0' }}>
+            {activeDebtorsCount}
+          </h2>
+          <div style={{ fontSize: '0.8rem', opacity: 0.85, fontWeight: 600, color: 'var(--text-muted)' }}>
+            දැනට ණය ශේෂයක් ඇති පාරිභෝගිකයින්
+          </div>
+        </div>
+
       </div>
 
       <div className="debtors-toolbar glass-card">
