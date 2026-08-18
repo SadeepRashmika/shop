@@ -551,7 +551,8 @@
 }
 
 .total-amount {
-  color: var(--success-400);
+  color: #ef4444;
+  font-weight: 800;
 }
 
 .checkout-btn {

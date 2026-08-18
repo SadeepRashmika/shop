@@ -2271,7 +2271,7 @@ export default function Sales() {
             </div>
             <div className="cart-total-row main">
               <span>{t('sales.total')}</span>
-              <span className="total-amount">Rs. {subtotal.toFixed(2)}</span>
+              <span className="total-amount" style={{ color: '#ef4444', fontWeight: 800 }}>Rs. {subtotal.toFixed(2)}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: editingBill ? '1fr 1.5fr' : '1fr 1fr', gap: '0.5rem', marginTop: '0.75rem' }}>
               <Button
