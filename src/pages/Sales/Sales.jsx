@@ -662,6 +662,47 @@ export default function Sales() {
     setCustomItemQty('1');
   };
 
+  // Bag shortcut [0] — find bag item from inventory and add directly to cart
+  const handleAddBagToCart = () => {
+    const bagItem = items.find(item =>
+      item.name?.toLowerCase().includes('bag') ||
+      item.name?.toLowerCase().includes('බෑග්') ||
+      item.name?.toLowerCase().includes('bag') ||
+      item.name?.toLowerCase().includes('bags') ||
+      item.name?.toLowerCase() === 'bag'
+    );
+    if (!bagItem) {
+      alert('Bag item inventory එකේ හොයාගන්න බැහැ. "Bag" කියලා item එකක් inventory එකට add කරන්න.');
+      return;
+    }
+    if (bagItem.stock <= 0) {
+      alert('Bag out of stock!');
+      return;
+    }
+    // Add bag to cart (increment if already in cart)
+    setCart(prevCart => {
+      const existingIndex = prevCart.findIndex(c => c.id === bagItem.id && !c.isMilling && !c.isCustom && !c.isReload);
+      if (existingIndex !== -1) {
+        const existingInCart = prevCart[existingIndex];
+        if (existingInCart.quantity >= bagItem.stock) {
+          alert('Maximum stock reached!');
+          return prevCart;
+        }
+        const updatedItem = { ...existingInCart, quantity: existingInCart.quantity + 1 };
+        const newCart = [updatedItem, ...prevCart.filter((_, idx) => idx !== existingIndex)];
+        setActiveCartId(updatedItem.cartId || updatedItem.id);
+        return newCart;
+      } else {
+        const cartId = `cart_${bagItem.id}_${Date.now()}`;
+        const markedPrice = bagItem.markedPrice ? Number(bagItem.markedPrice) : Number(bagItem.sellPrice);
+        const newItem = { ...bagItem, markedPrice, quantity: 1, cartId };
+        setActiveCartId(cartId);
+        return [newItem, ...prevCart];
+      }
+    });
+    setTimeout(() => barcodeInputRef.current?.focus(), 50);
+  };
+
   // Reload Modal State on Sales Page
   const [reloadModal, setReloadModal] = useState(false);
   const [reloadPhone, setReloadPhone] = useState('');
@@ -964,6 +1005,19 @@ export default function Sales() {
           }
         }
 
+        // 0 key → Add Bag to cart instantly
+        const isZeroKey = e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0';
+        if (isZeroKey) {
+          const activeTag2 = document.activeElement?.tagName;
+          const isSearchFocused2 = document.activeElement === barcodeInputRef.current;
+          const isInputFocused2 = isSearchFocused2 || ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag2);
+          if ((isSearchFocused2 && search.trim() === '') || !isInputFocused2) {
+            e.preventDefault();
+            handleAddBagToCart();
+            return;
+          }
+        }
+
         // Auto-focus search input when barcode scanner or user starts typing on main screen (if not in input)
         const activeTag = document.activeElement?.tagName;
         const isInputActive = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
@@ -1101,7 +1155,7 @@ export default function Sales() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightMode, weightUnit, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor]);
+  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightMode, weightUnit, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor, items]);
 
   const handleCloseWeightModal = () => {
     setWeightModal(false);
@@ -1873,6 +1927,9 @@ export default function Sales() {
               </button>
               <button className="bill-search-btn glass" onClick={handleOpenQuickCustomItem} title="නොමැති භාණ්ඩයක් එකතු කරන්න (.)" style={{ borderColor: 'var(--success-400)', color: 'var(--success-400)' }}>
                 <FiEdit3 /> <span>නොමැති භාණ්ඩ [.]</span>
+              </button>
+              <button className="bill-search-btn glass" onClick={handleAddBagToCart} title="Bag cart එකට add කරන්න [0]" style={{ borderColor: '#f97316', color: '#f97316' }}>
+                🛍️ <span>Bag [0]</span>
               </button>
               <button className="bill-search-btn glass" onClick={handleOpenReloadModal} title={t('reload.title')} style={{ borderColor: 'var(--primary-500)', color: 'var(--primary-400)' }}>
                 <FiZap /> <span>{t('reload.quickReload')}</span>
