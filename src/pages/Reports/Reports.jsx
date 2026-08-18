@@ -406,13 +406,13 @@ export default function Reports() {
           <div style={{ fontWeight: 'bold', color: '#cbd5e1', fontSize: '14px' }}>#{txn.billNumber ? String(txn.billNumber).padStart(6,'0') : txn.id.substring(0,8)}</div>
           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{formatDate(txn.timestamp)}</div>
           <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-            <span style={{ padding: '2px 8px', borderRadius: '4px', background: txn.paymentMethod === 'CASH' ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)', color: txn.paymentMethod === 'CASH' ? '#10b981' : '#818cf8', fontSize: '10px', fontWeight: 600 }}>
+            <span style={{ padding: '2px 8px', borderRadius: '4px', background: txn.paymentMethod === 'CASH' || txn.paymentMethod === 'cash' ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)', color: txn.paymentMethod === 'CASH' || txn.paymentMethod === 'cash' ? '#10b981' : '#818cf8', fontSize: '10px', fontWeight: 600 }}>
               {txn.paymentMethod || 'N/A'}
             </span>
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontWeight: 'bold', color: '#10b981', fontSize: '15px' }}>Rs. {Number(txn.total || 0).toFixed(2)}</div>
+          <div style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '15px' }}>Rs. {Number(txn.total || 0).toFixed(2)}</div>
           <div style={{ fontSize: '12px', color: '#3b82f6' }}>ලාභය: Rs. {Number(txn.profit || 0).toFixed(2)}</div>
           <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{txn.items?.length || 0} භාණ්ඩ</div>
         </div>
@@ -430,17 +430,21 @@ export default function Reports() {
             </thead>
             <tbody>
               {txn.items.map((item, idx) => {
-                const qtyNum = Number(item.quantity);
+                const qtyNum = Number(item.quantity) || 0;
                 const isWeighed = item.itemType === 'weighed' || (qtyNum % 1 !== 0 && qtyNum < 100);
                 const displayQty = isWeighed
                   ? (qtyNum < 1 ? `${Math.round(qtyNum * 1000)}g` : `${qtyNum % 1 === 0 ? qtyNum : qtyNum.toFixed(3).replace(/\.?0+$/, '')} kg`)
                   : item.quantity;
+
+                const itemPrice = Number(item.sellPrice ?? item.price ?? item.markedPrice ?? (qtyNum > 0 ? (Number(item.subtotal) / qtyNum) : 0)) || 0;
+                const itemSubtotal = Number(item.subtotal ?? (itemPrice * qtyNum)) || 0;
+
                 return (
                   <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                     <td style={{ padding: '5px 8px', color: '#e2e8f0' }}>{item.name || 'N/A'}</td>
                     <td style={{ padding: '5px 8px', textAlign: 'center', color: '#94a3b8', fontWeight: 600 }}>{displayQty}</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right', color: '#94a3b8' }}>Rs. {Number(item.price || 0).toFixed(2)}</td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right', color: '#10b981', fontWeight: 600 }}>Rs. {(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'right', color: '#94a3b8' }}>Rs. {itemPrice.toFixed(2)}</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'right', color: '#ef4444', fontWeight: 600 }}>Rs. {itemSubtotal.toFixed(2)}</td>
                   </tr>
                 );
               })}
