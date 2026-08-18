@@ -41,7 +41,7 @@ export default function Milling() {
   const [manualPolthel, setManualPolthel] = useState('');
   const [manualNotes, setManualNotes] = useState('');
 
-  // Paddy Purchase (වී ගෙනා වාර්තා) Modal state
+  // Paddy Purchase (වී ගෙනා වාර්තා) Modal & Payment state
   const [paddyModalOpen, setPaddyModalOpen] = useState(false);
   const [editingPaddyId, setEditingPaddyId] = useState(null);
   const [paddyDate, setPaddyDate] = useState(getTodayDateString());
@@ -53,6 +53,12 @@ export default function Milling() {
   const [paddyTotalAmount, setPaddyTotalAmount] = useState('');
   const [paddyPaidAmount, setPaddyPaidAmount] = useState('');
   const [paddyNotes, setPaddyNotes] = useState('');
+  const [paddyPaymentFilter, setPaddyPaymentFilter] = useState('all'); // 'all', 'paid', 'due'
+
+  // Pay Balance Quick Modal State
+  const [payBalanceModalOpen, setPayBalanceModalOpen] = useState(false);
+  const [payBalanceRecord, setPayBalanceRecord] = useState(null);
+  const [payBalanceAmount, setPayBalanceAmount] = useState('');
 
   // Fetch Milling Records
   const fetchMillingData = async () => {
@@ -258,6 +264,11 @@ export default function Milling() {
   // Filtered Paddy Purchase Records
   const filteredPaddyRecords = useMemo(() => {
     return paddyRecords.filter(rec => {
+      // Payment status filter (Card click filter)
+      const isPaidFull = (rec.balance || 0) <= 0;
+      if (paddyPaymentFilter === 'paid' && !isPaidFull) return false;
+      if (paddyPaymentFilter === 'due' && isPaidFull) return false;
+
       // Date filter
       const recDate = toDateObject(rec.timestamp || rec.date);
       let recDateStr = rec.dateStr;
@@ -284,7 +295,7 @@ export default function Milling() {
 
       return true;
     });
-  }, [paddyRecords, selectedDate, dateMode, searchQuery]);
+  }, [paddyRecords, selectedDate, dateMode, searchQuery, paddyPaymentFilter]);
 
   // Milling Stats
   const millingStats = useMemo(() => {
@@ -594,6 +605,43 @@ export default function Milling() {
         console.error("Error deleting paddy record:", err);
         alert("මකා දැමීම අසාර්ථක විය: " + err.message);
       }
+    }
+  };
+
+  // Quick Pay Balance Handlers
+  const handleOpenPayBalanceModal = (rec) => {
+    setPayBalanceRecord(rec);
+    setPayBalanceAmount(rec.balance ? String(rec.balance) : '');
+    setPayBalanceModalOpen(true);
+  };
+
+  const handleSavePayBalance = async () => {
+    if (!payBalanceRecord) return;
+    const addPaid = parseFloat(payBalanceAmount) || 0;
+    if (addPaid <= 0) {
+      alert("කරුණාකර වලංගු ගෙවීම් මුදලක් ඇතුළත් කරන්න.");
+      return;
+    }
+
+    const currentPaid = parseFloat(payBalanceRecord.paidAmount) || 0;
+    const totalAmt = parseFloat(payBalanceRecord.totalAmount) || 0;
+    const newPaid = currentPaid + addPaid;
+    const newBal = Math.max(0, totalAmt - newPaid);
+
+    try {
+      await setDoc(doc(db, 'paddyPurchases', payBalanceRecord.id), {
+        paidAmount: newPaid,
+        balance: newBal,
+        updatedAt: new Date()
+      }, { merge: true });
+
+      setPayBalanceModalOpen(false);
+      setPayBalanceRecord(null);
+      setPayBalanceAmount('');
+      fetchPaddyData();
+    } catch (err) {
+      console.error("Error updating paddy payment balance:", err);
+      alert("ගෙවීම් සටහන් කිරීම අසාර්ථක විය: " + err.message);
     }
   };
 
@@ -1198,7 +1246,19 @@ export default function Milling() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
             
             {/* Total Quantity */}
-            <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #3b82f6' }}>
+            <div 
+              onClick={() => setPaddyPaymentFilter('all')}
+              className="glass-card" 
+              style={{ 
+                padding: '1.25rem', 
+                borderRadius: '16px', 
+                borderLeft: '5px solid #3b82f6',
+                cursor: 'pointer',
+                outline: paddyPaymentFilter === 'all' ? '2px solid #3b82f6' : 'none',
+                transition: 'all 0.2s ease'
+              }}
+              title="සියලුම වී ගෙනා වාර්තා බලන්න"
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase' }}>
                   🌾 ගෙනා වී ප්‍රමාණය
@@ -1211,12 +1271,24 @@ export default function Milling() {
                 {paddyStats.totalKg.toFixed(1)} Kg
               </h2>
               <div style={{ fontSize: '0.8rem', opacity: 0.85, fontWeight: 600 }}>
-                මලු {paddyStats.totalBags} ක් ({paddyStats.count} වාරයක් ගෙනත් ඇත)
+                මලු {paddyStats.totalBags} ක් (සියලුම වාර්තා බලන්න)
               </div>
             </div>
 
             {/* Total Expense */}
-            <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #8b5cf6' }}>
+            <div 
+              onClick={() => setPaddyPaymentFilter('all')}
+              className="glass-card" 
+              style={{ 
+                padding: '1.25rem', 
+                borderRadius: '16px', 
+                borderLeft: '5px solid #8b5cf6',
+                cursor: 'pointer',
+                outline: paddyPaymentFilter === 'all' ? '2px solid #8b5cf6' : 'none',
+                transition: 'all 0.2s ease'
+              }}
+              title="සියලුම වී ගෙනා වාර්තා බලන්න"
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase' }}>
                   💰 මුළු වටිනාකම
@@ -1234,10 +1306,24 @@ export default function Milling() {
             </div>
 
             {/* Paid Amount */}
-            <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #10b981' }}>
+            <div 
+              onClick={() => setPaddyPaymentFilter('paid')}
+              className="glass-card" 
+              style={{ 
+                padding: '1.25rem', 
+                borderRadius: '16px', 
+                borderLeft: '5px solid #10b981',
+                cursor: 'pointer',
+                boxShadow: paddyPaymentFilter === 'paid' ? '0 0 15px rgba(16, 185, 129, 0.4)' : 'none',
+                outline: paddyPaymentFilter === 'paid' ? '2.5px solid #10b981' : 'none',
+                transform: paddyPaymentFilter === 'paid' ? 'scale(1.02)' : 'none',
+                transition: 'all 0.2s ease'
+              }}
+              title="Click කර සම්පූර්ණයෙන් ගෙවූ වාර්තා පමණක් බලන්න"
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#10b981', textTransform: 'uppercase' }}>
-                  💵 ගෙවූ මුදල
+                  💵 ගෙවූ මුදල (Click to view)
                 </span>
                 <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '6px', borderRadius: '10px', fontSize: '1.2rem' }}>
                   <FiDollarSign />
@@ -1246,16 +1332,30 @@ export default function Milling() {
               <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#10b981', margin: '8px 0 4px 0' }}>
                 Rs. {paddyStats.totalPaid.toFixed(2)}
               </h2>
-              <div style={{ fontSize: '0.8rem', opacity: 0.85, fontWeight: 600 }}>
-                ගොවීන්ට/සැපයුම්කරුවන්ට ගෙවූ මුදල
+              <div style={{ fontSize: '0.8rem', opacity: 0.9, fontWeight: 700, color: '#10b981' }}>
+                {paddyPaymentFilter === 'paid' ? '✅ සම්පූර්ණයෙන් ගෙවා ඇති අය පෙන්වයි' : '👇 Click කර සම්පූර්ණයෙන් ගෙවූ අය බලන්න'}
               </div>
             </div>
 
             {/* Credit Balance */}
-            <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #ef4444' }}>
+            <div 
+              onClick={() => setPaddyPaymentFilter('due')}
+              className="glass-card" 
+              style={{ 
+                padding: '1.25rem', 
+                borderRadius: '16px', 
+                borderLeft: '5px solid #ef4444',
+                cursor: 'pointer',
+                boxShadow: paddyPaymentFilter === 'due' ? '0 0 15px rgba(239, 68, 68, 0.4)' : 'none',
+                outline: paddyPaymentFilter === 'due' ? '2.5px solid #ef4444' : 'none',
+                transform: paddyPaymentFilter === 'due' ? 'scale(1.02)' : 'none',
+                transition: 'all 0.2s ease'
+              }}
+              title="Click කර ගෙවීමට ණය ඇති අයගේ විස්තර පමණක් බලන්න"
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase' }}>
-                  📝 ගෙවීමට ඇති ණය ශේෂය
+                  📝 ගෙවීමට ඇති ණය ශේෂය (Click to view)
                 </span>
                 <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '6px', borderRadius: '10px', fontSize: '1.2rem' }}>
                   <FiFileText />
@@ -1264,24 +1364,48 @@ export default function Milling() {
               <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#ef4444', margin: '8px 0 4px 0' }}>
                 Rs. {paddyStats.totalBalance.toFixed(2)}
               </h2>
-              <div style={{ fontSize: '0.8rem', opacity: 0.85, fontWeight: 600 }}>
-                ගොවීන්ට තවමත් ගෙවීමට ඇති ශේෂය
+              <div style={{ fontSize: '0.8rem', opacity: 0.9, fontWeight: 700, color: '#ef4444' }}>
+                {paddyPaymentFilter === 'due' ? '⚠️ ගෙවීමට ණය ඇති අය පමණක් පෙන්වයි' : '👇 Click කර ගෙවිය යුතු අයගේ විස්තර බලන්න'}
               </div>
             </div>
 
           </div>
 
-          {/* Search Bar */}
-          <div className="mb-4" style={{ position: 'relative' }}>
-            <input
-              type="text"
-              placeholder="ගොවියාගේ නම, දුරකථනය, වී වර්ගය හෝ සටහන් අනුව සෙවීම..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="search-input"
-              style={{ width: '100%', paddingLeft: '40px', fontSize: '0.95rem', fontWeight: 600 }}
-            />
-            <FiSearch style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '1.1rem' }} />
+          {/* Search & Active Filter Indicator Bar */}
+          <div className="mb-4" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <input
+                type="text"
+                placeholder="ගොවියාගේ නම, වී වර්ගය හෝ සටහන් අනුව සෙවීම..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="search-input"
+                style={{ width: '100%', paddingLeft: '40px', fontSize: '0.95rem', fontWeight: 600 }}
+              />
+              <FiSearch style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '1.1rem' }} />
+            </div>
+
+            {paddyPaymentFilter !== 'all' && (
+              <button
+                onClick={() => setPaddyPaymentFilter('all')}
+                style={{
+                  background: paddyPaymentFilter === 'due' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                  color: paddyPaymentFilter === 'due' ? '#ef4444' : '#10b981',
+                  border: '1px solid currentColor',
+                  borderRadius: '10px',
+                  padding: '8px 14px',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span>{paddyPaymentFilter === 'due' ? '⚠️ ණය ගෙවීමට ඇති අය පෙන්වයි' : '✅ සම්පූර්ණයෙන් ගෙවූ අය පෙන්වයි'}</span>
+                <span style={{ opacity: 0.7 }}>✖ සියල්ල බලන්න</span>
+              </button>
+            )}
           </div>
 
           {/* Paddy Brought Records Table */}
@@ -1348,7 +1472,16 @@ export default function Milling() {
                             )}
                           </td>
                           <td style={{ padding: '12px', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                              {!isPaidFull && (
+                                <button
+                                  onClick={() => handleOpenPayBalanceModal(rec)}
+                                  style={{ border: 'none', background: 'rgba(16, 185, 129, 0.18)', color: '#10b981', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                  title="ණය මුදල් ගෙවීම සටහන් කරන්න"
+                                >
+                                  💳 ණය ගෙවීම
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleOpenEditPaddyModal(rec)}
                                 style={{ border: 'none', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
@@ -1842,6 +1975,78 @@ export default function Milling() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: Pay Paddy Balance Modal (ණය මුදල් ගෙවීම)                         */}
+      {/* ========================================================================= */}
+      <Modal
+        isOpen={payBalanceModalOpen}
+        onClose={() => setPayBalanceModalOpen(false)}
+        title="💳 ගොවියාගේ/සැපයුම්කරුගේ ණය මුදල් ගෙවීම"
+        size="md"
+      >
+        {payBalanceRecord && (
+          <div style={{ padding: '6px' }}>
+            <div style={{ background: 'rgba(59, 130, 246, 0.08)', padding: '12px', borderRadius: '10px', marginBottom: '16px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                👤 {payBalanceRecord.supplierName}
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                🌾 {payBalanceRecord.paddyType} | {payBalanceRecord.kg} Kg | දිනය: {payBalanceRecord.dateStr}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '16px', textAlign: 'center' }}>
+              <div style={{ background: 'var(--bg-glass)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', fontWeight: 700 }}>දැනට ගෙවා ඇති මුදල</span>
+                <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#10b981' }}>
+                  Rs. {parseFloat(payBalanceRecord.paidAmount || 0).toFixed(2)}
+                </span>
+              </div>
+              <div style={{ background: 'rgba(239, 68, 68, 0.08)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                <span style={{ fontSize: '0.78rem', color: '#ef4444', display: 'block', fontWeight: 700 }}>ගෙවීමට ඇති ණය ශේෂය</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ef4444' }}>
+                  Rs. {parseFloat(payBalanceRecord.balance || 0).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            <div className="form-group mb-4">
+              <label className="input-label" style={{ fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                💵 දැන් ගෙවන මුදල (Amount Paying Now Rs.) *
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={payBalanceAmount}
+                onChange={(e) => setPayBalanceAmount(e.target.value)}
+                className="search-input"
+                style={{ width: '100%', fontSize: '1.3rem', fontWeight: 800, color: '#10b981' }}
+                autoFocus
+              />
+            </div>
+
+            {payBalanceAmount && parseFloat(payBalanceAmount) > 0 && (
+              <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '8px', padding: '10px', marginBottom: '16px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>ගෙවීමෙන් පසු ඉතිරිවන ණය ශේෂය</span>
+                <span style={{ fontSize: '1.3rem', fontWeight: 800, color: Math.max(0, (parseFloat(payBalanceRecord.balance) || 0) - (parseFloat(payBalanceAmount) || 0)) > 0 ? '#ef4444' : '#10b981' }}>
+                  Rs. {Math.max(0, (parseFloat(payBalanceRecord.balance) || 0) - (parseFloat(payBalanceAmount) || 0)).toFixed(2)}
+                </span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <Button variant="secondary" onClick={() => setPayBalanceModalOpen(false)}>
+                අවලංගු කරන්න
+              </Button>
+              <Button onClick={handleSavePayBalance} style={{ background: '#10b981', borderColor: '#10b981' }}>
+                💳 ගෙවීම සුරකින්න
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
     </div>
