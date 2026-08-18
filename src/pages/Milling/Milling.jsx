@@ -46,9 +46,7 @@ export default function Milling() {
   const [editingPaddyId, setEditingPaddyId] = useState(null);
   const [paddyDate, setPaddyDate] = useState(getTodayDateString());
   const [paddySupplierName, setPaddySupplierName] = useState('');
-  const [paddyPhone, setPaddyPhone] = useState('');
-  const [paddyType, setPaddyType] = useState('නාඩු');
-  const [paddyCustomType, setPaddyCustomType] = useState('');
+  const [paddyType, setPaddyType] = useState('සුදු වී');
   const [paddyKg, setPaddyKg] = useState('');
   const [paddyBags, setPaddyBags] = useState('');
   const [paddyRate, setPaddyRate] = useState('');
@@ -279,10 +277,9 @@ export default function Milling() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const nameStr = rec.supplierName ? rec.supplierName.toLowerCase() : '';
-        const phoneStr = rec.phone ? rec.phone.toLowerCase() : '';
         const typeStr = rec.paddyType ? rec.paddyType.toLowerCase() : '';
         const notesStr = rec.notes ? rec.notes.toLowerCase() : '';
-        return nameStr.includes(q) || phoneStr.includes(q) || typeStr.includes(q) || notesStr.includes(q);
+        return nameStr.includes(q) || typeStr.includes(q) || notesStr.includes(q);
       }
 
       return true;
@@ -500,9 +497,7 @@ export default function Milling() {
     setEditingPaddyId(null);
     setPaddyDate(selectedDate || getTodayDateString());
     setPaddySupplierName('');
-    setPaddyPhone('');
-    setPaddyType('නාඩු');
-    setPaddyCustomType('');
+    setPaddyType('සුදු වී');
     setPaddyKg('');
     setPaddyBags('');
     setPaddyRate('');
@@ -520,14 +515,7 @@ export default function Milling() {
     setEditingPaddyId(rec.id);
     setPaddyDate(rec.dateStr || getTodayDateString());
     setPaddySupplierName(rec.supplierName || '');
-    setPaddyPhone(rec.phone || '');
-    if (['නාඩු', 'සම්බා', 'කීරි සම්බා', 'සුවඳැල්'].includes(rec.paddyType)) {
-      setPaddyType(rec.paddyType);
-      setPaddyCustomType('');
-    } else {
-      setPaddyType('වෙනත්');
-      setPaddyCustomType(rec.paddyType || '');
-    }
+    setPaddyType(rec.paddyType === 'කැකුළු වී' ? 'කැකුළු වී' : 'සුදු වී');
     setPaddyKg(rec.kg ? String(rec.kg) : '');
     setPaddyBags(rec.bags ? String(rec.bags) : '');
     setPaddyRate(rec.rate ? String(rec.rate) : '');
@@ -548,7 +536,7 @@ export default function Milling() {
       return;
     }
 
-    const finalPaddyType = paddyType === 'වෙනත්' ? (paddyCustomType.trim() || 'වෙනත්') : paddyType;
+    const finalPaddyType = paddyType === 'කැකුළු වී' ? 'කැකුළු වී' : 'සුදු වී';
     const kgNum = parseFloat(paddyKg) || 0;
     const rateNum = parseFloat(paddyRate) || 0;
     const totalNum = paddyTotalAmount !== '' ? (parseFloat(paddyTotalAmount) || 0) : (kgNum * rateNum);
@@ -568,7 +556,6 @@ export default function Milling() {
       date: recordDate.toISOString(),
       timestamp: recordDate,
       supplierName: paddySupplierName.trim(),
-      phone: paddyPhone.trim(),
       paddyType: finalPaddyType,
       kg: kgNum,
       bags: parseInt(paddyBags) || 0,
@@ -795,8 +782,8 @@ export default function Milling() {
         return `
           <tr>
             <td>${r.dateStr || '-'}</td>
-            <td><strong>${r.supplierName || '-'}</strong> ${r.phone ? `<br><small>${r.phone}</small>` : ''}</td>
-            <td>${r.paddyType || 'නාඩු'}</td>
+            <td><strong>${r.supplierName || '-'}</strong></td>
+            <td>${r.paddyType || 'සුදු වී'}</td>
             <td class="text-right">${parseFloat(r.kg).toFixed(1)} Kg ${r.bags ? `(${r.bags} මලු)` : ''}</td>
             <td class="text-right">Rs. ${parseFloat(r.rate || 0).toFixed(2)}</td>
             <td class="text-right" style="font-weight:700;">Rs. ${parseFloat(r.totalAmount || 0).toFixed(2)}</td>
@@ -1332,11 +1319,6 @@ export default function Milling() {
                             <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
                               {rec.supplierName || 'නොදන්නා ගොවියා'}
                             </div>
-                            {rec.phone && (
-                              <small style={{ color: 'var(--primary-400)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                <FiPhone style={{ fontSize: '11px' }} /> {rec.phone}
-                              </small>
-                            )}
                           </td>
                           <td style={{ padding: '12px' }}>
                             <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '4px 10px', borderRadius: '8px', fontWeight: 700, fontSize: '0.82rem' }}>
@@ -1659,7 +1641,7 @@ export default function Milling() {
             ගොවීන්ගෙන් හෝ සැපයුම්කරුවන්ගෙන් මිලදී ගත්/ගෙනා වී ප්‍රමාණය, වටිනාකම සහ ගෙවීම් විස්තර මෙතැනින් ඇතුළත් කරන්න.
           </p>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
             {/* Date */}
             <div>
               <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
@@ -1688,21 +1670,6 @@ export default function Milling() {
                 style={{ width: '100%', fontWeight: 700 }}
               />
             </div>
-
-            {/* Phone */}
-            <div>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                📞 දුරකථන අංකය (Phone)
-              </label>
-              <input
-                type="text"
-                placeholder="07X XXXXXXX"
-                value={paddyPhone}
-                onChange={(e) => setPaddyPhone(e.target.value)}
-                className="search-input"
-                style={{ width: '100%' }}
-              />
-            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
@@ -1717,29 +1684,10 @@ export default function Milling() {
                 className="search-input"
                 style={{ width: '100%', fontWeight: 700 }}
               >
-                <option value="නාඩු">🌾 නාඩු (Nadu)</option>
-                <option value="සම්බා">🌾 සම්බා (Samba)</option>
-                <option value="කීරි සම්බා">🌾 කීරි සම්බා (Keeri Samba)</option>
-                <option value="සුවඳැල්">🌾 සුවඳැල් (Suwandel)</option>
-                <option value="වෙනත්">✏️ වෙනත් (Custom)</option>
+                <option value="සුදු වී">🌾 සුදු වී (Sudu Wee)</option>
+                <option value="කැකුළු වී">🌾 කැකුළු වී (Kakulu Wee)</option>
               </select>
             </div>
-
-            {paddyType === 'වෙනත්' && (
-              <div>
-                <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                  වී වර්ගයේ නම (Custom Variety)
-                </label>
-                <input
-                  type="text"
-                  placeholder="වර්ගය සඳහන් කරන්න..."
-                  value={paddyCustomType}
-                  onChange={(e) => setPaddyCustomType(e.target.value)}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                />
-              </div>
-            )}
 
             {/* Weight Kg */}
             <div>
