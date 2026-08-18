@@ -263,7 +263,7 @@ export default function Milling() {
 
   // Filtered Paddy Purchase Records
   const filteredPaddyRecords = useMemo(() => {
-    return paddyRecords.filter(rec => {
+    return paddyRecords.filter((rec, idx) => {
       // Payment status filter (Card click filter)
       const isPaidFull = (rec.balance || 0) <= 0;
       if (paddyPaymentFilter === 'paid' && !isPaidFull) return false;
@@ -284,13 +284,14 @@ export default function Milling() {
       if (dateMode === 'day' && recDateStr !== selectedDate) return false;
       if (dateMode === 'month' && recMonthStr !== selectedDate.substring(0, 7)) return false;
 
-      // Search query filter
+      // Search query filter (by Farmer Name, Farmer ID, Paddy Type, Notes)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const nameStr = rec.supplierName ? rec.supplierName.toLowerCase() : '';
+        const farmerIdStr = (rec.farmerId || `f-${String(idx + 1).padStart(3, '0')}`).toLowerCase();
         const typeStr = rec.paddyType ? rec.paddyType.toLowerCase() : '';
         const notesStr = rec.notes ? rec.notes.toLowerCase() : '';
-        return nameStr.includes(q) || typeStr.includes(q) || notesStr.includes(q);
+        return nameStr.includes(q) || farmerIdStr.includes(q) || typeStr.includes(q) || notesStr.includes(q);
       }
 
       return true;
@@ -552,21 +553,52 @@ export default function Milling() {
     const rateNum = parseFloat(paddyRate) || 0;
     const totalNum = paddyTotalAmount !== '' ? (parseFloat(paddyTotalAmount) || 0) : (kgNum * rateNum);
     const paidNum = paddyPaidAmount !== '' ? (parseFloat(paddyPaidAmount) || 0) : totalNum;
-    const balNum = totalNum - paidNum;
+    const balNum = Math.max(0, totalNum - paidNum);
 
     if (kgNum <= 0 && totalNum <= 0) {
       alert("කරුණාකර වී බර (Kg) හෝ මුළු වටිනාකම ඇතුළත් කරන්න.");
       return;
     }
 
+    // Auto-generate or reuse Farmer ID (e.g. F-001, F-002...)
+    let farmerId = editingPaddyId ? (paddyRecords.find(r => r.id === editingPaddyId)?.farmerId || null) : null;
+
+    if (!farmerId) {
+      const existingSupplier = paddyRecords.find(r => r.supplierName && r.supplierName.trim().toLowerCase() === paddySupplierName.trim().toLowerCase() && r.farmerId);
+      if (existingSupplier) {
+        farmerId = existingSupplier.farmerId;
+      } else {
+        let maxNo = 0;
+        paddyRecords.forEach(r => {
+          if (r.farmerId) {
+            const match = r.farmerId.match(/\d+/);
+            if (match) {
+              const val = parseInt(match[0], 10);
+              if (val > maxNo) maxNo = val;
+            }
+          }
+        });
+        farmerId = `F-${String(maxNo + 1).padStart(3, '0')}`;
+      }
+    }
+
     const [y, m, d] = paddyDate.split('-').map(Number);
     const recordDate = new Date(y, m - 1, d, 12, 0, 0);
+
+    const initialHistory = paidNum > 0 ? [{
+      amount: paidNum,
+      dateStr: paddyDate,
+      timestamp: recordDate.toISOString(),
+      cashierName: userData?.name || user?.email?.split('@')[0] || 'Cashier',
+      notes: 'ආරම්භක ගෙවීම'
+    }] : [];
 
     const payload = {
       dateStr: paddyDate,
       date: recordDate.toISOString(),
       timestamp: recordDate,
       supplierName: paddySupplierName.trim(),
+      farmerId: farmerId,
       paddyType: finalPaddyType,
       kg: kgNum,
       bags: parseInt(paddyBags) || 0,
@@ -583,6 +615,7 @@ export default function Milling() {
       if (editingPaddyId) {
         await setDoc(doc(db, 'paddyPurchases', editingPaddyId), payload, { merge: true });
       } else {
+        payload.paymentHistory = initialHistory;
         const newId = `paddy_buy_${paddyDate}_${Date.now()}`;
         await setDoc(doc(db, 'paddyPurchases', newId), payload);
       }
@@ -611,7 +644,7 @@ export default function Milling() {
   // Quick Pay Balance Handlers
   const handleOpenPayBalanceModal = (rec) => {
     setPayBalanceRecord(rec);
-    setPayBalanceAmount(rec.balance ? String(rec.balance) : '');
+    setPayBalanceAmount('0'); // Default to 0 as requested ("meeka default 0 thiyanna")
     setPayBalanceModalOpen(true);
   };
 
@@ -628,16 +661,30 @@ export default function Milling() {
     const newPaid = currentPaid + addPaid;
     const newBal = Math.max(0, totalAmt - newPaid);
 
+    const newPaymentEntry = {
+      amount: addPaid,
+      dateStr: getTodayDateString(),
+      timestamp: new Date().toISOString(),
+      cashierName: userData?.name || user?.email?.split('@')[0] || 'Cashier',
+      notes: 'අතරමැදි ණය ගෙවීම'
+    };
+
+    const updatedHistory = [
+      ...(payBalanceRecord.paymentHistory || []),
+      newPaymentEntry
+    ];
+
     try {
       await setDoc(doc(db, 'paddyPurchases', payBalanceRecord.id), {
         paidAmount: newPaid,
         balance: newBal,
+        paymentHistory: updatedHistory,
         updatedAt: new Date()
       }, { merge: true });
 
       setPayBalanceModalOpen(false);
       setPayBalanceRecord(null);
-      setPayBalanceAmount('');
+      setPayBalanceAmount('0');
       fetchPaddyData();
     } catch (err) {
       console.error("Error updating paddy payment balance:", err);
@@ -1376,7 +1423,7 @@ export default function Milling() {
             <div style={{ position: 'relative', flex: 1 }}>
               <input
                 type="text"
-                placeholder="ගොවියාගේ නම, වී වර්ගය හෝ සටහන් අනුව සෙවීම..."
+                placeholder="ගොවියාගේ නම, ගොවි අංකය (උදා: F-001), වී වර්ගය හෝ සටහන් අනුව සෙවීම..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="search-input"
@@ -1431,8 +1478,9 @@ export default function Milling() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredPaddyRecords.map((rec) => {
+                    {filteredPaddyRecords.map((rec, idx) => {
                       const isPaidFull = (rec.balance || 0) <= 0;
+                      const displayFarmerId = rec.farmerId || `F-${String(idx + 1).padStart(3, '0')}`;
 
                       return (
                         <tr key={rec.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.2s' }}>
@@ -1440,8 +1488,13 @@ export default function Milling() {
                             {rec.dateStr || '-'}
                           </td>
                           <td style={{ padding: '12px' }}>
-                            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-                              {rec.supplierName || 'නොදන්නා ගොවියා'}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', padding: '3px 8px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 800 }}>
+                                {displayFarmerId}
+                              </span>
+                              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                                {rec.supplierName || 'නොදන්නා ගොවියා'}
+                              </div>
                             </div>
                           </td>
                           <td style={{ padding: '12px' }}>
@@ -1978,7 +2031,7 @@ export default function Milling() {
       </Modal>
 
       {/* ========================================================================= */}
-      {/* MODAL 3: Pay Paddy Balance Modal (ණය මුදල් ගෙවීම)                         */}
+      {/* MODAL 3: Pay Paddy Balance Modal (ණය මුදල් ගෙවීම & ඉතිහාසය)                   */}
       {/* ========================================================================= */}
       <Modal
         isOpen={payBalanceModalOpen}
@@ -1989,10 +2042,15 @@ export default function Milling() {
         {payBalanceRecord && (
           <div style={{ padding: '6px' }}>
             <div style={{ background: 'rgba(59, 130, 246, 0.08)', padding: '12px', borderRadius: '10px', marginBottom: '16px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-              <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                👤 {payBalanceRecord.supplierName}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#6366f1', padding: '3px 8px', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 800 }}>
+                  {payBalanceRecord.farmerId || 'F-001'}
+                </span>
+                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  👤 {payBalanceRecord.supplierName}
+                </div>
               </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px' }}>
                 🌾 {payBalanceRecord.paddyType} | {payBalanceRecord.kg} Kg | දිනය: {payBalanceRecord.dateStr}
               </div>
             </div>
@@ -2037,7 +2095,7 @@ export default function Milling() {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginBottom: '16px' }}>
               <Button variant="secondary" onClick={() => setPayBalanceModalOpen(false)}>
                 අවලංගු කරන්න
               </Button>
@@ -2045,6 +2103,45 @@ export default function Milling() {
                 💳 ගෙවීම සුරකින්න
               </Button>
             </div>
+
+            {/* Payment History List (විටින් විට ගෙවූ මුදල් විස්තර) */}
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
+              <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '10px' }}>
+                📜 විටින් විට ගෙවූ මුදල් විස්තර (Payment History)
+              </h4>
+
+              {payBalanceRecord.paymentHistory && payBalanceRecord.paymentHistory.length > 0 ? (
+                <div style={{ maxHeight: '160px', overflowY: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                        <th style={{ padding: '6px 10px', textAlign: 'left' }}>දිනය</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'right' }}>ගෙවූ මුදල</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'left' }}>සටහන / කැෂියර්</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payBalanceRecord.paymentHistory.map((hist, hIdx) => (
+                        <tr key={hIdx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '6px 10px', fontWeight: 600 }}>{hist.dateStr}</td>
+                          <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 800, color: '#10b981' }}>
+                            Rs. {parseFloat(hist.amount || 0).toFixed(2)}
+                          </td>
+                          <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>
+                            {hist.cashierName || 'Cashier'} {hist.notes ? `(${hist.notes})` : ''}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  තවමත් අමතර ණය ගෙවීම් වාර්තා වී නැත.
+                </div>
+              )}
+            </div>
+
           </div>
         )}
       </Modal>
