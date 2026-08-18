@@ -662,44 +662,42 @@ export default function Sales() {
     setCustomItemQty('1');
   };
 
-  // Bag shortcut [0] — find bag item from inventory and add directly to cart
-  const handleAddBagToCart = () => {
-    const bagItem = items.find(item =>
-      item.name?.toLowerCase().includes('bag') ||
-      item.name?.toLowerCase().includes('බෑග්') ||
-      item.name?.toLowerCase().includes('bag') ||
-      item.name?.toLowerCase().includes('bags') ||
-      item.name?.toLowerCase() === 'bag'
-    );
-    if (!bagItem) {
-      alert('Bag item inventory එකේ හොයාගන්න බැහැ. "Bag" කියලා item එකක් inventory එකට add කරන්න.');
+  // Bag Modal State [0]
+  const [bagModal, setBagModal] = useState(false);
+  const [bagPrice, setBagPrice] = useState('');
+  const bagPriceInputRef = useRef(null);
+
+  const handleOpenBagModal = () => {
+    setBagPrice('');
+    setBagModal(true);
+    setTimeout(() => {
+      bagPriceInputRef.current?.focus();
+      bagPriceInputRef.current?.select();
+    }, 100);
+  };
+
+  const handleConfirmBag = () => {
+    const price = parseFloat(bagPrice);
+    if (!price || price <= 0) {
+      alert('කරුණාකර Bag එකේ මිල ඇතුළත් කරන්න (Enter bag price)');
       return;
     }
-    if (bagItem.stock <= 0) {
-      alert('Bag out of stock!');
-      return;
-    }
-    // Add bag to cart (increment if already in cart)
-    setCart(prevCart => {
-      const existingIndex = prevCart.findIndex(c => c.id === bagItem.id && !c.isMilling && !c.isCustom && !c.isReload);
-      if (existingIndex !== -1) {
-        const existingInCart = prevCart[existingIndex];
-        if (existingInCart.quantity >= bagItem.stock) {
-          alert('Maximum stock reached!');
-          return prevCart;
-        }
-        const updatedItem = { ...existingInCart, quantity: existingInCart.quantity + 1 };
-        const newCart = [updatedItem, ...prevCart.filter((_, idx) => idx !== existingIndex)];
-        setActiveCartId(updatedItem.cartId || updatedItem.id);
-        return newCart;
-      } else {
-        const cartId = `cart_${bagItem.id}_${Date.now()}`;
-        const markedPrice = bagItem.markedPrice ? Number(bagItem.markedPrice) : Number(bagItem.sellPrice);
-        const newItem = { ...bagItem, markedPrice, quantity: 1, cartId };
-        setActiveCartId(cartId);
-        return [newItem, ...prevCart];
-      }
-    });
+    const cartId = `bag_${Date.now()}`;
+    const bagItem = {
+      id: cartId,
+      cartId,
+      name: 'Bag',
+      markedPrice: price,
+      sellPrice: price,
+      quantity: 1,
+      stock: 999999,
+      isCustom: true,
+      isBag: true
+    };
+    setCart(prev => [bagItem, ...prev]);
+    setActiveCartId(cartId);
+    setBagModal(false);
+    setBagPrice('');
     setTimeout(() => barcodeInputRef.current?.focus(), 50);
   };
 
@@ -953,7 +951,7 @@ export default function Sales() {
   // AND + / - keys to change cart item quantity
   useEffect(() => {
     const handleKeyDown = (e) => {
-      const isAnyModalOpen = previewModal || checkoutModal || weightModal || customItemModal || editCartItemModal || billSearchModal || billDetailModal || editBillModal || reloadModal || millingModal;
+      const isAnyModalOpen = previewModal || checkoutModal || weightModal || customItemModal || editCartItemModal || billSearchModal || billDetailModal || editBillModal || reloadModal || millingModal || bagModal;
 
       // 1. If NO modal is open: handle + and - keys for active cart item quantity
       if (!isAnyModalOpen) {
@@ -1005,7 +1003,7 @@ export default function Sales() {
           }
         }
 
-        // 0 key → Add Bag to cart instantly
+        // 0 key → Open Bag price modal
         const isZeroKey = e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0';
         if (isZeroKey) {
           const activeTag2 = document.activeElement?.tagName;
@@ -1013,7 +1011,7 @@ export default function Sales() {
           const isInputFocused2 = isSearchFocused2 || ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag2);
           if ((isSearchFocused2 && search.trim() === '') || !isInputFocused2) {
             e.preventDefault();
-            handleAddBagToCart();
+            handleOpenBagModal();
             return;
           }
         }
@@ -1041,6 +1039,22 @@ export default function Sales() {
           return false;
         });
         return;
+      }
+
+      // If Bag Modal is open: handle Enter to confirm, Escape to close
+      if (bagModal) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleConfirmBag();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setBagModal(false);
+          setBagPrice('');
+          setTimeout(() => barcodeInputRef.current?.focus(), 50);
+          return;
+        }
       }
 
       // If Weight Modal is open: handle Escape key to close, Left/Right Arrow keys, and K / G shortcut keys
@@ -1155,7 +1169,7 @@ export default function Sales() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightMode, weightUnit, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor, items]);
+  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightMode, weightUnit, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor, items, bagModal, bagPrice]);
 
   const handleCloseWeightModal = () => {
     setWeightModal(false);
@@ -1928,7 +1942,7 @@ export default function Sales() {
               <button className="bill-search-btn glass" onClick={handleOpenQuickCustomItem} title="නොමැති භාණ්ඩයක් එකතු කරන්න (.)" style={{ borderColor: 'var(--success-400)', color: 'var(--success-400)' }}>
                 <FiEdit3 /> <span>නොමැති භාණ්ඩ [.]</span>
               </button>
-              <button className="bill-search-btn glass" onClick={handleAddBagToCart} title="Bag cart එකට add කරන්න [0]" style={{ borderColor: '#f97316', color: '#f97316' }}>
+              <button className="bill-search-btn glass" onClick={handleOpenBagModal} title="Bag එකේ මිල ගහා cart එකට add කරන්න [0]" style={{ borderColor: '#f97316', color: '#f97316' }}>
                 🛍️ <span>Bag [0]</span>
               </button>
               <button className="bill-search-btn glass" onClick={handleOpenReloadModal} title={t('reload.title')} style={{ borderColor: 'var(--primary-500)', color: 'var(--primary-400)' }}>
@@ -3735,6 +3749,63 @@ export default function Sales() {
         </div>
       </Modal>
 
+      {/* Bag Price Modal [0] */}
+      <Modal isOpen={bagModal} onClose={() => { setBagModal(false); setBagPrice(''); }} title="🛍️ Bag මිල ඇතුළත් කරන්න / Enter Bag Price">
+        <div style={{ padding: '4px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px', lineHeight: '1.5' }}>
+            Bag එකේ මිල (Rs.) ඇතුළත් කර <strong>Enter</strong> ඔබන්න.
+          </p>
+          <div className="form-group mb-4">
+            <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+              Bag මිල / Bag Price (Rs.)
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                ref={bagPriceInputRef}
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={bagPrice}
+                onChange={(e) => setBagPrice(e.target.value)}
+                className="search-input"
+                style={{ width: '100%', paddingLeft: '40px', fontSize: '1.4rem', fontWeight: 800, color: '#f97316' }}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleConfirmBag();
+                  }
+                }}
+              />
+              <FiDollarSign style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#f97316', fontSize: '20px' }} />
+            </div>
+          </div>
+
+          {/* Price Preview */}
+          {bagPrice && parseFloat(bagPrice) > 0 && (
+            <div style={{ background: 'rgba(249, 115, 22, 0.1)', border: '1px solid rgba(249, 115, 22, 0.3)', borderRadius: '8px', padding: '12px', marginBottom: '16px', textAlign: 'center' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block' }}>Bag මිල</span>
+              <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f97316' }}>
+                Rs. {parseFloat(bagPrice).toFixed(2)}
+              </span>
+            </div>
+          )}
+
+          {/* Modal Actions */}
+          <div className="modal-actions mt-6" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => { setBagModal(false); setBagPrice(''); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmBag}
+              icon={<FiShoppingCart />}
+              style={{ background: '#f97316' }}
+            >
+              🛒 Cart එකට එකතු කරන්න
+            </Button>
+          </div>
+        </div>
+      </Modal>
       {/* Edit Cart Item Price/Discount Modal */}
       <Modal isOpen={editCartItemModal} onClose={() => setEditCartItemModal(false)} title="🏷️ මිල / Discount වෙනස් කිරීම">
         <div style={{ padding: '4px' }}>
