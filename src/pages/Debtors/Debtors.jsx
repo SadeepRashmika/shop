@@ -17,6 +17,8 @@ export default function Debtors() {
   const [debtors, setDebtors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('no_asc'); // Default to 'no_asc' (By Debtor No. 1, 2, 3...)
+  const [filterType, setFilterType] = useState('all'); // 'all', 'with_debt', 'no_debt'
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -385,13 +387,37 @@ export default function Debtors() {
 
   const filteredDebtors = debtors.filter(d => {
     const s = search.toLowerCase().trim();
-    if (!s) return true;
-    const cleanS = s.replace('#', '').replace('no', '').trim();
-    return d.name.toLowerCase().includes(s) || 
-           d.phone.includes(s) ||
-           d.barcode?.toLowerCase().includes(s) ||
-           d.debtorNo?.toString() === cleanS ||
-           d.debtorNo?.toString().includes(cleanS);
+    const matchesSearch = !s ||
+      d.name.toLowerCase().includes(s) || 
+      d.phone?.includes(s) ||
+      d.barcode?.toLowerCase().includes(s) ||
+      d.debtorNo?.toString() === s.replace('#', '').replace('no', '').trim() ||
+      d.debtorNo?.toString().includes(s.replace('#', '').replace('no', '').trim());
+
+    if (!matchesSearch) return false;
+
+    const owed = Number(d.totalOwed) || 0;
+    if (filterType === 'with_debt') return owed > 0;
+    if (filterType === 'no_debt') return owed <= 0;
+    return true;
+  }).sort((a, b) => {
+    const owedA = Number(a.totalOwed) || 0;
+    const owedB = Number(b.totalOwed) || 0;
+    const noA = Number(a.debtorNo) || 0;
+    const noB = Number(b.debtorNo) || 0;
+
+    if (sortBy === 'debt_desc') {
+      if (owedB !== owedA) return owedB - owedA; // Highest debt first
+      return noA - noB;
+    }
+    if (sortBy === 'debt_asc') {
+      if (owedA !== owedB) return owedA - owedB; // Lowest debt first
+      return noA - noB;
+    }
+    if (sortBy === 'no_desc') return noB - noA;
+    if (sortBy === 'name_asc') return (a.name || '').localeCompare(b.name || '');
+    if (sortBy === 'name_desc') return (b.name || '').localeCompare(a.name || '');
+    return noA - noB; // Default 'no_asc'
   });
 
   return (
@@ -412,7 +438,12 @@ export default function Debtors() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
         
         {/* Total Debt Card */}
-        <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #ef4444' }}>
+        <div 
+          className="glass-card cursor-pointer" 
+          onClick={() => { setFilterType('with_debt'); setSortBy('debt_desc'); }}
+          title="ණය ඇති අය වැඩිම ණය සිට පිළිවෙළට පෙරන්න"
+          style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #ef4444', transition: 'transform 0.2s ease', cursor: 'pointer' }}
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               📝 මුළු ණය එකතුව (Total Debt)
@@ -430,7 +461,12 @@ export default function Debtors() {
         </div>
 
         {/* Total Debtors Count */}
-        <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #3b82f6' }}>
+        <div 
+          className="glass-card cursor-pointer" 
+          onClick={() => { setFilterType('all'); }}
+          title="සියලු ණයගැතියන් පෙන්වන්න"
+          style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #3b82f6', cursor: 'pointer' }}
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               👥 ලියාපදිංචි ණයගැතියන්
@@ -448,7 +484,12 @@ export default function Debtors() {
         </div>
 
         {/* Active Debtors (With Debt > 0) */}
-        <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #f59e0b' }}>
+        <div 
+          className="glass-card cursor-pointer" 
+          onClick={() => { setFilterType('with_debt'); setSortBy('debt_desc'); }}
+          title="ණය ගෙවීමට ඇති අය පමණක් වැඩිම ණය සිට පෙරන්න"
+          style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #f59e0b', cursor: 'pointer' }}
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               ⚠️ ණය ගෙවීමට ඇති අය
@@ -467,8 +508,8 @@ export default function Debtors() {
 
       </div>
 
-      <div className="debtors-toolbar glass-card">
-        <div className="search-box">
+      <div className="debtors-toolbar glass-card" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="search-box" style={{ flex: '1 1 250px', minWidth: '220px' }}>
           <FiSearch className="search-icon" />
           <input 
             type="text" 
@@ -477,6 +518,72 @@ export default function Debtors() {
             onChange={(e) => setSearch(e.target.value)}
             className="search-input"
           />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* Quick Filter Buttons */}
+          <div style={{ display: 'flex', background: 'var(--bg-glass, rgba(255,255,255,0.05))', borderRadius: '10px', padding: '3px', border: '1px solid var(--border-color)' }}>
+            <button
+              type="button"
+              onClick={() => setFilterType('all')}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: filterType === 'all' ? 'var(--primary-500, #3b82f6)' : 'transparent',
+                color: filterType === 'all' ? '#fff' : 'var(--text-secondary)',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              සියල්ල ({debtors.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterType('with_debt')}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: filterType === 'with_debt' ? '#f59e0b' : 'transparent',
+                color: filterType === 'with_debt' ? '#fff' : 'var(--text-secondary)',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              ⚠️ ණය ඇති අය ({activeDebtorsCount})
+            </button>
+          </div>
+
+          {/* Sort Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>පිළිවෙළ:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="search-input"
+              style={{
+                padding: '6px 12px',
+                fontSize: '13px',
+                fontWeight: 700,
+                borderRadius: '10px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-glass, rgba(255, 255, 255, 0.05))',
+                color: 'var(--text-primary)',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="debt_desc" style={{ background: '#1e293b', color: '#fff' }}>📉 ණය වැඩිම සිට අඩුම (Highest Debt First)</option>
+              <option value="debt_asc" style={{ background: '#1e293b', color: '#fff' }}>📈 ණය අඩුම සිට වැඩිම (Lowest Debt First)</option>
+              <option value="no_asc" style={{ background: '#1e293b', color: '#fff' }}>🔢 අංකය (1, 2, 3...)</option>
+              <option value="no_desc" style={{ background: '#1e293b', color: '#fff' }}>🔢 අංකය (අවසානය මුලට)</option>
+              <option value="name_asc" style={{ background: '#1e293b', color: '#fff' }}>🔤 නම (A - Z)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -490,7 +597,18 @@ export default function Debtors() {
                 <th>No.</th>
                 <th>{t('debtors.name')}</th>
                 <th>{t('debtors.phone')}</th>
-                <th>{t('debtors.totalOwed')}</th>
+                <th 
+                  onClick={() => setSortBy(prev => prev === 'debt_desc' ? 'debt_asc' : 'debt_desc')} 
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  title="ණය අනුව පෙළගස්වන්න (Sort by debt)"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>{t('debtors.totalOwed')}</span>
+                    {sortBy === 'debt_desc' && <span style={{ color: '#ef4444', fontSize: '12px', fontWeight: 800 }}>▼ (වැඩිම)</span>}
+                    {sortBy === 'debt_asc' && <span style={{ color: '#22c55e', fontSize: '12px', fontWeight: 800 }}>▲ (අඩුම)</span>}
+                    {sortBy !== 'debt_desc' && sortBy !== 'debt_asc' && <span style={{ opacity: 0.4, fontSize: '11px' }}>⇅</span>}
+                  </div>
+                </th>
                 <th>{t('debtors.barcode')}</th>
                 <th>{t('common.actions')}</th>
               </tr>

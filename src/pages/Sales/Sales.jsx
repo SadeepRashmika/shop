@@ -222,6 +222,18 @@ function generateBillPDF(billData) {
     `;
   }).join('');
 
+  const isCash = billData.paymentMethod === 'cash';
+  const isCredit = billData.paymentMethod === 'credit';
+  const isHomeUse = billData.paymentMethod === 'home_use';
+
+  const billTotal = Number(billData.total) || 0;
+  const tendered = (billData.tenderedAmount !== undefined && billData.tenderedAmount !== null && Number(billData.tenderedAmount) > 0)
+    ? Number(billData.tenderedAmount)
+    : (isCash ? billTotal : 0);
+
+  const change = Math.max(0, tendered - billTotal);
+  const creditOwed = Math.max(0, billTotal - tendered);
+
   const html = `
 <!DOCTYPE html>
 <html>
@@ -322,16 +334,26 @@ function generateBillPDF(billData) {
     </div>
     <div class="total-row grand-total">
       <span>මුළු එකතුව</span>
-      <span>${billData.total.toFixed(2)}</span>
+      <span>${billTotal.toFixed(2)}</span>
     </div>
+    ${!isHomeUse ? `
     <div class="total-row">
       <span>ගෙවීම් :</span>
-      <span>${(billData.tenderedAmount || 0).toFixed(2)}</span>
+      <span>${tendered.toFixed(2)}</span>
     </div>
+    ` : ''}
+    ${isCash ? `
     <div class="total-row font-bold">
       <span>ඉතිරි:</span>
-      <span>Rs. ${(billData.tenderedAmount ? billData.tenderedAmount - billData.total : -billData.total).toFixed(2)}</span>
+      <span>Rs. ${change.toFixed(2)}</span>
     </div>
+    ` : ''}
+    ${isCredit ? `
+    <div class="total-row font-bold">
+      <span>ණය මුදල (Owed):</span>
+      <span>Rs. ${creditOwed.toFixed(2)}</span>
+    </div>
+    ` : ''}
 
     ${totalSavings > 0 ? `
     <div class="divider"></div>
@@ -1526,6 +1548,7 @@ export default function Sales() {
         items: cartItems,
         total: subtotal,
         paymentMethod,
+        tenderedAmount: parseFloat(tenderedAmount) || (paymentMethod === 'cash' ? subtotal : 0),
         cashierId: userData?.uid || 'unknown',
         cashierName: userData?.name || 'Unknown',
         timestamp: serverTimestamp(),
@@ -1648,7 +1671,7 @@ export default function Sales() {
         items: cartItems,
         total: subtotal,
         paymentMethod,
-        tenderedAmount: parseFloat(tenderedAmount) || 0,
+        tenderedAmount: parseFloat(tenderedAmount) || (paymentMethod === 'cash' ? subtotal : 0),
         cashierName: userData?.name || 'Unknown',
         debtorName: paymentMethod === 'credit' ? selectedDebtor?.name : null,
         date: getNow()
@@ -1734,6 +1757,7 @@ export default function Sales() {
 
   const handleOpenEditBill = (bill) => {
     setSelectedBill(bill);
+    setTenderedAmount(bill.tenderedAmount !== undefined && bill.tenderedAmount !== null ? String(bill.tenderedAmount) : '');
     // Map bill items to cart format so they load directly into the main Cart UI
     const cartItems = (bill.items || []).map((bItem, idx) => {
       const matched = items.find(i => i.id === bItem.id || i.name === bItem.name || (i.itemNo && i.itemNo === bItem.itemNo));
@@ -1838,6 +1862,7 @@ export default function Sales() {
         items: updatedCartItems,
         total: newTotal,
         paymentMethod,
+        tenderedAmount: parseFloat(tenderedAmount) || (paymentMethod === 'cash' ? newTotal : 0),
         editedAt: serverTimestamp()
       });
 
@@ -1920,11 +1945,19 @@ export default function Sales() {
   };
 
   const handleReprintBill = (bill) => {
+    let tendered = 0;
+    if (bill.tenderedAmount !== undefined && bill.tenderedAmount !== null && Number(bill.tenderedAmount) > 0) {
+      tendered = Number(bill.tenderedAmount);
+    } else if (bill.paymentMethod === 'cash') {
+      tendered = Number(bill.total) || 0;
+    }
+
     const billData = {
       billNumber: bill.billNumber,
       items: bill.items,
-      total: bill.total,
-      paymentMethod: bill.paymentMethod,
+      total: Number(bill.total) || 0,
+      paymentMethod: bill.paymentMethod || 'cash',
+      tenderedAmount: tendered,
       cashierName: bill.cashierName || 'N/A',
       debtorName: bill.debtorName || null,
       date: toDateObject(bill.timestamp || bill.date) || getNow()
@@ -2831,6 +2864,26 @@ export default function Sales() {
                 <span></span>
                 <span className="total-amount-big">Rs. {selectedBill.total?.toFixed(2)}</span>
               </div>
+              {selectedBill.paymentMethod === 'cash' && selectedBill.tenderedAmount !== undefined && (
+                <>
+                  <div className="bill-table-total" style={{ borderTop: '1px dashed var(--border-color)', marginTop: '4px', paddingTop: '4px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                    <span>ගෙවූ මුදල (Paid)</span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Rs. {Number(selectedBill.tenderedAmount).toFixed(2)}</span>
+                  </div>
+                  <div className="bill-table-total" style={{ borderTop: 'none', paddingTop: '2px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                    <span>ඉතිරි මුදල (Change)</span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span style={{ fontWeight: 700, color: 'var(--success-500)' }}>
+                      Rs. {Math.max(0, Number(selectedBill.tenderedAmount) - Number(selectedBill.total)).toFixed(2)}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="modal-actions mt-6">
@@ -3664,7 +3717,7 @@ export default function Sales() {
               <input
                 type="number"
                 step="0.01"
-                placeholder={customItemPrice || "0.00"}
+                placeholder="0.00"
                 value={customItemMarkedPrice}
                 onChange={(e) => setCustomItemMarkedPrice(e.target.value)}
                 className="search-input"
@@ -3823,7 +3876,7 @@ export default function Sales() {
             <input
               type="number"
               step="0.01"
-              placeholder={editSellPrice || "0.00"}
+              placeholder="0.00"
               value={editMarkedPrice}
               onChange={(e) => setEditMarkedPrice(e.target.value)}
               className="search-input"
