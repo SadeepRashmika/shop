@@ -244,7 +244,7 @@ function generateBillPDF(billData) {
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800;900&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Noto Sans Sinhala', 'Segoe UI', Arial, sans-serif;
+      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Segoe UI', Arial, sans-serif;
       width: 80mm;
       margin: 0 auto;
       padding: 5mm;
@@ -382,12 +382,16 @@ function generateBillPDF(billData) {
         window.print();
       } catch (e) {}
     }
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(doPrint, 40);
-    } else {
-      window.addEventListener('DOMContentLoaded', doPrint);
-      setTimeout(doPrint, 120);
-    }
+    
+    window.onload = function() {
+      if (document.fonts) {
+        document.fonts.ready.then(function() {
+          setTimeout(doPrint, 300);
+        });
+      } else {
+        setTimeout(doPrint, 500);
+      }
+    };
   </script>
 </body>
 </html>`;
