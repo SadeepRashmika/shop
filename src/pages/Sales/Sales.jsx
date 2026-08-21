@@ -376,29 +376,44 @@ function generateBillPDF(billData) {
   </div>
 
   <script>
+    // Fallback script if parent fails to trigger print
     function doPrint() {
       try {
         window.focus();
         window.print();
       } catch (e) {}
     }
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(doPrint, 40);
-    } else {
-      window.addEventListener('DOMContentLoaded', doPrint);
-      setTimeout(doPrint, 120);
-    }
   </script>
 </body>
 </html>`;
 
-  const printWindow = window.open('', '_blank', 'width=400,height=600');
-  if (printWindow) {
-    printWindow.document.write(html);
-    printWindow.document.close();
-  } else {
-    alert('Please allow popup windows for this site to print receipts.');
-  }
+  // Use hidden iframe for printing to bypass popup blockers
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'absolute';
+  iframe.style.width = '0px';
+  iframe.style.height = '0px';
+  iframe.style.border = 'none';
+  document.body.appendChild(iframe);
+  
+  iframe.contentWindow.document.open();
+  iframe.contentWindow.document.write(html);
+  iframe.contentWindow.document.close();
+
+  iframe.onload = function() {
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        console.error("Print failed: ", err);
+      }
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 5000);
+    }, 400); // 400ms delay to ensure Iskoola Pota / Noto Sinhala fonts are fully rendered
+  };
 }
 
 // Get next bill number from Firestore
