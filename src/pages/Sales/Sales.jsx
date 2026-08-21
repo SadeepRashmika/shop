@@ -382,16 +382,12 @@ function generateBillPDF(billData) {
         window.print();
       } catch (e) {}
     }
-    
-    window.onload = function() {
-      if (document.fonts) {
-        document.fonts.ready.then(function() {
-          setTimeout(doPrint, 300);
-        });
-      } else {
-        setTimeout(doPrint, 500);
-      }
-    };
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(doPrint, 40);
+    } else {
+      window.addEventListener('DOMContentLoaded', doPrint);
+      setTimeout(doPrint, 120);
+    }
   </script>
 </body>
 </html>`;
