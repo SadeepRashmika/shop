@@ -141,17 +141,43 @@ export default function Debtors() {
      setLedgerLoading(true);
      
      try {
+       const debtorIdClean = debtor.id;
+       const debtorNameClean = (debtor.name || '').trim().toLowerCase();
+
+       const isDebtorMatch = (record) => {
+         if (record.debtorId && record.debtorId === debtorIdClean) return true;
+         if (record.debtorName && record.debtorName.trim().toLowerCase() === debtorNameClean) return true;
+         return false;
+       };
+
        const txnSnapshot = await getDocs(collection(db, 'transactions'));
        const loans = txnSnapshot.docs
           .map(d => ({ id: d.id, ...d.data() }))
-          .filter(t => t.debtorId === debtor.id && t.paymentMethod === 'credit');
+          .filter(t => t.paymentMethod === 'credit' && isDebtorMatch(t));
           
        const paySnapshot = await getDocs(collection(db, 'debtor_payments'));
        const payments = paySnapshot.docs
           .map(d => ({ id: d.id, ...d.data() }))
-          .filter(p => p.debtorId === debtor.id);
+          .filter(p => isDebtorMatch(p));
 
-       let history = [...loans, ...payments].sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+       const reloadSnapshot = await getDocs(collection(db, 'reloads'));
+       const creditReloads = reloadSnapshot.docs
+          .map(d => ({ id: d.id, ...d.data(), isReload: true }))
+          .filter(r => r.paymentMethod === 'credit' && isDebtorMatch(r));
+
+       const getTimestampMs = (ts) => {
+         if (!ts) return 0;
+         if (ts.seconds) return ts.seconds * 1000;
+         if (ts.toDate) return ts.toDate().getTime();
+         if (typeof ts === 'number') return ts;
+         return new Date(ts).getTime();
+       };
+
+       let history = [...loans, ...payments, ...creditReloads].sort((a,b) => {
+         const tA = getTimestampMs(a.timestamp || a.date);
+         const tB = getTimestampMs(b.timestamp || b.date);
+         return tB - tA;
+       });
 
        // If no transaction history but debtor has debt, show an opening balance entry
        if (history.length === 0 && Number(debtor.totalOwed) > 0) {
@@ -169,7 +195,7 @@ export default function Debtors() {
 
        setLedgerHistory(history);
      } catch (err) {
-       console.error(err);
+       console.error("Error loading debtor ledger:", err);
      } finally {
        setLedgerLoading(false);
      }
@@ -178,14 +204,14 @@ export default function Debtors() {
   const downloadReport = async (type) => {
     try {
       const headers = type === 'monthly' 
-        ? ['Date', 'Type', 'Debtor Name', 'Amount (Rs.)', 'Cashier']
+        ? ['Bill No', 'Date', 'Type', 'Debtor Name', 'Debt Amount (Rs.)', 'Total Bill (Rs.)', 'Paid Upfront (Rs.)', 'Details / Note', 'Cashier']
         : ['Debtor No', 'Name', 'Phone', 'Address', 'Total Owed (Rs.)'];
       
       let rows = [];
 
       if (type === 'all') {
         rows = debtors.map(d => [
-          d.debtorNo || '', d.name, d.phone || '', d.address || '', Number(d.totalOwed).toFixed(2)
+          d.debtorNo ? `#${d.debtorNo}` : '', d.name, d.phone || '', d.address || '', Number(d.totalOwed).toFixed(2)
         ]);
       } else if (type === 'monthly') {
         const now = new Date();
@@ -206,30 +232,73 @@ export default function Debtors() {
 
         const paySnapshot = await getDocs(collection(db, 'debtor_payments'));
         const txnSnapshot = await getDocs(collection(db, 'transactions'));
+        const reloadSnapshot = await getDocs(collection(db, 'reloads'));
         
         const allActs = [];
 
         // Payments & manual loans from debtor_payments collection
         paySnapshot.forEach(docSnap => {
           const d = docSnap.data();
-          const tsMs = getTimestampMs(d.timestamp);
+          const tsMs = getTimestampMs(d.timestamp || d.date);
           if (tsMs >= startOfMonthMs) {
-            const actType = d.type === 'payment' ? 'Payment Received' : 'Manual Loan';
-            allActs.push({ ...d, actType, _tsMs: tsMs, _date: formatDate(d.timestamp) });
+            const actType = d.type === 'payment' ? 'Payment Received' : (d.type === 'opening' ? 'Opening Balance' : 'Manual Loan');
+            allActs.push({ 
+              billNo: '-',
+              _date: formatDate(d.timestamp || d.date),
+              actType, 
+              debtorName: d.debtorName || 'Unknown',
+              debtAmount: Number(d.amount) || 0,
+              totalBill: '-',
+              paidUpfront: d.type === 'payment' ? Number(d.amount).toFixed(2) : '-',
+              details: d.note || (d.type === 'payment' ? 'Debt Payment' : 'Loan Entry'),
+              cashierName: d.cashierName || 'Unknown',
+              _tsMs: tsMs
+            });
           }
         });
 
         // Credit sales from transactions collection
         txnSnapshot.forEach(docSnap => {
           const d = docSnap.data();
-          const tsMs = getTimestampMs(d.timestamp);
+          const tsMs = getTimestampMs(d.timestamp || d.date);
           if (d.paymentMethod === 'credit' && tsMs >= startOfMonthMs) {
+            const billTot = Number(d.total) || 0;
+            const upfront = Number(d.paidAmount !== undefined ? d.paidAmount : (d.tenderedAmount || 0));
+            const credAmt = d.creditAmount !== undefined ? Number(d.creditAmount) : Math.max(0, billTot - upfront);
+            const formattedBillNo = d.billNumber ? `#${String(d.billNumber).padStart(6, '0')}` : '-';
+
             allActs.push({
-              ...d,
-              amount: d.creditAmount !== undefined ? d.creditAmount : d.total,
-              actType: 'Credit Sale',
-              _tsMs: tsMs,
-              _date: formatDate(d.timestamp)
+              billNo: formattedBillNo,
+              _date: formatDate(d.timestamp || d.date),
+              actType: upfront > 0 ? 'Credit Sale (Partial Payment)' : 'Credit Sale',
+              debtorName: d.debtorName || 'Unknown',
+              debtAmount: credAmt > 0 ? credAmt : billTot,
+              totalBill: billTot > 0 ? billTot.toFixed(2) : '-',
+              paidUpfront: upfront > 0 ? upfront.toFixed(2) : '-',
+              details: upfront > 0 ? `Paid Rs.${upfront.toFixed(2)} at checkout` : 'Full Credit',
+              cashierName: d.cashierName || 'Unknown',
+              _tsMs: tsMs
+            });
+          }
+        });
+
+        // Credit reloads
+        reloadSnapshot.forEach(docSnap => {
+          const d = docSnap.data();
+          const tsMs = getTimestampMs(d.timestamp || d.date);
+          if (d.paymentMethod === 'credit' && tsMs >= startOfMonthMs) {
+            const formattedBillNo = d.billNumber ? `#${String(d.billNumber).padStart(6, '0')}` : '-';
+            allActs.push({
+              billNo: formattedBillNo,
+              _date: formatDate(d.timestamp || d.date),
+              actType: 'Credit Reload',
+              debtorName: d.debtorName || 'Unknown',
+              debtAmount: Number(d.amount) || 0,
+              totalBill: Number(d.amount).toFixed(2),
+              paidUpfront: '-',
+              details: `Reload #${d.phone || ''} (${d.network || ''})`,
+              cashierName: d.cashierName || 'Unknown',
+              _tsMs: tsMs
             });
           }
         });
@@ -237,11 +306,15 @@ export default function Debtors() {
         allActs.sort((a, b) => b._tsMs - a._tsMs);
 
         rows = allActs.map(a => [
+          a.billNo,
           a._date,
           a.actType,
-          a.debtorName || 'Unknown',
-          Number(a.amount || 0).toFixed(2),
-          a.cashierName || 'Unknown'
+          a.debtorName,
+          Number(a.debtAmount || 0).toFixed(2),
+          a.totalBill,
+          a.paidUpfront,
+          a.details || '-',
+          a.cashierName
         ]);
       }
 
@@ -251,6 +324,7 @@ export default function Debtors() {
       }
 
       const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      worksheet['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 26 }, { wch: 22 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 35 }, { wch: 18 }];
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
       XLSX.writeFile(workbook, `Debtor_Report_${type}_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -275,30 +349,68 @@ export default function Debtors() {
        return new Date(ts).getTime();
      };
 
-     const headers = ['Date', 'Type', 'Amount (Rs.)', 'Note / Bill #', 'Cashier'];
+     const headers = ['Bill No', 'Date', 'Type', 'Debt Amount (Rs.)', 'Total Bill (Rs.)', 'Paid Upfront (Rs.)', 'Note / Details', 'Cashier'];
      const rows = ledgerHistory.map(h => {
         const isPayment = h.type === 'payment';
+        const isOpening = h.type === 'opening';
         const isLoan = h.type === 'loan';
-        let actType;
+        const isReload = h.isReload;
+        
+        let actType = 'Credit Sale';
         if (isPayment) actType = 'Payment Received';
+        else if (isOpening) actType = 'Opening Balance';
         else if (isLoan) actType = 'Manual Loan Added';
-        else actType = 'Credit Sale';  // from transactions collection
+        else if (isReload) actType = 'Credit Reload';
 
-        const amt = h.creditAmount !== undefined ? h.creditAmount : ((h.total || h.amount) || 0);
-        const tsMs = getTimestampMs(h.timestamp);
+        const billTot = Number(h.total) || 0;
+        const upfront = Number(h.paidAmount !== undefined ? h.paidAmount : (h.tenderedAmount || 0));
+        let amt = 0;
+        if (h.creditAmount !== undefined && h.creditAmount !== null) {
+          amt = Number(h.creditAmount);
+        } else if (h.paymentMethod === 'credit') {
+          amt = upfront > 0 ? Math.max(0, billTot - upfront) : (billTot || Number(h.amount) || 0);
+        } else {
+          amt = Number(h.amount || h.total || 0);
+        }
+
+        let formattedBillNo = '-';
+        let note = '-';
+        if (h.billNumber) {
+          formattedBillNo = `#${String(h.billNumber).padStart(6, '0')}`;
+          if (upfront > 0 && billTot > 0) {
+            note = `Paid Rs.${upfront.toFixed(2)} at checkout, remaining debt added`;
+            actType = 'Credit Sale (Partial Payment)';
+          } else {
+            note = 'Full Credit Sale';
+          }
+        } else if (h.phone) {
+          note = `Reload #${h.phone} (${h.network || ''})`;
+        } else if (h.note) {
+          note = h.note;
+        }
+
+        const tsMs = getTimestampMs(h.timestamp || h.date);
         const date = tsMs ? new Date(tsMs).toLocaleString() : 'N/A';
-        const note = h.billNumber ? `Bill #${String(h.billNumber).padStart(6, '0')}` : (h.note || '-');
-        return [date, actType, Number(amt).toFixed(2), note, h.cashierName || 'Unknown'];
+        return [
+          formattedBillNo,
+          date,
+          actType,
+          Number(amt).toFixed(2),
+          billTot > 0 ? billTot.toFixed(2) : '-',
+          upfront > 0 ? upfront.toFixed(2) : (isPayment ? Number(h.amount).toFixed(2) : '-'),
+          note,
+          h.cashierName || 'Unknown'
+        ];
      });
 
      // Summary row
      const totalOwed = Number(ledgerDebtor.totalOwed || 0).toFixed(2);
      rows.push([]);
-     rows.push(['', 'Total Outstanding Debt', totalOwed, '', '']);
+     rows.push(['', '', 'Total Outstanding Debt', totalOwed, '', '', '', '']);
      
      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
      // Auto column widths
-     worksheet['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 14 }, { wch: 20 }, { wch: 18 }];
+     worksheet['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 26 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 45 }, { wch: 18 }];
      const workbook = XLSX.utils.book_new();
      XLSX.utils.book_append_sheet(workbook, worksheet, "Ledger");
      XLSX.writeFile(workbook, `Ledger_${ledgerDebtor.name}_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -787,51 +899,75 @@ export default function Debtors() {
              <div className="text-center p-4">Loading history...</div>
            ) : (
              <div className="ledger-list mt-4" style={{ maxHeight: '350px', overflowY: 'auto' }}>
-                 {ledgerHistory.length > 0 ? ledgerHistory.map(h => {
-                   const isPayment = h.type === 'payment';
-                   const isOpening = h.type === 'opening';
-                   const amt = h.creditAmount !== undefined ? h.creditAmount : (h.total || h.amount || 0);
+                  {ledgerHistory.length > 0 ? ledgerHistory.map(h => {
+                    const isPayment = h.type === 'payment';
+                    const isOpening = h.type === 'opening';
+                    const isLoan = h.type === 'loan';
+                    const isReload = h.isReload;
 
-                   const getTimestampMs = (ts) => {
-                     if (!ts) return 0;
-                     if (ts.seconds) return ts.seconds * 1000;
-                     if (ts.toDate) return ts.toDate().getTime();
-                     return new Date(ts).getTime();
-                   };
-                   const tsMs = getTimestampMs(h.timestamp);
-                   const date = tsMs ? new Date(tsMs).toLocaleString() : (isOpening ? 'At Registration' : 'Just now');
+                    const billTot = Number(h.total) || 0;
+                    const upfront = Number(h.paidAmount !== undefined ? h.paidAmount : (h.tenderedAmount || 0));
+                    
+                    let amt = 0;
+                    if (h.creditAmount !== undefined && h.creditAmount !== null) {
+                      amt = Number(h.creditAmount);
+                    } else if (h.paymentMethod === 'credit') {
+                      amt = upfront > 0 ? Math.max(0, billTot - upfront) : (billTot || Number(h.amount) || 0);
+                    } else {
+                      amt = Number(h.amount || h.total || 0);
+                    }
 
-                   let label, colorClass, prefix;
-                   if (isPayment) {
-                     label = 'Payment Received';
-                     colorClass = 'text-success';
-                     prefix = '+';
-                   } else if (isOpening) {
-                     label = 'Opening Balance';
-                     colorClass = 'text-warning';
-                     prefix = '–';
-                   } else {
-                     label = h.billNumber
-                       ? `Credit Sale — Bill #${String(h.billNumber).padStart(6,'0')}`
-                       : (h.note || 'Manual Loan Added');
-                     colorClass = 'text-error';
-                     prefix = '–';
-                   }
+                    const getTimestampMs = (ts) => {
+                      if (!ts) return 0;
+                      if (ts.seconds) return ts.seconds * 1000;
+                      if (ts.toDate) return ts.toDate().getTime();
+                      return new Date(ts).getTime();
+                    };
+                    const tsMs = getTimestampMs(h.timestamp || h.date);
+                    const date = tsMs ? new Date(tsMs).toLocaleString() : (isOpening ? 'At Registration' : 'Just now');
 
-                   return (
-                     <div key={h.id} className="ledger-item flex items-center justify-between p-3 border-b border-[rgba(255,255,255,0.05)]">
-                       <div>
-                          <p className="font-bold text-sm">{label}</p>
-                          <p className="text-xs text-secondary">{date} • By: {h.cashierName || 'Cashier'}</p>
-                       </div>
-                       <div className={`font-bold ${colorClass}`}>
-                          {prefix} Rs. {Number(amt).toFixed(2)}
-                       </div>
-                     </div>
-                   );
-                 }) : (
-                   <p className="text-secondary text-center p-4">No transaction history found.</p>
-                 )}
+                    let label, colorClass, prefix, subDetails = '';
+                    if (isPayment) {
+                      label = 'Payment Received (ණය ගෙවීම)';
+                      colorClass = 'text-success';
+                      prefix = '+';
+                    } else if (isOpening) {
+                      label = 'Opening Balance (ලියාපදිංචියේදී තිබූ ණය)';
+                      colorClass = 'text-warning';
+                      prefix = '–';
+                    } else if (isReload) {
+                      label = `Credit Reload — #${h.phone || ''} (${h.network || ''})`;
+                      colorClass = 'text-error';
+                      prefix = '–';
+                    } else if (isLoan) {
+                      label = h.note || 'Manual Loan Added (අතින් එකතු කළ ණය)';
+                      colorClass = 'text-error';
+                      prefix = '–';
+                    } else {
+                      label = h.billNumber
+                        ? `Credit Sale — Bill #${String(h.billNumber).padStart(6,'0')}`
+                        : (h.note || 'Credit Sale');
+                      colorClass = 'text-error';
+                      prefix = '–';
+                      if (upfront > 0 && billTot > 0) {
+                        subDetails = ` • Bill: Rs. ${billTot.toFixed(2)} | ගෙවූ මුදල: Rs. ${upfront.toFixed(2)}`;
+                      }
+                    }
+
+                    return (
+                      <div key={h.id} className="ledger-item flex items-center justify-between p-3 border-b border-[rgba(255,255,255,0.05)]">
+                        <div>
+                           <p className="font-bold text-sm">{label}</p>
+                           <p className="text-xs text-secondary">{date} • By: {h.cashierName || 'Cashier'}{subDetails}</p>
+                        </div>
+                        <div className={`font-bold ${colorClass}`} style={{ fontSize: '1rem' }}>
+                           {prefix} Rs. {Number(amt).toFixed(2)}
+                        </div>
+                      </div>
+                    );
+                  }) : (
+                    <p className="text-secondary text-center p-4">No transaction history found.</p>
+                  )}
               </div>
            )}
            <div className="modal-actions mt-6">

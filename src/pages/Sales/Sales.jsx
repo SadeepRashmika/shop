@@ -716,14 +716,14 @@ export default function Sales() {
   const handleConfirmBag = () => {
     const price = parseFloat(bagPrice);
     if (!price || price <= 0) {
-      alert('කරුණාකර Bag එකේ මිල ඇතුළත් කරන්න (Enter bag price)');
+      alert('කරුණාකර බෑග් එකේ මිල ඇතුළත් කරන්න (Enter bag price)');
       return;
     }
     const cartId = `bag_${Date.now()}`;
     const bagItem = {
       id: cartId,
       cartId,
-      name: 'Bag',
+      name: 'බෑග්',
       markedPrice: price,
       sellPrice: price,
       quantity: 1,
@@ -1544,6 +1544,9 @@ export default function Sales() {
 
       const transactionId = `TXN${Date.now()}`;
       const isCreditMode = paymentMethod === 'credit';
+      const upfrontPayment = isCreditMode ? (parseFloat(tenderedAmount) || 0) : 0;
+      const creditAmount = isCreditMode ? Math.max(0, subtotal - upfrontPayment) : 0;
+
       const cartItems = cart.map(item => {
         const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
         const effectivePrice = (isCreditMode && mPrice > Number(item.sellPrice)) ? mPrice : Number(item.sellPrice);
@@ -1564,9 +1567,15 @@ export default function Sales() {
         total: subtotal,
         paymentMethod,
         tenderedAmount: parseFloat(tenderedAmount) || (paymentMethod === 'cash' ? subtotal : 0),
+        paidAmount: paymentMethod === 'cash' ? subtotal : upfrontPayment,
+        creditAmount: isCreditMode ? creditAmount : 0,
+        debtorId: (isCreditMode && selectedDebtor) ? selectedDebtor.id : null,
+        debtorName: (isCreditMode && selectedDebtor) ? selectedDebtor.name : null,
+        debtorPhone: (isCreditMode && selectedDebtor) ? (selectedDebtor.phone || '') : null,
         cashierId: userData?.uid || 'unknown',
         cashierName: userData?.name || 'Unknown',
         timestamp: serverTimestamp(),
+        date: getNow(),
         status: 'completed'
       };
 
@@ -1579,8 +1588,6 @@ export default function Sales() {
 
       // 2. Debtor totalOwed update if credit
       if (paymentMethod === 'credit' && selectedDebtor) {
-        const upfrontPayment = parseFloat(tenderedAmount) || 0;
-        const creditAmount = Math.max(0, subtotal - upfrontPayment);
         const debtorRef = doc(db, 'debtors', selectedDebtor.id);
         batch.update(debtorRef, {
           totalOwed: increment(creditAmount)
@@ -1646,7 +1653,8 @@ export default function Sales() {
       await batch.commit();
 
       // Non-blocking background sync for cash session & order completion
-      if (paymentMethod === 'cash') {
+      const cashReceived = paymentMethod === 'cash' ? subtotal : (paymentMethod === 'credit' ? upfrontPayment : 0);
+      if (cashReceived > 0) {
         (async () => {
           try {
             const currentUid = user?.uid || userData?.uid;
@@ -1657,11 +1665,14 @@ export default function Sales() {
               const sessData = openDoc.data();
               const existingEntries = sessData.entries || [];
               const formattedBillNo = String(billNumber).padStart(6, '0');
+              const saleNote = paymentMethod === 'cash' 
+                ? `Bill #${formattedBillNo}` 
+                : `Bill #${formattedBillNo} (ණය බිලට දුන් මුදල / Credit Upfront)`;
               const saleEntry = {
                 type: 'in',
                 isSale: true,
-                amount: subtotal,
-                note: `Bill #${formattedBillNo}`,
+                amount: cashReceived,
+                note: saleNote,
                 billNumber: billNumber,
                 time: getNow().toISOString()
               };
@@ -1994,8 +2005,8 @@ export default function Sales() {
               <button className="bill-search-btn glass" onClick={handleOpenQuickCustomItem} title="නොමැති භාණ්ඩයක් එකතු කරන්න (.)" style={{ borderColor: 'var(--success-400)', color: 'var(--success-400)' }}>
                 <FiEdit3 /> <span>නොමැති භාණ්ඩ [.]</span>
               </button>
-              <button className="bill-search-btn glass" onClick={handleOpenBagModal} title="Bag එකේ මිල ගහා cart එකට add කරන්න [0]" style={{ borderColor: '#f97316', color: '#f97316' }}>
-                🛍️ <span>Bag [0]</span>
+              <button className="bill-search-btn glass" onClick={handleOpenBagModal} title="බෑග් එකේ මිල ගසා cart එකට add කරන්න [0]" style={{ borderColor: '#f97316', color: '#f97316' }}>
+                🛍️ <span>බෑග් [0]</span>
               </button>
               <button className="bill-search-btn glass" onClick={handleOpenReloadModal} title={t('reload.title')} style={{ borderColor: 'var(--primary-500)', color: 'var(--primary-400)' }}>
                 <FiZap /> <span>{t('reload.quickReload')}</span>
@@ -3822,14 +3833,14 @@ export default function Sales() {
       </Modal>
 
       {/* Bag Price Modal [0] */}
-      <Modal isOpen={bagModal} onClose={() => { setBagModal(false); setBagPrice(''); }} title="🛍️ Bag මිල ඇතුළත් කරන්න / Enter Bag Price">
+      <Modal isOpen={bagModal} onClose={() => { setBagModal(false); setBagPrice(''); }} title="🛍️ බෑග් මිල ඇතුළත් කරන්න / Enter Bag Price">
         <div style={{ padding: '4px' }}>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px', lineHeight: '1.5' }}>
-            Bag එකේ මිල (Rs.) ඇතුළත් කර <strong>Enter</strong> ඔබන්න.
+            බෑග් එකේ මිල (Rs.) ඇතුළත් කර <strong>Enter</strong> ඔබන්න.
           </p>
           <div className="form-group mb-4">
             <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-              Bag මිල / Bag Price (Rs.)
+              බෑග් මිල / Bag Price (Rs.)
             </label>
             <div style={{ position: 'relative' }}>
               <input
@@ -3856,7 +3867,7 @@ export default function Sales() {
           {/* Price Preview */}
           {bagPrice && parseFloat(bagPrice) > 0 && (
             <div style={{ background: 'rgba(249, 115, 22, 0.1)', border: '1px solid rgba(249, 115, 22, 0.3)', borderRadius: '8px', padding: '12px', marginBottom: '16px', textAlign: 'center' }}>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block' }}>Bag මිල</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block' }}>බෑග් මිල</span>
               <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f97316' }}>
                 Rs. {parseFloat(bagPrice).toFixed(2)}
               </span>
