@@ -567,16 +567,12 @@ export default function Inventory() {
           <table className="inventory-table">
             <thead>
               <tr>
-                <th>No.</th>
-                <th>{t('inventory.table.item')}</th>
-                <th>Type</th>
-                <th>{t('inventory.table.category')}</th>
-                <th>{t('inventory.table.sellingPrice')}</th>
-                <th>{t('inventory.table.expectedProfit')}</th>
-                <th>{t('inventory.table.stock')}</th>
-                <th>Total Value</th>
-                <th>{t('inventory.table.barcode')}</th>
-                <th>{t('inventory.table.actions')}</th>
+                <th style={{ width: '55px' }}>No.</th>
+                <th>{t('inventory.table.item')} & වර්ගය</th>
+                <th style={{ minWidth: '140px' }}>මිල සහ ලාභය</th>
+                <th style={{ minWidth: '160px' }}>තොගය සහ මුළු අගය</th>
+                <th style={{ minWidth: '155px' }}>{t('inventory.table.barcode')}</th>
+                <th style={{ textAlign: 'center', width: '130px' }}>{t('inventory.table.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -586,73 +582,88 @@ export default function Inventory() {
                   
                   return (
                   <tr key={item.id}>
-                    <td className="font-bold text-secondary">#{item.itemNo || '-'}</td>
+                    <td className="font-bold text-secondary" style={{ fontSize: '15px' }}>#{item.itemNo || '-'}</td>
                     <td>
-                      <div className="item-name-cell">
+                      <div className="item-name-cell" style={{ gap: '14px' }}>
                         {item.imageUrl ? (
                           <img src={item.imageUrl} alt={item.name} className="item-thumbnail" />
                         ) : (
                           <div className="item-thumbnail-placeholder"><FiPackage /></div>
                         )}
-                        <div>
-                          <span className="font-medium d-block">{item.name}</span>
-                          <span className="text-secondary text-sm">{item.description?.substring(0, 30)}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <span className="font-bold d-block" style={{ fontSize: '16px', color: 'var(--text-primary)', marginBottom: '4px', lineHeight: 1.25 }}>
+                            {item.name}
+                          </span>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span className={`type-badge ${item.itemType === 'weighed' ? 'weighed' : 'non-weighed'}`}>
+                              {item.itemType === 'weighed' ? '⚖️ බර කිරන' : '📦 බර නොකිරන'}
+                            </span>
+                            {item.category && (
+                              <span className="category-badge">{item.category}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
                     <td>
-                      <span className={`type-badge ${item.itemType === 'weighed' ? 'weighed' : 'non-weighed'}`}>
-                        {item.itemType === 'weighed' ? 'බර කිරන' : 'බර නොකිරන'}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="category-badge">{item.category}</span>
-                    </td>
-                    <td className="font-medium">Rs. {Number(item.sellPrice || item.price || 0).toFixed(2)}</td>
-                    <td className="font-medium text-success">
-                      Rs. {profit.toFixed(2)}
-                    </td>
-                    <td>
-                      <span className={`stock-badge ${item.stock <= 5 ? 'low-stock' : 'in-stock'}`}>
-                        {typeof item.stock === 'number' || !isNaN(Number(item.stock)) 
-                          ? (Number(item.stock) % 1 === 0 ? Number(item.stock) : Number(item.stock).toFixed(2)) 
-                          : (item.stock || 0)} {item.itemType === 'weighed' ? 'kg' : t('inventory.table.inStock')}
-                      </span>
-                    </td>
-                    <td className="font-bold text-primary">
-                       Rs. {Number((item.stock || 0) * (item.sellPrice || item.price || 0)).toFixed(2)}
-                    </td>
-                    <td>
-                      <div className="barcode-cell" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span className="barcode-text" style={{ fontWeight: 600 }}>{item.barcode || `ITM${item.itemNo || ''}`}</span>
-                        <button 
-                          type="button" 
-                          onClick={() => printBarcodeLabel(item)} 
-                          title="Print Barcode Label / Sticker"
-                          style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '6px', padding: '3px 6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: 600 }}
-                        >
-                          <FiPrinter style={{ fontSize: '12px' }} /> Print
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => downloadBarcode(item.barcode || `ITM${item.itemNo || ''}`, item.name)} 
-                          title="Download Barcode PNG Image"
-                          style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '6px', padding: '3px 6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px' }}
-                        >
-                          <FiDownload style={{ fontSize: '12px' }} />
-                        </button>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                          Rs. {Number(item.sellPrice || item.price || 0).toFixed(2)}
+                        </span>
+                        <span className="text-success" style={{ fontSize: '13.5px', fontWeight: 700 }}>
+                          ලාභය: +Rs. {profit.toFixed(2)}
+                        </span>
                       </div>
                     </td>
                     <td>
-                      <div className="action-buttons">
-                        <button className="icon-btn edit-btn" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.2)' }} onClick={() => handleOpenStockUpdate(item)} title="Update Stock">
-                          <FiRefreshCw />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        <div>
+                          <span className={`stock-badge ${item.stock <= 5 ? 'low-stock' : 'in-stock'}`} style={{ fontSize: '13px' }}>
+                            {typeof item.stock === 'number' || !isNaN(Number(item.stock)) 
+                              ? (Number(item.stock) % 1 === 0 ? Number(item.stock) : Number(item.stock).toFixed(2)) 
+                              : (item.stock || 0)} {item.itemType === 'weighed' ? 'kg' : t('inventory.table.inStock')}
+                          </span>
+                        </div>
+                        <span className="font-bold text-primary" style={{ fontSize: '14.5px' }}>
+                          අගය: Rs. {Number((item.stock || 0) * (item.sellPrice || item.price || 0)).toFixed(2)}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        <span className="barcode-text" style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-primary)' }}>
+                          {item.barcode || `ITM${item.itemNo || ''}`}
+                        </span>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                          <button 
+                            type="button" 
+                            onClick={() => printBarcodeLabel(item)} 
+                            title="Print Barcode Label / Sticker"
+                            style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.35)', borderRadius: '6px', padding: '3px 8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 700 }}
+                          >
+                            <FiPrinter size={13} /> Print
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => downloadBarcode(item.barcode || `ITM${item.itemNo || ''}`, item.name)} 
+                            title="Download Barcode PNG Image"
+                            style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.35)', borderRadius: '6px', padding: '3px 8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 700 }}
+                          >
+                            <FiDownload size={13} /> PNG
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="action-buttons" style={{ justifyContent: 'center', gap: '6px' }}>
+                        <button className="icon-btn edit-btn" style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.25)', padding: '7px 9px', borderRadius: '8px' }} onClick={() => handleOpenStockUpdate(item)} title="Update Stock">
+                          <FiRefreshCw size={15} />
                         </button>
-                        <button className="icon-btn edit-btn" onClick={() => handleOpenEdit(item)} title={t('common.edit')}>
-                          <FiEdit2 />
+                        <button className="icon-btn edit-btn" style={{ padding: '7px 9px', borderRadius: '8px' }} onClick={() => handleOpenEdit(item)} title={t('common.edit')}>
+                          <FiEdit2 size={15} />
                         </button>
-                        <button className="icon-btn delete-btn" onClick={() => handleDelete(item.id)} title={t('common.delete')}>
-                          <FiTrash2 />
+                        <button className="icon-btn delete-btn" style={{ padding: '7px 9px', borderRadius: '8px' }} onClick={() => handleDelete(item.id)} title={t('common.delete')}>
+                          <FiTrash2 size={15} />
                         </button>
                       </div>
                     </td>
@@ -661,7 +672,7 @@ export default function Inventory() {
                 )
               ) : (
                 <tr>
-                  <td colSpan="10" className="empty-state">{t('inventory.table.empty')}</td>
+                  <td colSpan="6" className="empty-state">{t('inventory.table.empty')}</td>
                 </tr>
               )}
             </tbody>

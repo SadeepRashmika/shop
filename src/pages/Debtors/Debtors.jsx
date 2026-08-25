@@ -29,6 +29,7 @@ export default function Debtors() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentDebtor, setPaymentDebtor] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentNote, setPaymentNote] = useState('');
   const [transactionType, setTransactionType] = useState('payment'); // 'payment' or 'loan'
 
   // Ledger State
@@ -36,6 +37,20 @@ export default function Debtors() {
   const [ledgerDebtor, setLedgerDebtor] = useState(null);
   const [ledgerHistory, setLedgerHistory] = useState([]);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+
+  // Delete Transaction Modal State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [ownerPassword, setOwnerPassword] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  // Delete Debtor Modal State
+  const [isDeleteDebtorModalOpen, setIsDeleteDebtorModalOpen] = useState(false);
+  const [debtorToDelete, setDebtorToDelete] = useState(null);
+  const [debtorDeletePassword, setDebtorDeletePassword] = useState('');
+  const [debtorDeleteLoading, setDebtorDeleteLoading] = useState(false);
+  const [debtorDeleteError, setDebtorDeleteError] = useState('');
 
   // Form State
   const [formData, setFormData] = useState({
@@ -95,6 +110,7 @@ export default function Debtors() {
   const handleOpenTransaction = (debtor, type = 'payment') => {
     setPaymentDebtor(debtor);
     setPaymentAmount('');
+    setPaymentNote('');
     setTransactionType(type);
     setModalError('');
     setIsPaymentModalOpen(true);
@@ -112,6 +128,7 @@ export default function Debtors() {
         debtorId: paymentDebtor.id,
         debtorName: paymentDebtor.name,
         amount: Number(paymentAmount),
+        note: paymentNote.trim() || (transactionType === 'payment' ? 'ණය ගෙවීම (Debt Payment)' : 'අතින් එකතු කළ ණය (Manual Loan)'),
         cashierId: userData?.uid || 'unknown',
         cashierName: userData?.name || 'Unknown',
         timestamp: serverTimestamp(),
@@ -125,12 +142,25 @@ export default function Debtors() {
       });
 
       setIsPaymentModalOpen(false);
+      setPaymentNote('');
       fetchDebtors(); // refresh data
     } catch (err) {
       console.error(err);
       setModalError('Failed to process payment');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const getTransactionCreditAmount = (h) => {
+    const billTot = Number(h.total) || 0;
+    const upfront = Number(h.paidAmount !== undefined ? h.paidAmount : (h.tenderedAmount || 0));
+    if (h.creditAmount !== undefined && h.creditAmount !== null) {
+      return Number(h.creditAmount);
+    } else if (h.paymentMethod === 'credit') {
+      return upfront > 0 ? Math.max(0, billTot - upfront) : (billTot || Number(h.amount) || 0);
+    } else {
+      return Number(h.amount || h.total || 0);
     }
   };
 
@@ -145,25 +175,33 @@ export default function Debtors() {
        const debtorNameClean = (debtor.name || '').trim().toLowerCase();
 
        const isDebtorMatch = (record) => {
-         if (record.debtorId && record.debtorId === debtorIdClean) return true;
-         if (record.debtorName && record.debtorName.trim().toLowerCase() === debtorNameClean) return true;
+         if (record.debtorId) {
+           return record.debtorId === debtorIdClean;
+         }
+         if (record.debtorName && debtorNameClean) {
+           return record.debtorName.trim().toLowerCase() === debtorNameClean;
+         }
          return false;
        };
 
        const txnSnapshot = await getDocs(collection(db, 'transactions'));
        const loans = txnSnapshot.docs
-          .map(d => ({ id: d.id, ...d.data() }))
+          .map(d => ({ id: d.id, ...d.data(), _source: 'transactions' }))
           .filter(t => t.paymentMethod === 'credit' && isDebtorMatch(t));
           
        const paySnapshot = await getDocs(collection(db, 'debtor_payments'));
        const payments = paySnapshot.docs
-          .map(d => ({ id: d.id, ...d.data() }))
+          .map(d => ({ id: d.id, ...d.data(), _source: 'debtor_payments' }))
           .filter(p => isDebtorMatch(p));
 
        const reloadSnapshot = await getDocs(collection(db, 'reloads'));
        const creditReloads = reloadSnapshot.docs
-          .map(d => ({ id: d.id, ...d.data(), isReload: true }))
+          .map(d => ({ id: d.id, ...d.data(), isReload: true, _source: 'reloads' }))
           .filter(r => r.paymentMethod === 'credit' && isDebtorMatch(r));
+
+       // Avoid duplicate reloads if they are already recorded as a transaction bill
+       const txnBillNumbers = new Set(loans.map(l => l.billNumber).filter(Boolean));
+       const standaloneReloads = creditReloads.filter(r => !r.billNumber || !txnBillNumbers.has(r.billNumber));
 
        const getTimestampMs = (ts) => {
          if (!ts) return 0;
@@ -173,26 +211,63 @@ export default function Debtors() {
          return new Date(ts).getTime();
        };
 
-       let history = [...loans, ...payments, ...creditReloads].sort((a,b) => {
+       const rawHistory = [...loans, ...payments, ...standaloneReloads].sort((a,b) => {
          const tA = getTimestampMs(a.timestamp || a.date);
          const tB = getTimestampMs(b.timestamp || b.date);
          return tB - tA;
        });
 
-       // If no transaction history but debtor has debt, show an opening balance entry
-       if (history.length === 0 && Number(debtor.totalOwed) > 0) {
+       // Deduplicate by ID
+       const seenIds = new Set();
+       let history = [];
+       for (const item of rawHistory) {
+         if (!seenIds.has(item.id)) {
+           seenIds.add(item.id);
+           history.push(item);
+         }
+       }
+
+       // Calculate true total from history
+       let calculatedDebt = 0;
+       if (history.length > 0) {
+         let running = 0;
+         for (const h of history) {
+           const a = getTransactionCreditAmount(h);
+           if (h.type === 'payment') {
+             running -= a;
+           } else {
+             running += a;
+           }
+         }
+         calculatedDebt = Math.max(0, running);
+       } else if (Number(debtor.totalOwed) > 0) {
+         calculatedDebt = Number(debtor.totalOwed);
          history = [{
            id: '__opening__',
            type: 'opening',
-           amount: Number(debtor.totalOwed),
+           amount: calculatedDebt,
            debtorId: debtor.id,
            debtorName: debtor.name,
            cashierName: 'System',
            note: 'Opening Balance (set at registration)',
            timestamp: debtor.createdAt || null,
+           _source: 'opening_virtual'
          }];
        }
 
+       // Automatically sync debtor document totalOwed with the exact sum of transactions
+       const currentStored = Number(debtor.totalOwed) || 0;
+       if (Math.abs(currentStored - calculatedDebt) > 0.01) {
+         updateDoc(doc(db, 'debtors', debtor.id), {
+           totalOwed: calculatedDebt,
+           updatedAt: serverTimestamp()
+         }).catch(e => console.warn('Sync total debt error:', e));
+
+         debtor.totalOwed = calculatedDebt;
+         setDebtors(prev => prev.map(d => d.id === debtor.id ? { ...d, totalOwed: calculatedDebt } : d));
+       }
+
+       setLedgerDebtor({ ...debtor, totalOwed: calculatedDebt });
        setLedgerHistory(history);
      } catch (err) {
        console.error("Error loading debtor ledger:", err);
@@ -201,10 +276,117 @@ export default function Debtors() {
      }
   };
 
+  const handleRequestDeleteTransaction = (item, calculatedAmount, label) => {
+    setItemToDelete({
+      ...item,
+      calculatedAmount,
+      label
+    });
+    setOwnerPassword('');
+    setDeleteError('');
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDeleteTransaction = async (e) => {
+    e.preventDefault();
+    if (!itemToDelete) return;
+
+    if (ownerPassword.trim() !== '723412641') {
+      setDeleteError('වැරදි මුරපදයකි! කරුණාකර නිවැරදි Owner Password එක ඇතුළත් කරන්න.');
+      return;
+    }
+
+    setDeleteLoading(true);
+    setDeleteError('');
+
+    try {
+      const item = itemToDelete;
+
+      // 1. Delete document from respective Firestore collection
+      if (item._source === 'transactions') {
+        await deleteDoc(doc(db, 'transactions', item.id));
+      } else if (item._source === 'reloads') {
+        await deleteDoc(doc(db, 'reloads', item.id));
+      } else if (item._source === 'debtor_payments') {
+        await deleteDoc(doc(db, 'debtor_payments', item.id));
+      }
+
+      // 2. Compute new history and recalculate exact total
+      const updatedHistory = ledgerHistory.filter(h => h.id !== item.id);
+      let newTotal = 0;
+      for (const h of updatedHistory) {
+        const a = getTransactionCreditAmount(h);
+        if (h.type === 'payment') {
+          newTotal -= a;
+        } else {
+          newTotal += a;
+        }
+      }
+      newTotal = Math.max(0, newTotal);
+
+      if (ledgerDebtor?.id) {
+        await updateDoc(doc(db, 'debtors', ledgerDebtor.id), {
+          totalOwed: newTotal,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      // 3. Update local state
+      setLedgerHistory(updatedHistory);
+      setLedgerDebtor(prev => prev ? { ...prev, totalOwed: newTotal } : null);
+      setDebtors(prev => prev.map(d => d.id === ledgerDebtor?.id ? { ...d, totalOwed: newTotal } : d));
+
+      setIsDeleteModalOpen(false);
+      setItemToDelete(null);
+      setOwnerPassword('');
+
+      // Refresh debtors list in background
+      fetchDebtors();
+    } catch (err) {
+      console.error("Error deleting debtor transaction:", err);
+      setDeleteError('ගනුදෙනුව මැකීමට නොහැකි විය: ' + (err.message || 'Error occurred'));
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleRequestDeleteDebtor = (debtor) => {
+    setDebtorToDelete(debtor);
+    setDebtorDeletePassword('');
+    setDebtorDeleteError('');
+    setIsDeleteDebtorModalOpen(true);
+  };
+
+  const handleConfirmDeleteDebtor = async (e) => {
+    e.preventDefault();
+    if (!debtorToDelete) return;
+
+    if (debtorDeletePassword.trim() !== '723412641') {
+      setDebtorDeleteError('වැරදි මුරපදයකි! කරුණාකර නිවැරදි Owner Password එක ඇතුළත් කරන්න.');
+      return;
+    }
+
+    setDebtorDeleteLoading(true);
+    setDebtorDeleteError('');
+
+    try {
+      await deleteDoc(doc(db, 'debtors', debtorToDelete.id));
+      setDebtors(prev => prev.filter(d => d.id !== debtorToDelete.id));
+      setIsDeleteDebtorModalOpen(false);
+      setDebtorToDelete(null);
+      setDebtorDeletePassword('');
+    } catch (error) {
+      console.error("Error deleting debtor:", error);
+      setDebtorDeleteError('ණයහිමියා මැකීමට නොහැකි විය: ' + (error.message || 'Error occurred'));
+    } finally {
+      setDebtorDeleteLoading(false);
+    }
+  };
+
   const downloadReport = async (type) => {
     try {
       const headers = type === 'monthly' 
-        ? ['Bill No', 'Date', 'Type', 'Debtor Name', 'Debt Amount (Rs.)', 'Total Bill (Rs.)', 'Paid Upfront (Rs.)', 'Details / Note', 'Cashier']
+        ? ['බිල්පත් අංකය (Bill No)', 'දිනය සහ වේලාව (Date & Time)', 'ගනුදෙනු වර්ගය (Type)', 'ණයහිමියා (Debtor)', 'එකතු වූ ණය (Debt Added +)', 'ගෙවූ මුදල (Payment Paid -)', 'මුළු බිල (Total Bill)', 'අත්පිට මුදල (Paid Upfront)', 'විස්තරය (Details / Note)', 'අයකැමි (Cashier)']
         : ['Debtor No', 'Name', 'Phone', 'Address', 'Total Owed (Rs.)'];
       
       let rows = [];
@@ -219,15 +401,15 @@ export default function Debtors() {
 
         const getTimestampMs = (ts) => {
           if (!ts) return 0;
-          if (ts.seconds) return ts.seconds * 1000;         // Firestore Timestamp
-          if (ts.toDate) return ts.toDate().getTime();       // Firestore Timestamp object
-          if (typeof ts === 'number') return ts;             // already ms
+          if (ts.seconds) return ts.seconds * 1000;
+          if (ts.toDate) return ts.toDate().getTime();
+          if (typeof ts === 'number') return ts;
           return new Date(ts).getTime();
         };
 
         const formatDate = (ts) => {
           const ms = getTimestampMs(ts);
-          return ms ? new Date(ms).toLocaleString() : 'Unknown';
+          return ms ? new Date(ms).toLocaleString('si-LK', { dateStyle: 'medium', timeStyle: 'short' }) || new Date(ms).toLocaleString() : 'Unknown';
         };
 
         const paySnapshot = await getDocs(collection(db, 'debtor_payments'));
@@ -241,16 +423,18 @@ export default function Debtors() {
           const d = docSnap.data();
           const tsMs = getTimestampMs(d.timestamp || d.date);
           if (tsMs >= startOfMonthMs) {
-            const actType = d.type === 'payment' ? 'Payment Received' : (d.type === 'opening' ? 'Opening Balance' : 'Manual Loan');
+            const isPayment = d.type === 'payment';
+            const actType = isPayment ? 'ණය ගෙවීම (Payment Received)' : (d.type === 'opening' ? 'ආරම්භක ණය (Opening Balance)' : 'අතින් එකතු කළ ණය (Manual Loan)');
             allActs.push({ 
               billNo: '-',
               _date: formatDate(d.timestamp || d.date),
               actType, 
               debtorName: d.debtorName || 'Unknown',
-              debtAmount: Number(d.amount) || 0,
+              debtAdded: !isPayment ? Number(d.amount || 0).toFixed(2) : '-',
+              paymentPaid: isPayment ? Number(d.amount || 0).toFixed(2) : '-',
               totalBill: '-',
-              paidUpfront: d.type === 'payment' ? Number(d.amount).toFixed(2) : '-',
-              details: d.note || (d.type === 'payment' ? 'Debt Payment' : 'Loan Entry'),
+              paidUpfront: isPayment ? Number(d.amount || 0).toFixed(2) : '-',
+              details: d.note || (isPayment ? 'ණය පියවීම' : 'අතින් එකතු කළ ණය'),
               cashierName: d.cashierName || 'Unknown',
               _tsMs: tsMs
             });
@@ -270,31 +454,40 @@ export default function Debtors() {
             allActs.push({
               billNo: formattedBillNo,
               _date: formatDate(d.timestamp || d.date),
-              actType: upfront > 0 ? 'Credit Sale (Partial Payment)' : 'Credit Sale',
+              actType: upfront > 0 ? 'ණයට බිල්පත (අර්ධ ගෙවීම්)' : 'ණයට බිල්පත (Credit Sale)',
               debtorName: d.debtorName || 'Unknown',
-              debtAmount: credAmt > 0 ? credAmt : billTot,
+              debtAdded: Number(credAmt > 0 ? credAmt : billTot).toFixed(2),
+              paymentPaid: '-',
               totalBill: billTot > 0 ? billTot.toFixed(2) : '-',
               paidUpfront: upfront > 0 ? upfront.toFixed(2) : '-',
-              details: upfront > 0 ? `Paid Rs.${upfront.toFixed(2)} at checkout` : 'Full Credit',
+              details: upfront > 0 ? `බිල් මුදල Rs.${billTot.toFixed(2)} න් Rs.${upfront.toFixed(2)} ගෙවා ඉතිරිය ණයට එකතු විය` : 'සම්පූර්ණ බිල්පත ණයට',
               cashierName: d.cashierName || 'Unknown',
               _tsMs: tsMs
             });
           }
         });
 
-        // Credit reloads
+        // Credit reloads (skip if already in transactions bills)
+        const txnBillNumbers = new Set();
+        txnSnapshot.forEach(docSnap => {
+          const d = docSnap.data();
+          if (d.billNumber) txnBillNumbers.add(d.billNumber);
+        });
+
         reloadSnapshot.forEach(docSnap => {
           const d = docSnap.data();
           const tsMs = getTimestampMs(d.timestamp || d.date);
           if (d.paymentMethod === 'credit' && tsMs >= startOfMonthMs) {
+            if (d.billNumber && txnBillNumbers.has(d.billNumber)) return;
             const formattedBillNo = d.billNumber ? `#${String(d.billNumber).padStart(6, '0')}` : '-';
             allActs.push({
               billNo: formattedBillNo,
               _date: formatDate(d.timestamp || d.date),
-              actType: 'Credit Reload',
+              actType: 'Reload ණය (Credit Reload)',
               debtorName: d.debtorName || 'Unknown',
-              debtAmount: Number(d.amount) || 0,
-              totalBill: Number(d.amount).toFixed(2),
+              debtAdded: Number(d.amount || 0).toFixed(2),
+              paymentPaid: '-',
+              totalBill: Number(d.amount || 0).toFixed(2),
               paidUpfront: '-',
               details: `Reload #${d.phone || ''} (${d.network || ''})`,
               cashierName: d.cashierName || 'Unknown',
@@ -310,7 +503,8 @@ export default function Debtors() {
           a._date,
           a.actType,
           a.debtorName,
-          Number(a.debtAmount || 0).toFixed(2),
+          a.debtAdded !== '-' ? `+ Rs. ${a.debtAdded}` : '-',
+          a.paymentPaid !== '-' ? `- Rs. ${a.paymentPaid}` : '-',
           a.totalBill,
           a.paidUpfront,
           a.details || '-',
@@ -324,7 +518,7 @@ export default function Debtors() {
       }
 
       const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-      worksheet['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 26 }, { wch: 22 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 35 }, { wch: 18 }];
+      worksheet['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 28 }, { wch: 22 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 45 }, { wch: 18 }];
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
       XLSX.writeFile(workbook, `Debtor_Report_${type}_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -349,68 +543,113 @@ export default function Debtors() {
        return new Date(ts).getTime();
      };
 
-     const headers = ['Bill No', 'Date', 'Type', 'Debt Amount (Rs.)', 'Total Bill (Rs.)', 'Paid Upfront (Rs.)', 'Note / Details', 'Cashier'];
-     const rows = ledgerHistory.map(h => {
-        const isPayment = h.type === 'payment';
-        const isOpening = h.type === 'opening';
-        const isLoan = h.type === 'loan';
-        const isReload = h.isReload;
-        
-        let actType = 'Credit Sale';
-        if (isPayment) actType = 'Payment Received';
-        else if (isOpening) actType = 'Opening Balance';
-        else if (isLoan) actType = 'Manual Loan Added';
-        else if (isReload) actType = 'Credit Reload';
-
-        const billTot = Number(h.total) || 0;
-        const upfront = Number(h.paidAmount !== undefined ? h.paidAmount : (h.tenderedAmount || 0));
-        let amt = 0;
-        if (h.creditAmount !== undefined && h.creditAmount !== null) {
-          amt = Number(h.creditAmount);
-        } else if (h.paymentMethod === 'credit') {
-          amt = upfront > 0 ? Math.max(0, billTot - upfront) : (billTot || Number(h.amount) || 0);
-        } else {
-          amt = Number(h.amount || h.total || 0);
-        }
-
-        let formattedBillNo = '-';
-        let note = '-';
-        if (h.billNumber) {
-          formattedBillNo = `#${String(h.billNumber).padStart(6, '0')}`;
-          if (upfront > 0 && billTot > 0) {
-            note = `Paid Rs.${upfront.toFixed(2)} at checkout, remaining debt added`;
-            actType = 'Credit Sale (Partial Payment)';
-          } else {
-            note = 'Full Credit Sale';
-          }
-        } else if (h.phone) {
-          note = `Reload #${h.phone} (${h.network || ''})`;
-        } else if (h.note) {
-          note = h.note;
-        }
-
-        const tsMs = getTimestampMs(h.timestamp || h.date);
-        const date = tsMs ? new Date(tsMs).toLocaleString() : 'N/A';
-        return [
-          formattedBillNo,
-          date,
-          actType,
-          Number(amt).toFixed(2),
-          billTot > 0 ? billTot.toFixed(2) : '-',
-          upfront > 0 ? upfront.toFixed(2) : (isPayment ? Number(h.amount).toFixed(2) : '-'),
-          note,
-          h.cashierName || 'Unknown'
-        ];
+     // Sort oldest to newest to calculate running balance chronologically
+     const sortedAsc = [...ledgerHistory].sort((a, b) => {
+       const tA = getTimestampMs(a.timestamp || a.date);
+       const tB = getTimestampMs(b.timestamp || b.date);
+       return tA - tB;
      });
+
+     let runningDebt = 0;
+     const itemsWithBalance = sortedAsc.map(h => {
+       const isPayment = h.type === 'payment';
+       const isOpening = h.type === 'opening';
+       const isLoan = h.type === 'loan';
+       const isReload = h.isReload;
+       
+       let actType = 'ණයට බිල්පත (Credit Sale)';
+       if (isPayment) actType = 'ණය ගෙවීම (Payment Received)';
+       else if (isOpening) actType = 'ආරම්භක ණය (Opening Balance)';
+       else if (isLoan) actType = 'අතින් එකතු කළ ණය (Manual Loan)';
+       else if (isReload) actType = 'Reload ණය (Credit Reload)';
+
+       const billTot = Number(h.total) || 0;
+       const upfront = Number(h.paidAmount !== undefined ? h.paidAmount : (h.tenderedAmount || 0));
+       const amt = getTransactionCreditAmount(h);
+
+       if (isPayment) {
+         runningDebt -= amt;
+       } else {
+         runningDebt += amt;
+       }
+
+       let formattedBillNo = '-';
+       let note = '-';
+       if (h.billNumber) {
+         formattedBillNo = `#${String(h.billNumber).padStart(6, '0')}`;
+         if (upfront > 0 && billTot > 0) {
+           note = `බිල් මුදල Rs. ${billTot.toFixed(2)} න් මුදලින් Rs. ${upfront.toFixed(2)} ගෙවා ඉතිරිය ණයට එකතු විය`;
+           actType = 'ණයට බිල්පත (අර්ධ ගෙවීම්)';
+         } else {
+           note = `සම්පූර්ණ බිල්පත ණයට (Rs. ${billTot.toFixed(2)})`;
+         }
+       } else if (h.phone) {
+         note = `Reload #${h.phone} (${h.network || ''})`;
+       } else if (h.note) {
+         note = h.note;
+       } else if (isPayment) {
+         note = 'පාරිභෝගිකයා විසින් ණය පියවීම';
+       } else if (isLoan) {
+         note = 'අතින් එකතු කළ ණය';
+       } else if (isOpening) {
+         note = 'ලියාපදිංචියේදී තිබූ ආරම්භක ණය';
+       }
+
+       const tsMs = getTimestampMs(h.timestamp || h.date);
+       const date = tsMs ? new Date(tsMs).toLocaleString('si-LK', { dateStyle: 'medium', timeStyle: 'short' }) || new Date(tsMs).toLocaleString() : 'N/A';
+
+       return {
+         billNo: formattedBillNo,
+         date,
+         actType,
+         debtAdded: !isPayment ? Number(amt).toFixed(2) : '-',
+         paymentPaid: isPayment ? Number(amt).toFixed(2) : '-',
+         runningBalance: Math.max(0, runningDebt).toFixed(2),
+         note,
+         cashier: h.cashierName || 'Unknown',
+         _ts: tsMs
+       };
+     });
+
+     // Reverse back to newest first for presentation
+     const rows = itemsWithBalance.reverse().map(item => [
+       item.billNo,
+       item.date,
+       item.actType,
+       item.debtAdded !== '-' ? `+ Rs. ${item.debtAdded}` : '-',
+       item.paymentPaid !== '-' ? `- Rs. ${item.paymentPaid}` : '-',
+       `Rs. ${item.runningBalance}`,
+       item.note,
+       item.cashier
+     ]);
+
+     const headers = [
+       'බිල්පත් අංකය (Bill No)',
+       'දිනය සහ වේලාව (Date & Time)',
+       'ගනුදෙනු වර්ගය (Transaction Type)',
+       'එකතු වූ ණය (Debt Added +)',
+       'ගෙවූ මුදල (Payment -)',
+       'ඉතිරි ණය ශේෂය (Running Balance)',
+       'විස්තරය / Note',
+       'අයකැමි (Cashier)'
+     ];
 
      // Summary row
      const totalOwed = Number(ledgerDebtor.totalOwed || 0).toFixed(2);
      rows.push([]);
-     rows.push(['', '', 'Total Outstanding Debt', totalOwed, '', '', '', '']);
+     rows.push(['', '', '', '', 'මුළු ණය ශේෂය (Total Debt):', `Rs. ${totalOwed}`, '', '']);
      
      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-     // Auto column widths
-     worksheet['!cols'] = [{ wch: 14 }, { wch: 22 }, { wch: 26 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 45 }, { wch: 18 }];
+     worksheet['!cols'] = [
+       { wch: 16 }, 
+       { wch: 22 }, 
+       { wch: 28 }, 
+       { wch: 20 }, 
+       { wch: 20 }, 
+       { wch: 24 }, 
+       { wch: 45 }, 
+       { wch: 18 }
+     ];
      const workbook = XLSX.utils.book_new();
      XLSX.utils.book_append_sheet(workbook, worksheet, "Ledger");
      XLSX.writeFile(workbook, `Ledger_${ledgerDebtor.name}_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -761,7 +1000,7 @@ export default function Debtors() {
                         <button className="icon-btn edit-btn" onClick={(e) => { e.stopPropagation(); handleOpenEdit(debtor); }} title={t('common.edit')}>
                           <FiEdit2 />
                         </button>
-                        <button className="icon-btn delete-btn" onClick={(e) => { e.stopPropagation(); handleDelete(debtor.id); }} title={t('common.delete')}>
+                        <button className="icon-btn delete-btn" onClick={(e) => { e.stopPropagation(); handleRequestDeleteDebtor(debtor); }} title={t('common.delete')}>
                           <FiTrash2 />
                         </button>
                       </div>
@@ -861,6 +1100,13 @@ export default function Debtors() {
             required
             placeholder="Enter amount"
           />
+          <Input
+            label="Note / හේතුව හෝ විස්තරය (Optional)"
+            icon={<FiEdit2/>}
+            value={paymentNote}
+            onChange={e => setPaymentNote(e.target.value)}
+            placeholder="උදා: භාණ්ඩ සඳහා / අත්තිකාරම්"
+          />
           <div className="modal-actions mt-4">
             <Button type="button" variant="secondary" onClick={() => setIsPaymentModalOpen(false)}>{t('common.cancel')}</Button>
             <Button type="submit" loading={actionLoading}>Confirm {transactionType === 'payment' ? 'Payment' : 'Loan'}</Button>
@@ -875,105 +1121,341 @@ export default function Debtors() {
         title={`Debtor Profile`}
       >
         <div className="ledger-container">
-           <div className="flex flex-wrap justify-between items-start mb-6 bg-[rgba(0,0,0,0.2)] p-4 rounded-lg border border-[rgba(255,255,255,0.05)]">
+           <div className="flex flex-wrap justify-between items-start mb-6" style={{ background: 'rgba(0,0,0,0.04)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.08)' }}>
                <div>
-                 <h2 className="text-xl font-bold mb-2 text-white">{ledgerDebtor?.name} <span className="text-xs text-secondary bg-[rgba(255,255,255,0.1)] px-2 py-1 rounded ml-2">#{ledgerDebtor?.debtorNo || '-'}</span></h2>
-                 <p className="text-sm text-secondary mb-1"><FiPhone className="inline mr-2"/>{ledgerDebtor?.phone}</p>
-                 <p className="text-sm text-secondary mb-1"><FiUser className="inline mr-2"/>{ledgerDebtor?.address || 'No Address Provided'}</p>
-                 <p className="text-sm text-secondary"><FiCreditCard className="inline mr-2"/>{ledgerDebtor?.barcode}</p>
+                 <h2 className="text-xl font-bold mb-2" style={{ color: '#0f172a', fontWeight: 800 }}>
+                   {ledgerDebtor?.name} <span style={{ fontSize: '12px', color: '#475569', background: 'rgba(0,0,0,0.06)', padding: '2px 8px', borderRadius: '6px', marginLeft: '6px', fontWeight: 700 }}>#{ledgerDebtor?.debtorNo || '-'}</span>
+                 </h2>
+                 <p className="text-sm mb-1" style={{ color: '#334155', fontWeight: 600 }}><FiPhone className="inline mr-2"/>{ledgerDebtor?.phone}</p>
+                 <p className="text-sm mb-1" style={{ color: '#334155', fontWeight: 600 }}><FiUser className="inline mr-2"/>{ledgerDebtor?.address || 'No Address Provided'}</p>
+                 <p className="text-sm" style={{ color: '#334155', fontWeight: 600 }}><FiCreditCard className="inline mr-2"/>{ledgerDebtor?.barcode}</p>
                </div>
                <div className="text-right">
-                 <p className="text-secondary text-sm mb-1">Total Outstanding Debt</p>
-                 <h3 className="text-error font-bold text-3xl">Rs. {Number(ledgerDebtor?.totalOwed || 0).toFixed(2)}</h3>
+                 <p className="text-sm mb-1" style={{ color: '#475569', fontWeight: 700 }}>Total Outstanding Debt</p>
+                 <h3 className="text-error font-bold text-3xl" style={{ color: '#dc2626', fontWeight: 800 }}>Rs. {Number(ledgerDebtor?.totalOwed || 0).toFixed(2)}</h3>
                </div>
            </div>
            
            <div className="flex justify-between items-center mb-2">
-             <h3 className="font-bold text-lg">Transaction Ledger</h3>
+             <h3 className="font-bold text-lg" style={{ color: '#0f172a', fontWeight: 800 }}>Transaction Ledger</h3>
              <Button onClick={downloadSingleLedger} variant="secondary" icon={<FiDownload />} size="sm">
                Export Excel
              </Button>
            </div>
            
            {ledgerLoading ? (
-             <div className="text-center p-4">Loading history...</div>
+             <div className="text-center p-4" style={{ color: '#475569', fontWeight: 600 }}>Loading history...</div>
            ) : (
-             <div className="ledger-list mt-4" style={{ maxHeight: '350px', overflowY: 'auto' }}>
-                  {ledgerHistory.length > 0 ? ledgerHistory.map(h => {
-                    const isPayment = h.type === 'payment';
-                    const isOpening = h.type === 'opening';
-                    const isLoan = h.type === 'loan';
-                    const isReload = h.isReload;
+             <div className="ledger-list mt-4" style={{ maxHeight: '380px', overflowY: 'auto', padding: '6px', background: 'rgba(0,0,0,0.03)', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.08)' }}>
+                 {(() => {
+                   const getTimestampMs = (ts) => {
+                     if (!ts) return 0;
+                     if (ts.seconds) return ts.seconds * 1000;
+                     if (ts.toDate) return ts.toDate().getTime();
+                     if (typeof ts === 'number') return ts;
+                     return new Date(ts).getTime();
+                   };
 
-                    const billTot = Number(h.total) || 0;
-                    const upfront = Number(h.paidAmount !== undefined ? h.paidAmount : (h.tenderedAmount || 0));
-                    
-                    let amt = 0;
-                    if (h.creditAmount !== undefined && h.creditAmount !== null) {
-                      amt = Number(h.creditAmount);
-                    } else if (h.paymentMethod === 'credit') {
-                      amt = upfront > 0 ? Math.max(0, billTot - upfront) : (billTot || Number(h.amount) || 0);
-                    } else {
-                      amt = Number(h.amount || h.total || 0);
-                    }
+                   const sortedAsc = [...ledgerHistory].sort((a, b) => {
+                     const tA = getTimestampMs(a.timestamp || a.date);
+                     const tB = getTimestampMs(b.timestamp || b.date);
+                     return tA - tB;
+                   });
 
-                    const getTimestampMs = (ts) => {
-                      if (!ts) return 0;
-                      if (ts.seconds) return ts.seconds * 1000;
-                      if (ts.toDate) return ts.toDate().getTime();
-                      return new Date(ts).getTime();
-                    };
-                    const tsMs = getTimestampMs(h.timestamp || h.date);
-                    const date = tsMs ? new Date(tsMs).toLocaleString() : (isOpening ? 'At Registration' : 'Just now');
+                   let runningDebt = 0;
+                   const itemsWithBalance = sortedAsc.map(h => {
+                     const isPayment = h.type === 'payment';
+                     const amt = getTransactionCreditAmount(h);
+                     if (isPayment) {
+                       runningDebt -= amt;
+                     } else {
+                       runningDebt += amt;
+                     }
+                     return {
+                       ...h,
+                       calculatedAmt: amt,
+                       runningBalance: Math.max(0, runningDebt)
+                     };
+                   });
 
-                    let label, colorClass, prefix, subDetails = '';
-                    if (isPayment) {
-                      label = 'Payment Received (ණය ගෙවීම)';
-                      colorClass = 'text-success';
-                      prefix = '+';
-                    } else if (isOpening) {
-                      label = 'Opening Balance (ලියාපදිංචියේදී තිබූ ණය)';
-                      colorClass = 'text-warning';
-                      prefix = '–';
-                    } else if (isReload) {
-                      label = `Credit Reload — #${h.phone || ''} (${h.network || ''})`;
-                      colorClass = 'text-error';
-                      prefix = '–';
-                    } else if (isLoan) {
-                      label = h.note || 'Manual Loan Added (අතින් එකතු කළ ණය)';
-                      colorClass = 'text-error';
-                      prefix = '–';
-                    } else {
-                      label = h.billNumber
-                        ? `Credit Sale — Bill #${String(h.billNumber).padStart(6,'0')}`
-                        : (h.note || 'Credit Sale');
-                      colorClass = 'text-error';
-                      prefix = '–';
-                      if (upfront > 0 && billTot > 0) {
-                        subDetails = ` • Bill: Rs. ${billTot.toFixed(2)} | ගෙවූ මුදල: Rs. ${upfront.toFixed(2)}`;
-                      }
-                    }
+                   const displayItems = itemsWithBalance.reverse();
 
-                    return (
-                      <div key={h.id} className="ledger-item flex items-center justify-between p-3 border-b border-[rgba(255,255,255,0.05)]">
-                        <div>
-                           <p className="font-bold text-sm">{label}</p>
-                           <p className="text-xs text-secondary">{date} • By: {h.cashierName || 'Cashier'}{subDetails}</p>
-                        </div>
-                        <div className={`font-bold ${colorClass}`} style={{ fontSize: '1rem' }}>
-                           {prefix} Rs. {Number(amt).toFixed(2)}
-                        </div>
-                      </div>
-                    );
-                  }) : (
-                    <p className="text-secondary text-center p-4">No transaction history found.</p>
-                  )}
-              </div>
-           )}
-           <div className="modal-actions mt-6">
-             <Button type="button" variant="secondary" onClick={() => setIsLedgerOpen(false)}>Close</Button>
-           </div>
-        </div>
+                   return displayItems.length > 0 ? displayItems.map(h => {
+                     const isPayment = h.type === 'payment';
+                     const isOpening = h.type === 'opening';
+                     const isLoan = h.type === 'loan';
+                     const isReload = h.isReload;
+
+                     const billTot = Number(h.total) || 0;
+                     const upfront = Number(h.paidAmount !== undefined ? h.paidAmount : (h.tenderedAmount || 0));
+                     const amt = h.calculatedAmt;
+
+                     const tsMs = getTimestampMs(h.timestamp || h.date);
+                     const date = tsMs ? new Date(tsMs).toLocaleString() : (isOpening ? 'At Registration' : 'Just now');
+
+                     let label = '';
+                     let color = '#dc2626';
+                     let prefix = '+';
+                     let subDetails = '';
+
+                     if (isPayment) {
+                       label = 'ණය ගෙවීම (Payment Received)';
+                       color = '#16a34a';
+                       prefix = '–';
+                     } else if (isOpening) {
+                       label = (h.note && h.note.trim()) ? h.note.trim() : 'ආරම්භක ණය (Opening Balance)';
+                       color = '#d97706';
+                       prefix = '+';
+                     } else if (isReload) {
+                       label = `Reload ණය — #${h.phone || ''} (${h.network || ''})`;
+                       color = '#dc2626';
+                       prefix = '+';
+                     } else if (isLoan) {
+                       label = (h.note && h.note.trim()) ? h.note.trim() : 'අතින් එකතු කළ ණය (Manual Loan)';
+                       color = '#dc2626';
+                       prefix = '+';
+                     } else {
+                       if (h.billNumber) {
+                         label = `ණයට බිල්පත — Bill #${String(h.billNumber).padStart(6,'0')}`;
+                       } else if (h.note && h.note.trim()) {
+                         label = h.note.trim();
+                       } else {
+                         label = 'ණයට බිල්පත (Credit Sale)';
+                       }
+                       color = '#dc2626';
+                       prefix = '+';
+                       if (upfront > 0 && billTot > 0) {
+                         subDetails = ` • Bill: Rs. ${billTot.toFixed(2)} | මුදලින් ගෙවූ: Rs. ${upfront.toFixed(2)}`;
+                       }
+                     }
+
+                     return (
+                       <div key={h.id} className="ledger-item flex items-center justify-between p-3" style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.08)', padding: '12px 8px' }}>
+                         <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <p className="font-bold text-sm" style={{ margin: 0, color: '#0f172a', fontWeight: 800, fontSize: '14px' }}>{label}</p>
+                              {h.note && !isOpening && (
+                                <span style={{ fontSize: '11px', background: 'rgba(15, 23, 42, 0.08)', padding: '2px 8px', borderRadius: '6px', color: '#0f172a', fontWeight: 700, border: '1px solid rgba(15, 23, 42, 0.12)' }}>
+                                  {h.note}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs" style={{ margin: '4px 0 0 0', color: '#334155', fontWeight: 600, fontSize: '12px' }}>
+                              {date} • By: {h.cashierName || 'Cashier'}{subDetails}
+                            </p>
+                         </div>
+                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                           <div style={{ textAlign: 'right' }}>
+                             <div className="font-bold" style={{ fontSize: '1.05rem', whiteSpace: 'nowrap', color, fontWeight: 800 }}>
+                                {prefix} Rs. {Number(amt).toFixed(2)}
+                             </div>
+                             <div style={{ fontSize: '12px', color: '#0f172a', fontWeight: 700, marginTop: '2px' }}>
+                               ශේෂය: Rs. {Number(h.runningBalance).toFixed(2)}
+                             </div>
+                           </div>
+                           <button
+                             type="button"
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               handleRequestDeleteTransaction(h, amt, label);
+                             }}
+                             className="icon-btn"
+                             title="ගනුදෙනුව මකන්න (Owner Only)"
+                             style={{
+                               padding: '6px 8px',
+                               borderRadius: '8px',
+                               background: 'rgba(239, 68, 68, 0.12)',
+                               color: '#ef4444',
+                               border: '1px solid rgba(239, 68, 68, 0.25)',
+                               cursor: 'pointer',
+                               display: 'inline-flex',
+                               alignItems: 'center',
+                               justifyContent: 'center',
+                               transition: 'all 0.2s ease'
+                             }}
+                           >
+                             <FiTrash2 size={14} />
+                           </button>
+                         </div>
+                       </div>
+                     );
+                   }) : (
+                     <p className="text-center p-4" style={{ color: '#475569', fontWeight: 600 }}>No transaction history found.</p>
+                   );
+                 })()}
+             </div>
+          )}
+          <div className="modal-actions mt-6">
+            <Button type="button" variant="secondary" onClick={() => setIsLedgerOpen(false)}>Close</Button>
+          </div>
+       </div>
+     </Modal>
+
+      {/* Owner Confirmation Modal for Deleting Ledger Transaction */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          if (!deleteLoading) {
+            setIsDeleteModalOpen(false);
+            setItemToDelete(null);
+            setOwnerPassword('');
+            setDeleteError('');
+          }
+        }}
+        title="🔐 Owner Authorization (ගනුදෙනුව මැකීම)"
+      >
+        <form onSubmit={handleConfirmDeleteTransaction} className="debtor-form">
+          {deleteError && (
+            <div className="modal-error" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '10px', borderRadius: '8px', border: '1px solid #ef4444', marginBottom: '10px' }}>
+              {deleteError}
+            </div>
+          )}
+
+          <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--border-color)', marginBottom: '12px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>මැකීමට තෝරාගත් ගනුදෙනුව:</p>
+            <p style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{itemToDelete?.label}</p>
+            <p style={{ fontWeight: 800, fontSize: '1.2rem', color: itemToDelete?.type === 'payment' ? '#10b981' : '#ef4444', marginTop: '4px' }}>
+              {itemToDelete?.type === 'payment' ? '+' : '–'} Rs. {Number(itemToDelete?.calculatedAmount || itemToDelete?.amount || 0).toFixed(2)}
+            </p>
+            <p style={{ fontSize: '11px', color: '#f59e0b', marginTop: '6px' }}>
+              ⚠️ මෙම ගනුදෙනුව මැකූ පසු පාරිභෝගිකයාගේ මුළු ණය ශේෂය ස්වයංක්‍රීයව වෙනස් වේ.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--text-primary)' }}>
+              Owner Password එක ඇතුළත් කරන්න:
+            </label>
+            <input
+              type="password"
+              value={ownerPassword}
+              onChange={(e) => setOwnerPassword(e.target.value)}
+              placeholder="Enter Owner Password"
+              autoFocus
+              required
+              className="search-input"
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-glass, rgba(0, 0, 0, 0.2))',
+                color: 'var(--text-primary)',
+                fontSize: '15px'
+              }}
+            />
+          </div>
+
+          <div className="modal-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setIsDeleteModalOpen(false);
+                setItemToDelete(null);
+                setOwnerPassword('');
+                setDeleteError('');
+              }}
+              disabled={deleteLoading}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="submit"
+              loading={deleteLoading}
+              style={{ background: '#ef4444', color: '#fff', border: 'none' }}
+            >
+              <FiTrash2 style={{ marginRight: '6px' }} /> ගනුදෙනුව මකන්න (Delete)
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Owner Confirmation Modal for Deleting Entire Debtor */}
+      <Modal
+        isOpen={isDeleteDebtorModalOpen}
+        onClose={() => {
+          if (!debtorDeleteLoading) {
+            setIsDeleteDebtorModalOpen(false);
+            setDebtorToDelete(null);
+            setDebtorDeletePassword('');
+            setDebtorDeleteError('');
+          }
+        }}
+        title="🔐 Owner Authorization (ණයහිමියා මැකීම)"
+      >
+        <form onSubmit={handleConfirmDeleteDebtor} className="debtor-form">
+          {debtorDeleteError && (
+            <div className="modal-error" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '10px', borderRadius: '8px', border: '1px solid #ef4444', marginBottom: '10px' }}>
+              {debtorDeleteError}
+            </div>
+          )}
+
+          <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--border-color)', marginBottom: '12px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>මැකීමට තෝරාගත් ණයහිමියා (Debtor Details):</p>
+            <p style={{ fontWeight: 700, fontSize: '16px', color: 'var(--text-primary)' }}>
+              {debtorToDelete?.name} <span style={{ fontSize: '12px', opacity: 0.7 }}>#{debtorToDelete?.debtorNo || '-'}</span>
+            </p>
+            {debtorToDelete?.phone && (
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                📞 {debtorToDelete.phone}
+              </p>
+            )}
+            <p style={{ fontWeight: 800, fontSize: '1.2rem', color: '#ef4444', marginTop: '6px' }}>
+              මුළු ණය ශේෂය: Rs. {Number(debtorToDelete?.totalOwed || 0).toFixed(2)}
+            </p>
+            <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '8px' }}>
+              ⚠️ මෙම ණයහිමියා සම්පූර්ණයෙන්ම පද්ධතියෙන් ඉවත් වේ. මෙම ක්‍රියාව නැවත ආපසු හැරවිය නොහැක.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--text-primary)' }}>
+              Owner Password එක ඇතුළත් කරන්න:
+            </label>
+            <input
+              type="password"
+              value={debtorDeletePassword}
+              onChange={(e) => setDebtorDeletePassword(e.target.value)}
+              placeholder="Enter Owner Password"
+              autoFocus
+              required
+              className="search-input"
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-glass, rgba(0, 0, 0, 0.2))',
+                color: 'var(--text-primary)',
+                fontSize: '15px'
+              }}
+            />
+          </div>
+
+          <div className="modal-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setIsDeleteDebtorModalOpen(false);
+                setDebtorToDelete(null);
+                setDebtorDeletePassword('');
+                setDebtorDeleteError('');
+              }}
+              disabled={debtorDeleteLoading}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="submit"
+              loading={debtorDeleteLoading}
+              style={{ background: '#ef4444', color: '#fff', border: 'none' }}
+            >
+              <FiTrash2 style={{ marginRight: '6px' }} /> ණයහිමියා මකන්න (Delete Debtor)
+            </Button>
+          </div>
+        </form>
       </Modal>
 
     </div>

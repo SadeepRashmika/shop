@@ -23,9 +23,10 @@ import {
   subscribeTimeSync
 } from '../../services/timeService';
 import Button from '../../components/ui/Button';
+import Modal from '../../components/ui/Modal';
 import { 
   FiBarChart2, FiDollarSign, FiShoppingBag, FiTrendingUp, 
-  FiActivity, FiArrowUpRight, FiArrowDownRight, FiDownload, FiPrinter, FiCalendar, FiSearch
+  FiActivity, FiArrowUpRight, FiArrowDownRight, FiDownload, FiPrinter, FiCalendar, FiSearch, FiFileText, FiLayers
 } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
 import * as XLSX from 'xlsx';
@@ -59,6 +60,14 @@ export default function Reports() {
   const [selectedDailyDate, setSelectedDailyDate] = useState(getTodayDateString());
   const [selectedMonthDate, setSelectedMonthDate] = useState(getCurrentMonthString());
   const [selectedYear, setSelectedYear] = useState(getCurrentYearString());
+
+  // Full System Report Modal States
+  const [isReportGenModalOpen, setIsReportGenModalOpen] = useState(false);
+  const [genPeriod, setGenPeriod] = useState('daily'); // 'daily', 'monthly', 'yearly'
+  const [genDailyDate, setGenDailyDate] = useState(getTodayDateString());
+  const [genMonthDate, setGenMonthDate] = useState(getCurrentMonthString());
+  const [genYear, setGenYear] = useState(getCurrentYearString());
+  const [genLoading, setGenLoading] = useState(false);
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -211,113 +220,257 @@ export default function Reports() {
     return formatSriLankaDateTime(timestamp);
   };
 
-  // ---- Excel/Download Helpers ----
-  const generateExcel = (transactions, title) => {
-    const headers = ['Bill No.', 'Transaction ID', 'Date', 'Items', 'Payment Method', 'Total (Rs.)', 'Profit (Rs.)'];
-    
-    let totalAmount = 0;
-    let totalProfit = 0;
+  // ---- Comprehensive Full System Excel Generator ----
+  const generateFullSystemExcel = async (periodType, targetDateStr) => {
+    setGenLoading(true);
+    try {
+      // 1. Fetch collections in parallel
+      const [txnSnap, reloadSnap, millingSnap, debtorPaySnap] = await Promise.all([
+        getDocs(collection(db, 'transactions')),
+        getDocs(collection(db, 'reloads')),
+        getDocs(collection(db, 'millingRecords')),
+        getDocs(collection(db, 'debtor_payments'))
+      ]);
 
-    const rows = transactions.map(txn => {
-      let txnCost = 0;
-      let txnTotal = Number(txn.total) || 0;
+      const filterByPeriod = (ts) => {
+        const d = toDateObject(ts);
+        if (!d) return false;
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        if (periodType === 'daily') {
+          return `${y}-${m}-${day}` === targetDateStr;
+        } else if (periodType === 'monthly') {
+          return `${y}-${m}` === targetDateStr;
+        } else if (periodType === 'yearly') {
+          return String(y) === String(targetDateStr);
+        }
+        return false;
+      };
 
-      if (txn.items) {
-        txn.items.forEach(item => {
-          const invItem = inventoryItems[item.id] || inventoryItems[item.name];
-          const unitCost = invItem ? (Number(invItem.purchasePrice) || 0) : 0;
-          txnCost += (Number(item.quantity) || 0) * unitCost;
-        });
-      }
-      let txnProfit = txnTotal - txnCost;
-      
-      totalAmount += txnTotal;
-      totalProfit += txnProfit;
+      // 2. Process Transactions
+      const txns = [];
+      let totalPosSales = 0;
+      let totalPosCost = 0;
+      let totalPosProfit = 0;
+      const itemMap = {};
 
-      return [
-        txn.billNumber ? String(txn.billNumber).padStart(6, '0') : 'N/A',
-        txn.id,
-        formatDate(txn.timestamp),
-        txn.items?.map(i => `${i.name} x${i.quantity}`).join('; ') || '',
-        txn.paymentMethod || 'cash',
-        txnTotal.toFixed(2),
-        txnProfit.toFixed(2)
-      ];
-    });
+      txnSnap.forEach(docSnap => {
+        const data = docSnap.data();
+        if (filterByPeriod(data.timestamp || data.date)) {
+          let txnCost = 0;
+          let txnTotal = Number(data.total) || 0;
+          if (data.items) {
+            data.items.forEach(item => {
+              const invItem = inventoryItems[item.id] || inventoryItems[item.name];
+              const unitCost = invItem ? (Number(invItem.purchasePrice) || 0) : 0;
+              const itemCost = (Number(item.quantity) || 0) * unitCost;
+              txnCost += itemCost;
 
-    rows.push(['', '', '', '', 'TOTAL', totalAmount.toFixed(2), totalProfit.toFixed(2)]);
-
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    
-    // Item Sell Details Summary
-    const itemMap = {};
-    transactions.forEach(txn => {
-      if (txn.items) {
-        txn.items.forEach(item => {
-          const key = item.id || item.name;
-          if (!itemMap[key]) {
-            itemMap[key] = { 
-              name: item.name, 
-              itemNo: item.itemNo, 
-              quantity: 0, 
-              revenue: 0, 
-              cost: 0 
-            };
+              const key = item.id || item.name;
+              if (!itemMap[key]) {
+                itemMap[key] = {
+                  name: item.name,
+                  itemNo: item.itemNo || invItem?.itemNo || '-',
+                  quantity: 0,
+                  revenue: 0,
+                  cost: 0
+                };
+              }
+              itemMap[key].quantity += Number(item.quantity) || 0;
+              itemMap[key].revenue += Number(item.subtotal) || ((Number(item.quantity) || 0) * (Number(item.sellPrice) || 0));
+              itemMap[key].cost += itemCost;
+            });
           }
-          itemMap[key].quantity += Number(item.quantity) || 0;
-          let itemSubtotal = Number(item.subtotal) || ((Number(item.quantity) || 0) * (Number(item.sellPrice) || 0));
-          itemMap[key].revenue += itemSubtotal;
-          
-          const invItem = inventoryItems[item.id] || inventoryItems[item.name];
-          const unitCost = invItem ? (Number(invItem.purchasePrice) || 0) : 0;
-          itemMap[key].cost += (Number(item.quantity) || 0) * unitCost;
+          const profit = txnTotal - txnCost;
+          totalPosSales += txnTotal;
+          totalPosCost += txnCost;
+          totalPosProfit += profit;
+          txns.push({ id: docSnap.id, ...data, profit, cost: txnCost });
+        }
+      });
 
-          if (!itemMap[key].itemNo && invItem && invItem.itemNo) {
-            itemMap[key].itemNo = invItem.itemNo;
-          }
-        });
-      }
-    });
+      // 3. Process Reloads
+      const reloads = [];
+      let totalReloadAmt = 0;
+      reloadSnap.forEach(docSnap => {
+        const data = docSnap.data();
+        if (filterByPeriod(data.timestamp || data.date)) {
+          const amt = Number(data.amount) || 0;
+          totalReloadAmt += amt;
+          reloads.push({ id: docSnap.id, ...data, amount: amt });
+        }
+      });
 
-    const itemHeaders = ['Item No.', 'Item Name', 'Quantity Sold', 'Get Price (Cost) Rs.', 'Total Sales (Rs.)', 'Profit (Rs.)'];
-    const itemRows = Object.keys(itemMap).map(key => {
-      const data = itemMap[key];
-      const profit = data.revenue - data.cost;
-      return [
-        data.itemNo || '-',
-        data.name,
-        data.quantity,
-        data.cost.toFixed(2),
-        data.revenue.toFixed(2),
-        profit.toFixed(2)
+      // 4. Process Milling
+      const millings = [];
+      let totalMillingFee = 0;
+      millingSnap.forEach(docSnap => {
+        const data = docSnap.data();
+        if (filterByPeriod(data.timestamp || data.date)) {
+          const fee = Number(data.totalFee || data.amount) || 0;
+          totalMillingFee += fee;
+          millings.push({ id: docSnap.id, ...data, fee });
+        }
+      });
+
+      // 5. Process Debtor Payments & Credits
+      const debtorActs = [];
+      let totalDebtorPayments = 0;
+      let totalDebtorLoans = 0;
+      debtorPaySnap.forEach(docSnap => {
+        const data = docSnap.data();
+        if (filterByPeriod(data.timestamp || data.date)) {
+          const amt = Number(data.amount) || 0;
+          if (data.type === 'payment') totalDebtorPayments += amt;
+          else totalDebtorLoans += amt;
+          debtorActs.push({ id: docSnap.id, ...data, amount: amt });
+        }
+      });
+
+      // Build Multi-sheet Workbook
+      const workbook = XLSX.utils.book_new();
+
+      // SHEET 1: Executive Summary
+      const summaryPeriodName = periodType === 'daily' 
+        ? `දිනපතා වාර්තාව (${targetDateStr})` 
+        : periodType === 'monthly' 
+          ? `මාසික වාර්තාව (${targetDateStr})` 
+          : `වාර්ෂික වාර්තාව (${targetDateStr})`;
+
+      const summaryRows = [
+        ['SMART POS - SYSTEM FULL REPORT / සම්පූර්ණ පද්ධති වාර්තාව'],
+        ['වාර්තා වර්ගය (Report Type):', summaryPeriodName],
+        ['ජනනය කළ දිනය (Generated On):', new Date().toLocaleString()],
+        [],
+        ['=== 1. මුල්‍ය සාරාංශය (FINANCIAL SUMMARY) ===', ''],
+        ['මුළු POS විකුණුම් ආදායම (POS Sales Revenue):', `Rs. ${totalPosSales.toFixed(2)}`],
+        ['මුළු භාණ්ඩ පිරිවැය (Cost of Goods Sold):', `Rs. ${totalPosCost.toFixed(2)}`],
+        ['විකුණුම් ශුද්ධ ලාභය (POS Sales Net Profit):', `Rs. ${totalPosProfit.toFixed(2)}`],
+        ['රීලෝඩ් මුළු ආදායම (Reloads Revenue):', `Rs. ${totalReloadAmt.toFixed(2)}`],
+        ['කෙටුම් මුළු ආදායම (Milling Revenue):', `Rs. ${totalMillingFee.toFixed(2)}`],
+        ['ලැබුණු ණය පියවීම් (Debtor Payments Collected):', `Rs. ${totalDebtorPayments.toFixed(2)}`],
+        [],
+        ['=== 2. මුළු එකතුව (GRAND TOTALS) ===', ''],
+        ['සම්පූර්ණ මුදල් ආදායම (Grand Total Turnover):', `Rs. ${(totalPosSales + totalReloadAmt + totalMillingFee + totalDebtorPayments).toFixed(2)}`],
+        ['සම්පූර්ණ ශුද්ධ ලාභය (Grand Net Profit):', `Rs. ${(totalPosProfit + totalMillingFee).toFixed(2)}`],
+        [],
+        ['=== 3. ගනුදෙනු සංඛ්‍යා ලේඛන (TRANSACTION COUNTS) ===', ''],
+        ['මුළු POS බිල්පත් ගණන (Total POS Bills):', txns.length],
+        ['අලෙවි වූ විවිධ භාණ්ඩ ගණන (Items Sold Varieties):', Object.keys(itemMap).length],
+        ['රීලෝඩ් ගනුදෙනු ගණන (Reloads Count):', reloads.length],
+        ['කෙටුම් වාර්තා ගණන (Milling Count):', millings.length],
+        ['ණය පියවීම් ගණන (Debtor Payments Count):', debtorActs.length],
       ];
-    });
-    
-    itemRows.sort((a, b) => b[2] - a[2]);
-    
-    const totalQty = Object.values(itemMap).reduce((sum, i) => sum + i.quantity, 0);
-    const totalRev = Object.values(itemMap).reduce((sum, i) => sum + i.revenue, 0);
-    const totalCost = Object.values(itemMap).reduce((sum, i) => sum + i.cost, 0);
-    const totalItemProfit = totalRev - totalCost;
-    itemRows.push(['', 'TOTAL', totalQty, totalCost.toFixed(2), totalRev.toFixed(2), totalItemProfit.toFixed(2)]);
+      const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows);
+      summaryWs['!cols'] = [{ wch: 45 }, { wch: 30 }];
+      XLSX.utils.book_append_sheet(workbook, summaryWs, "Executive Summary");
 
-    const itemWorksheet = XLSX.utils.aoa_to_sheet([itemHeaders, ...itemRows]);
+      // SHEET 2: POS Sales Transactions
+      const txnHeaders = ['බිල්පත් අංකය (Bill No)', 'දිනය සහ වේලාව (Date & Time)', 'ගෙවීම් ක්‍රමය (Payment)', 'භාණ්ඩ විස්තරය (Items)', 'අයකැමි (Cashier)', 'බිල් මුදල (Total Rs.)', 'ලාභය (Profit Rs.)'];
+      const txnRows = txns.map(t => [
+        t.billNumber ? `#${String(t.billNumber).padStart(6, '0')}` : t.id.substring(0, 10),
+        formatDate(t.timestamp || t.date),
+        t.paymentMethod || 'cash',
+        t.items?.map(i => `${i.name} ×${i.quantity}`).join(', ') || '',
+        t.cashierName || 'Cashier',
+        (Number(t.total) || 0).toFixed(2),
+        (t.profit || 0).toFixed(2)
+      ]);
+      txnRows.push(['', '', '', '', 'TOTAL', totalPosSales.toFixed(2), totalPosProfit.toFixed(2)]);
+      const txnWs = XLSX.utils.aoa_to_sheet([txnHeaders, ...txnRows]);
+      txnWs['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 16 }, { wch: 40 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(workbook, txnWs, "POS Sales");
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
-    XLSX.utils.book_append_sheet(workbook, itemWorksheet, "Item Sell Details");
-    
-    XLSX.writeFile(workbook, `${title}_${getTodayDateString()}.xlsx`);
+      // SHEET 3: Item Sales Breakdown
+      const itemHeaders = ['අංකය (Item No)', 'භාණ්ඩයේ නම (Item Name)', 'අලෙවි වූ ප්‍රමාණය (Qty Sold)', 'මුළු පිරිවැය (Total Cost Rs.)', 'මුළු විකුණුම් (Total Revenue Rs.)', 'ශුද්ධ ලාභය (Net Profit Rs.)'];
+      const itemRows = Object.values(itemMap).map(data => {
+        const p = data.revenue - data.cost;
+        return [
+          data.itemNo || '-',
+          data.name,
+          data.quantity,
+          data.cost.toFixed(2),
+          data.revenue.toFixed(2),
+          p.toFixed(2)
+        ];
+      });
+      itemRows.sort((a, b) => b[4] - a[4]); // Sort by revenue desc
+      itemRows.push(['', 'TOTAL', Object.values(itemMap).reduce((s, i) => s + i.quantity, 0), totalPosCost.toFixed(2), totalPosSales.toFixed(2), totalPosProfit.toFixed(2)]);
+      const itemWs = XLSX.utils.aoa_to_sheet([itemHeaders, ...itemRows]);
+      itemWs['!cols'] = [{ wch: 14 }, { wch: 30 }, { wch: 20 }, { wch: 22 }, { wch: 22 }, { wch: 22 }];
+      XLSX.utils.book_append_sheet(workbook, itemWs, "Item Breakdown");
+
+      // SHEET 4: Reloads
+      if (reloads.length > 0) {
+        const reloadHeaders = ['දිනය සහ වේලාව (Date)', 'දුරකථන අංකය (Phone)', 'ජාලය (Network)', 'මුදල (Amount Rs.)', 'ගෙවීම් ක්‍රමය (Method)', 'අයකැමි (Cashier)'];
+        const reloadRows = reloads.map(r => [
+          formatDate(r.timestamp || r.date),
+          r.phone || '-',
+          r.network || '-',
+          (r.amount || 0).toFixed(2),
+          r.paymentMethod || 'cash',
+          r.cashierName || 'Cashier'
+        ]);
+        reloadRows.push(['', '', 'TOTAL', totalReloadAmt.toFixed(2), '', '']);
+        const reloadWs = XLSX.utils.aoa_to_sheet([reloadHeaders, ...reloadRows]);
+        reloadWs['!cols'] = [{ wch: 22 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
+        XLSX.utils.book_append_sheet(workbook, reloadWs, "Reloads");
+      }
+
+      // SHEET 5: Milling
+      if (millings.length > 0) {
+        const millHeaders = ['දිනය සහ වේලාව (Date)', 'පාරිභෝගිකයා (Customer)', 'වර්ගය (Type)', 'බර (Weight kg)', 'ගාස්තුව (Fee Rs.)', 'අයකැමි (Cashier)'];
+        const millRows = millings.map(m => [
+          formatDate(m.timestamp || m.date),
+          m.customerName || m.customer || 'Customer',
+          m.type || 'Paddy/Coconut',
+          m.weight ? `${m.weight} kg` : '-',
+          (m.fee || 0).toFixed(2),
+          m.cashierName || 'Cashier'
+        ]);
+        millRows.push(['', '', '', 'TOTAL', totalMillingFee.toFixed(2), '']);
+        const millWs = XLSX.utils.aoa_to_sheet([millHeaders, ...millRows]);
+        millWs['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 18 }];
+        XLSX.utils.book_append_sheet(workbook, millWs, "Milling");
+      }
+
+      // SHEET 6: Debtors
+      if (debtorActs.length > 0) {
+        const debtorHeaders = ['දිනය සහ වේලාව (Date)', 'ණයහිමියා (Debtor)', 'ගනුදෙනු වර්ගය (Type)', 'මුදල (Amount Rs.)', 'අයකැමි (Cashier)', 'විස්තරය (Note)'];
+        const debtorRows = debtorActs.map(d => [
+          formatDate(d.timestamp || d.date),
+          d.debtorName || 'Unknown',
+          d.type === 'payment' ? 'ණය ගෙවීම (Payment)' : 'ණය එකතු කිරීම (Loan)',
+          (d.amount || 0).toFixed(2),
+          d.cashierName || 'Cashier',
+          d.note || '-'
+        ]);
+        const debtorWs = XLSX.utils.aoa_to_sheet([debtorHeaders, ...debtorRows]);
+        debtorWs['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 30 }];
+        XLSX.utils.book_append_sheet(workbook, debtorWs, "Debtor Transactions");
+      }
+
+      const fileName = `System_Full_Report_${periodType.toUpperCase()}_${targetDateStr}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+    } catch (e) {
+      console.error('generateFullSystemExcel error:', e);
+      alert('වාර්තාව ජනනය කිරීමේදී දෝෂයක් සිදු විය: ' + e.message);
+    } finally {
+      setGenLoading(false);
+    }
   };
 
   const downloadDailyReport = () => {
-    const todayTxns = allTxns.filter(txn => isToday(txn.timestamp || txn.date));
-    generateExcel(todayTxns, `Daily_Sales_Report_${getTodayDateString()}`);
+    generateFullSystemExcel('daily', selectedDailyDate || getTodayDateString());
   };
 
   const downloadMonthlyReport = () => {
-    const monthTxns = allTxns.filter(txn => isThisMonth(txn.timestamp || txn.date));
-    generateExcel(monthTxns, `Monthly_Sales_Report_${getCurrentMonthString()}`);
+    generateFullSystemExcel('monthly', selectedMonthDate || getCurrentMonthString());
+  };
+
+  const downloadYearlyReport = () => {
+    generateFullSystemExcel('yearly', selectedYear || getCurrentYearString());
   };
 
   const handlePrintReport = () => {
@@ -462,12 +615,24 @@ export default function Reports() {
             <h1 className="page-title gradient-text">{t('nav.reports')}</h1>
             <p className="page-subtitle">{t('reports.subtitle')}</p>
          </div>
-         <div className="report-actions-bar">
-            <Button onClick={downloadDailyReport} variant="secondary" icon={<FiDownload />} size="sm">
-              {t('reports.downloadDaily')}
+         <div className="report-actions-bar" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <Button 
+              onClick={() => setIsReportGenModalOpen(true)} 
+              variant="primary" 
+              icon={<FiLayers />} 
+              size="sm"
+              style={{ background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)', border: 'none', fontWeight: 700, boxShadow: '0 4px 14px rgba(139, 92, 246, 0.4)' }}
+            >
+              📊 සම්පූර්ණ වාර්තා (Generate Full Report)
             </Button>
-            <Button onClick={downloadMonthlyReport} variant="secondary" icon={<FiDownload />} size="sm">
-              {t('reports.downloadMonthly')}
+            <Button onClick={downloadDailyReport} variant="secondary" icon={<FiDownload />} size="sm" disabled={genLoading}>
+              දෛනික වාර්තාව (Daily)
+            </Button>
+            <Button onClick={downloadMonthlyReport} variant="secondary" icon={<FiDownload />} size="sm" disabled={genLoading}>
+              මාසික වාර්තාව (Monthly)
+            </Button>
+            <Button onClick={downloadYearlyReport} variant="secondary" icon={<FiDownload />} size="sm" disabled={genLoading}>
+              වාර්ෂික වාර්තාව (Yearly)
             </Button>
             <Button onClick={handlePrintReport} variant="secondary" icon={<FiPrinter />} size="sm">
               {t('reports.print')}
@@ -499,7 +664,7 @@ export default function Reports() {
           className={`report-tab ${activeTab === 'yearly' ? 'active' : ''}`}
           onClick={() => setActiveTab('yearly')}
         >
-          <FiBarChart2 /> වාර්ෂික
+          <FiBarChart2 /> වාර්ෂික (Yearly)
         </button>
         <button 
           className={`report-tab ${activeTab === 'item' ? 'active' : ''}`}
@@ -667,11 +832,11 @@ export default function Reports() {
                   )
                 ) : activeTab === 'daily' ? (
                   <div className="daily-report-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                     <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                     <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                         <label style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                           📅 දිනය තෝරන්න:
                         </label>
-                        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.3)', background: 'var(--bg-secondary, rgba(255,255,255,0.05))', flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.3)', background: 'var(--bg-secondary, rgba(255,255,255,0.05))', flex: 1, minWidth: '180px' }}>
                           <FiCalendar style={{ marginRight: 10, color: '#3b82f6', fontSize: '18px' }}/>
                           <input 
                             type="date"
@@ -680,6 +845,16 @@ export default function Reports() {
                             style={{ background: 'transparent', border: 'none', color: 'var(--text-primary, #0f172a)', width: '100%', outline: 'none', fontSize: '15px', fontWeight: '500' }}
                           />
                         </div>
+                        <Button 
+                          onClick={() => generateFullSystemExcel('daily', selectedDailyDate)} 
+                          variant="secondary" 
+                          icon={<FiDownload />} 
+                          size="sm"
+                          disabled={genLoading}
+                          style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)', fontWeight: 700 }}
+                        >
+                          {genLoading ? 'ජනනය වෙමින්...' : '📥 මෙම දිනට Excel ලබාගන්න'}
+                        </Button>
                      </div>
                      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
                        <div style={{ flex: 1, minWidth: '140px', background: 'rgba(16, 185, 129, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
@@ -706,11 +881,11 @@ export default function Reports() {
                   </div>
                 ) : activeTab === 'monthly' ? (
                   <div className="monthly-report-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                     <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                     <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                         <label style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                           📅 මාසය තෝරන්න:
                         </label>
-                        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.3)', background: 'var(--bg-secondary, rgba(255,255,255,0.05))', flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.3)', background: 'var(--bg-secondary, rgba(255,255,255,0.05))', flex: 1, minWidth: '180px' }}>
                           <FiCalendar style={{ marginRight: 10, color: '#3b82f6', fontSize: '18px' }}/>
                           <input 
                             type="month"
@@ -719,6 +894,16 @@ export default function Reports() {
                             style={{ background: 'transparent', border: 'none', color: 'var(--text-primary, #0f172a)', width: '100%', outline: 'none', fontSize: '15px', fontWeight: '500' }}
                           />
                         </div>
+                        <Button 
+                          onClick={() => generateFullSystemExcel('monthly', selectedMonthDate)} 
+                          variant="secondary" 
+                          icon={<FiDownload />} 
+                          size="sm"
+                          disabled={genLoading}
+                          style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', borderColor: 'rgba(59, 130, 246, 0.3)', fontWeight: 700 }}
+                        >
+                          {genLoading ? 'ජනනය වෙමින්...' : '📥 මෙම මාසයට Excel ලබාගන්න'}
+                        </Button>
                      </div>
                      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
                        <div style={{ flex: 1, minWidth: '140px', background: 'rgba(16, 185, 129, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
@@ -745,11 +930,11 @@ export default function Reports() {
                   </div>
                 ) : activeTab === 'yearly' ? (
                   <div className="yearly-report-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                     <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                     <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                         <label style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                           📅 වර්ෂය තෝරන්න:
                         </label>
-                        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.3)', background: 'var(--bg-secondary, rgba(255,255,255,0.05))', flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(148, 163, 184, 0.3)', background: 'var(--bg-secondary, rgba(255,255,255,0.05))', flex: 1, minWidth: '180px' }}>
                           <FiBarChart2 style={{ marginRight: 10, color: '#3b82f6', fontSize: '18px' }}/>
                           <select 
                             value={selectedYear}
@@ -761,6 +946,16 @@ export default function Reports() {
                             ))}
                           </select>
                         </div>
+                        <Button 
+                          onClick={() => generateFullSystemExcel('yearly', selectedYear)} 
+                          variant="secondary" 
+                          icon={<FiDownload />} 
+                          size="sm"
+                          disabled={genLoading}
+                          style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7', borderColor: 'rgba(168, 85, 247, 0.3)', fontWeight: 700 }}
+                        >
+                          {genLoading ? 'ජනනය වෙමින්...' : '📥 මෙම වර්ෂයට Excel ලබාගන්න'}
+                        </Button>
                      </div>
                      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
                        <div style={{ flex: 1, minWidth: '140px', background: 'rgba(16, 185, 129, 0.1)', padding: '14px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
@@ -861,6 +1056,193 @@ export default function Reports() {
           </div>
         </>
       )}
+
+      {/* FULL SYSTEM REPORT GENERATOR MODAL */}
+      <Modal
+        isOpen={isReportGenModalOpen}
+        onClose={() => setIsReportGenModalOpen(false)}
+        title="📊 සම්පූර්ණ පද්ධති වාර්තා උත්පාදනය (System Full Report Generator)"
+        maxWidth="650px"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '13.5px', lineHeight: 1.5 }}>
+            ඔබට අවශ්‍ය කාල සීමාව (දිනපතා, මාස්පතා, හෝ වාර්ෂිකව) තෝරා සම්පූර්ණ POS විකුණුම්, භාණ්ඩ ලාභ, රීලෝඩ්, වී/පොල් කෙටීම්, සහ ණය ගනුදෙනු ඇතුළත් <strong>Multi-Sheet Excel වාර්තාවක්</strong> ක්ෂණිකව ලබාගත හැක.
+          </p>
+
+          {/* Period Selector Tabs */}
+          <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setGenPeriod('daily')}
+              style={{
+                flex: 1,
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                background: genPeriod === 'daily' ? 'var(--primary-500, #8b5cf6)' : 'transparent',
+                color: genPeriod === 'daily' ? '#ffffff' : 'var(--text-primary)'
+              }}
+            >
+              📅 දිනපතා (Daily)
+            </button>
+            <button
+              type="button"
+              onClick={() => setGenPeriod('monthly')}
+              style={{
+                flex: 1,
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                background: genPeriod === 'monthly' ? 'var(--primary-500, #8b5cf6)' : 'transparent',
+                color: genPeriod === 'monthly' ? '#ffffff' : 'var(--text-primary)'
+              }}
+            >
+              📅 මාස්පතා (Monthly)
+            </button>
+            <button
+              type="button"
+              onClick={() => setGenPeriod('yearly')}
+              style={{
+                flex: 1,
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                background: genPeriod === 'yearly' ? 'var(--primary-500, #8b5cf6)' : 'transparent',
+                color: genPeriod === 'yearly' ? '#ffffff' : 'var(--text-primary)'
+              }}
+            >
+              📅 වාර්ෂිකව (Yearly)
+            </button>
+          </div>
+
+          {/* Date Picker Section */}
+          <div style={{ background: 'var(--bg-secondary, rgba(255,255,255,0.05))', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+            {genPeriod === 'daily' && (
+              <div>
+                <label style={{ display: 'block', fontWeight: 700, fontSize: '13.5px', color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  දිනය තෝරන්න (Select Date):
+                </label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="date"
+                    value={genDailyDate}
+                    onChange={(e) => setGenDailyDate(e.target.value)}
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600, outline: 'none' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setGenDailyDate(getTodayDateString())}
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(139,92,246,0.3)', background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                  >
+                    අද (Today)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {genPeriod === 'monthly' && (
+              <div>
+                <label style={{ display: 'block', fontWeight: 700, fontSize: '13.5px', color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  මාසය තෝරන්න (Select Month):
+                </label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="month"
+                    value={genMonthDate}
+                    onChange={(e) => setGenMonthDate(e.target.value)}
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600, outline: 'none' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setGenMonthDate(getCurrentMonthString())}
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(139,92,246,0.3)', background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                  >
+                    මෙම මාසය
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {genPeriod === 'yearly' && (
+              <div>
+                <label style={{ display: 'block', fontWeight: 700, fontSize: '13.5px', color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  වර්ෂය තෝරන්න (Select Year):
+                </label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <select
+                    value={genYear}
+                    onChange={(e) => setGenYear(e.target.value)}
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600, outline: 'none' }}
+                  >
+                    {availableYears.map(yr => (
+                      <option key={yr} value={String(yr)}>{yr} වර්ෂය</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setGenYear(getCurrentYearString())}
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(139,92,246,0.3)', background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                  >
+                    මෙම වසර
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Included Features Overview */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', fontSize: '12px' }}>
+            <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', fontWeight: 600 }}>
+              ✓ Executive Summary (මුල්‍ය සාරාංශය)
+            </div>
+            <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', color: '#3b82f6', fontWeight: 600 }}>
+              ✓ POS Bills & Payment Breakdown
+            </div>
+            <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.2)', color: '#a855f7', fontWeight: 600 }}>
+              ✓ Item Sales & Net Profit Ranking
+            </div>
+            <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)', color: '#d97706', fontWeight: 600 }}>
+              ✓ Reloads, Milling & Debtors
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsReportGenModalOpen(false)}
+            >
+              Close
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              icon={<FiDownload />}
+              disabled={genLoading}
+              onClick={() => {
+                const targetVal = genPeriod === 'daily' ? genDailyDate : genPeriod === 'monthly' ? genMonthDate : genYear;
+                generateFullSystemExcel(genPeriod, targetVal);
+              }}
+              style={{ background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', fontWeight: 700, padding: '10px 20px' }}
+            >
+              {genLoading ? 'වාර්තාව සකස් වෙමින්...' : '📥 සම්පූර්ණ Excel වාර්තාව ලබාගන්න (Download)'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

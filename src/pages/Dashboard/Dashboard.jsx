@@ -51,81 +51,177 @@ export default function Dashboard() {
     } catch {}
 
     const dateStr = new Date().toLocaleString('en-LK');
-    const rows = filteredItems.map((item, idx) => `
+    const rows = filteredItems.map((item, idx) => {
+      const stockNum = Number(item.stock) || 0;
+      const isZero = stockNum <= 0;
+      const stockDisplay = isZero 
+        ? '0 (ඉවරයි)' 
+        : `${stockNum % 1 === 0 ? stockNum : stockNum.toFixed(2)} ${item.itemType === 'weighed' ? 'kg' : ''}`;
+      
+      return `
   <div class="row">
     <span class="row-num">${String(idx + 1).padStart(2, '0')}.</span>
-    <span class="row-name">${item.name || ''}</span>
-    <span class="row-stock ${item.stock === 0 ? 'zero' : 'low'}">${item.stock === 0 ? 'OUT' : item.stock}</span>
-  </div>`).join('');
+    <div class="row-info">
+      <div class="row-name">${item.name || ''}</div>
+      ${item.category ? `<div class="row-cat">[${item.category}]</div>` : ''}
+    </div>
+    <span class="row-stock ${isZero ? 'zero' : ''}">${stockDisplay}</span>
+  </div>`;
+    }).join('');
 
     const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Low Stock Bill</title>
+  <title>Low Stock Bill - 80mm</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Courier New', monospace;
-      font-size: 11px;
-      color: #000;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      color: #000000;
+      background: #ffffff;
       width: 78mm;
-      padding: 4mm 3mm;
+      padding: 3mm 2mm;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .center { text-align: center; }
-    .shop-name { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 2px; }
-    .shop-sub { font-size: 10px; text-align: center; color: #333; }
-    .divider { border: none; border-top: 1px dashed #000; margin: 5px 0; }
-    .title { font-size: 12px; font-weight: bold; text-align: center; margin: 4px 0; letter-spacing: 1px; }
-    .info { font-size: 10px; color: #333; margin-bottom: 3px; }
-    .row {
+    .shop-name { 
+      font-size: 21px; 
+      font-weight: 900; 
+      text-align: center; 
+      margin-bottom: 3px; 
+      color: #000000;
+      letter-spacing: 0.5px;
+    }
+    .shop-sub { 
+      font-size: 13.5px; 
+      font-weight: 800; 
+      text-align: center; 
+      color: #000000; 
+      line-height: 1.35;
+    }
+    .divider { 
+      border: none; 
+      border-top: 2px dashed #000000; 
+      margin: 7px 0; 
+    }
+    .title { 
+      font-size: 16px; 
+      font-weight: 900; 
+      text-align: center; 
+      margin: 5px 0; 
+      letter-spacing: 0.5px;
+      color: #000000;
+    }
+    .info-box { 
+      font-size: 13.5px; 
+      font-weight: 800; 
+      color: #000000; 
+      margin-bottom: 3px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .table-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 3px 0;
-      border-bottom: 1px dotted #ccc;
-      gap: 4px;
+      padding: 5px 0;
+      font-weight: 900;
+      font-size: 15px;
+      color: #000000;
+      border-bottom: 2px dashed #000000;
     }
-    .row-num { width: 20px; flex-shrink: 0; color: #555; }
-    .row-name { flex: 1; word-break: break-word; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 6px 0;
+      border-bottom: 1.5px dashed #000000;
+      gap: 6px;
+      color: #000000;
+    }
+    .row-num { 
+      width: 26px; 
+      font-size: 14.5px; 
+      font-weight: 900; 
+      flex-shrink: 0; 
+      color: #000000; 
+    }
+    .row-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .row-name { 
+      font-size: 15.5px; 
+      font-weight: 900; 
+      word-break: break-word; 
+      line-height: 1.3;
+      color: #000000;
+    }
+    .row-cat {
+      font-size: 12.5px;
+      font-weight: 800;
+      color: #000000;
+      margin-top: 2px;
+    }
     .row-stock {
-      width: 30px;
+      width: 75px;
       text-align: right;
-      font-weight: bold;
+      font-size: 15.5px;
+      font-weight: 900;
       flex-shrink: 0;
+      color: #000000;
     }
-    .row-stock.zero { color: #d00; }
-    .row-stock.low { color: #c60; }
-    .footer { text-align: center; margin-top: 6px; font-size: 10px; color: #444; }
+    .row-stock.zero {
+      font-weight: 900;
+      color: #000000;
+      text-decoration: underline;
+    }
+    .footer { 
+      text-align: center; 
+      margin-top: 10px; 
+      font-size: 14px; 
+      font-weight: 900; 
+      color: #000000; 
+    }
     @media print {
-      body { width: 80mm; }
-      @page { margin: 0; size: 80mm auto; }
+      body { width: 78mm; padding: 1mm 1mm; }
+      @page { margin: 1mm; size: 80mm auto; }
     }
   </style>
 </head>
 <body>
   <div class="shop-name">${shopName}</div>
   <div class="shop-sub">${shopAddress}</div>
-  <div class="shop-sub">${shopPhone}</div>
+  <div class="shop-sub">දුරකථන: ${shopPhone}</div>
   <hr class="divider">
-  <div class="title">⚠ LOW STOCK LIST</div>
-  <div class="info">දිනය: ${dateStr}</div>
-  <div class="info">Stock සීමාව: ≤ ${threshold} | Items: ${filteredItems.length}</div>
+  <div class="title">⚠ අඩු තොග වාර්තාව (LOW STOCK)</div>
   <hr class="divider">
-  <div style="display:flex;justify-content:space-between;padding:2px 0;font-weight:bold;font-size:10px;">
-    <span style="width:20px;">No.</span>
-    <span style="flex:1;">භාණ්ඩය</span>
-    <span style="width:30px;text-align:right;">Stock</span>
+  <div class="info-box">
+    <span>දිනය: ${dateStr}</span>
+  </div>
+  <div class="info-box">
+    <span>සීමාව: ≤ ${threshold}</span>
+    <span>භාණ්ඩ ගණන: ${filteredItems.length}</span>
   </div>
   <hr class="divider">
+  <div class="table-head">
+    <span style="width: 26px;">No.</span>
+    <span style="flex: 1;">භාණ්ඩය</span>
+    <span style="width: 75px; text-align: right;">තොගය</span>
+  </div>
   ${rows}
   <hr class="divider">
-  <div class="footer">Total: ${filteredItems.length} items | SmartPOS</div>
+  <div class="footer">මුළු අඩු තොග භාණ්ඩ: ${filteredItems.length}</div>
+  <div class="footer" style="font-size: 12px; margin-top: 3px;">SmartPOS - ස්තුතියි!</div>
   <script>window.onload=function(){window.print();}<\/script>
 </body>
 </html>`;
 
-    const w = window.open('', '_blank', 'width=340,height=600');
+    const w = window.open('', '_blank', 'width=380,height=600');
     if (w) { w.document.write(html); w.document.close(); }
     else alert('Please allow popups for this site to print.');
   };
@@ -289,7 +385,7 @@ export default function Dashboard() {
   const handleClearTestingData = async () => {
     if (!window.confirm("🚨 ARE YOU SURE YOU WANT TO DELETE ALL TESTING DATA?\nThis will completely wipe all inventory items, debtors, orders, and sales transactions permanently!")) return;
     const inputPass = prompt("Please enter the Master Password to confirm:");
-    if (inputPass !== "723412641") {
+    if (inputPass !== "7334126411") {
       alert("Incorrect password. Operation cancelled.");
       return;
     }

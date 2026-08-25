@@ -2227,21 +2227,32 @@ export default function Sales() {
                   onClick={() => setActiveCartId(item.cartId || item.id)}
                 >
                   <div className="cart-item-info">
-                    <span className="cart-item-name">
+                    <span className="cart-item-name" style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--text-primary)' }}>
                       {item.name}
-                      {item.itemType === 'weighed' && <span className="weighed-tag"> ⚖️</span>}
+                      {item.itemType === 'weighed' && <span className="weighed-tag" style={{ marginLeft: '4px' }}>⚖️</span>}
                       {item.isReload && <span className="reload-tag" style={{ background: 'rgba(234, 88, 12, 0.2)', color: '#ea580c', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>⚡ Reload</span>}
                       {item.isCustom && <span style={{ background: 'rgba(34, 197, 94, 0.2)', color: '#22c55e', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>✏️ Custom</span>}
                       {item.isMilling && <span style={{ background: 'rgba(234, 179, 8, 0.2)', color: '#eab308', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>⚙️ කෙටීම</span>}
                     </span>
-                    <span className="cart-item-price" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                      {item.markedPrice && Number(item.markedPrice) > Number(item.sellPrice) ? (
-                        <span style={{ fontSize: '11px', color: '#94a3b8', textDecoration: 'line-through' }}>
-                          සඳහන්: Rs. {Number(item.markedPrice).toFixed(2)}
+                    <div className="cart-item-price-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '3px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '15px', color: 'var(--primary-400, #7c3aed)' }}>
+                        Rs. {((Number(item.quantity) || 0) * (Number(item.sellPrice) || 0)).toFixed(2)}
+                      </span>
+                      {item.itemType === 'weighed' || item.isMilling ? (
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', background: 'rgba(124, 58, 237, 0.08)', padding: '2px 7px', borderRadius: '6px', border: '1px solid rgba(124, 58, 237, 0.18)' }}>
+                          @ Rs. {Number(item.sellPrice || 0).toFixed(2)}/kg
+                        </span>
+                      ) : Number(item.quantity) > 1 ? (
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', background: 'rgba(124, 58, 237, 0.08)', padding: '2px 7px', borderRadius: '6px', border: '1px solid rgba(124, 58, 237, 0.18)' }}>
+                          @ Rs. {Number(item.sellPrice || 0).toFixed(2)} × {item.quantity}
                         </span>
                       ) : null}
-                      <span>Rs. {Number(item.sellPrice).toFixed(2)}{(item.itemType === 'weighed' || item.isMilling) ? '/kg' : ''}</span>
-                    </span>
+                      {item.markedPrice && Number(item.markedPrice) > Number(item.sellPrice) && (
+                        <span style={{ fontSize: '11px', color: '#94a3b8', textDecoration: 'line-through' }}>
+                          Rs. {Number(item.markedPrice).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="cart-item-actions">
                     {!item.isReload && (
