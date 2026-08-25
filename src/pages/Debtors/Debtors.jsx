@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
-import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiUser, FiPhone, FiCreditCard, FiDownload, FiDollarSign, FiList, FiUsers } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiUser, FiPhone, FiCreditCard, FiDownload, FiDollarSign, FiList, FiUsers, FiAlertTriangle, FiX, FiClock } from 'react-icons/fi';
 import JsBarcode from 'jsbarcode';
 import * as XLSX from 'xlsx';
 import './Debtors.css';
@@ -63,6 +63,11 @@ export default function Debtors() {
     isEdit: false
   });
 
+  // Overdue debtors alert state
+  const [overdueDebtors, setOverdueDebtors] = useState([]);
+  const [overdueAlertDismissed, setOverdueAlertDismissed] = useState(false);
+  const OVERDUE_DAYS = 30;
+
   const fetchDebtors = async () => {
     setLoading(true);
     try {
@@ -79,9 +84,90 @@ export default function Debtors() {
     }
   };
 
+  const checkOverdueDebtors = useCallback(async (debtorsList) => {
+    try {
+      const activeDebtors = debtorsList.filter(d => (Number(d.totalOwed) || 0) > 0);
+      if (activeDebtors.length === 0) {
+        setOverdueDebtors([]);
+        return;
+      }
+
+      const paySnapshot = await getDocs(collection(db, 'debtor_payments'));
+      const txnSnapshot = await getDocs(collection(db, 'transactions'));
+
+      const getTimestampMs = (ts) => {
+        if (!ts) return 0;
+        if (ts.seconds) return ts.seconds * 1000;
+        if (ts.toDate) return ts.toDate().getTime();
+        if (typeof ts === 'number') return ts;
+        return new Date(ts).getTime();
+      };
+
+      // Build map of debtorId -> last payment timestamp (ms)
+      const lastPaymentMap = {};
+
+      paySnapshot.docs.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.type !== 'payment') return; // Only count actual payments, not loans/opening
+        const debtorId = d.debtorId;
+        if (!debtorId) return;
+        const tsMs = getTimestampMs(d.timestamp || d.date);
+        if (tsMs > (lastPaymentMap[debtorId] || 0)) {
+          lastPaymentMap[debtorId] = tsMs;
+        }
+      });
+
+      // Also check credit transactions for last activity
+      const lastActivityMap = {};
+      txnSnapshot.docs.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.paymentMethod !== 'credit') return;
+        const debtorId = d.debtorId;
+        if (!debtorId) return;
+        const tsMs = getTimestampMs(d.timestamp || d.date);
+        if (tsMs > (lastActivityMap[debtorId] || 0)) {
+          lastActivityMap[debtorId] = tsMs;
+        }
+      });
+
+      const now = Date.now();
+      const thresholdMs = OVERDUE_DAYS * 24 * 60 * 60 * 1000;
+
+      const overdue = activeDebtors.map(debtor => {
+        const lastPay = lastPaymentMap[debtor.id] || 0;
+        const lastAct = lastActivityMap[debtor.id] || 0;
+        const createdMs = getTimestampMs(debtor.createdAt) || 0;
+        // Use last payment if exists, otherwise use creation date
+        const referenceDate = lastPay > 0 ? lastPay : (createdMs > 0 ? createdMs : 0);
+        
+        if (referenceDate === 0) {
+          // No date info at all, consider overdue
+          return { ...debtor, daysSincePayment: 999, lastPaymentDate: null, lastActivityDate: lastAct > 0 ? new Date(lastAct) : null };
+        }
+
+        const daysSince = Math.floor((now - referenceDate) / (24 * 60 * 60 * 1000));
+        if (daysSince >= OVERDUE_DAYS) {
+          return { ...debtor, daysSincePayment: daysSince, lastPaymentDate: lastPay > 0 ? new Date(lastPay) : null, lastActivityDate: lastAct > 0 ? new Date(lastAct) : null };
+        }
+        return null;
+      }).filter(Boolean).sort((a, b) => b.daysSincePayment - a.daysSincePayment);
+
+      setOverdueDebtors(overdue);
+    } catch (err) {
+      console.error('Error checking overdue debtors:', err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchDebtors();
   }, []);
+
+  // Check overdue whenever debtors list changes
+  useEffect(() => {
+    if (debtors.length > 0) {
+      checkOverdueDebtors(debtors);
+    }
+  }, [debtors, checkOverdueDebtors]);
 
   const handleOpenAdd = () => {
     let maxNo = 0;
@@ -784,6 +870,87 @@ export default function Debtors() {
           <Button onClick={handleOpenAdd} icon={<FiPlus />}>{t('debtors.addDebtor')}</Button>
         </div>
       </div>
+
+      {/* Overdue Debtors Alert Banner */}
+      {overdueDebtors.length > 0 && !overdueAlertDismissed && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(234, 88, 12, 0.10) 100%)',
+          border: '1px solid rgba(239, 68, 68, 0.35)',
+          borderRadius: '16px',
+          padding: '16px 20px',
+          marginBottom: '1.25rem',
+          position: 'relative',
+          animation: 'fadeIn 0.4s ease'
+        }}>
+          {/* Dismiss button */}
+          <button
+            onClick={() => setOverdueAlertDismissed(true)}
+            style={{ position: 'absolute', top: '10px', right: '12px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', color: '#ef4444', cursor: 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center' }}
+            title="වසන්න"
+          >
+            <FiX style={{ fontSize: '14px' }} />
+          </button>
+
+          {/* Alert Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.2)', borderRadius: '10px', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FiAlertTriangle style={{ fontSize: '20px', color: '#ef4444' }} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#ef4444' }}>
+                ⚠️ දින {OVERDUE_DAYS}+ ගෙවීමක් නොකළ ණයගැතියන් ({overdueDebtors.length} දෙනෙක්)
+              </h3>
+              <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                පහත පාරිභෝගිකයින් බොහෝ කලයක් ණය ගෙවීමක් කර නැත. කරුණාකර ඔවුන් හා සම්බන්ධ වන්න.
+              </p>
+            </div>
+          </div>
+
+          {/* Overdue Debtors List */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {overdueDebtors.map(od => (
+              <div
+                key={od.id}
+                onClick={() => handleOpenLedger(od)}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  borderRadius: '12px',
+                  padding: '10px 14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  minWidth: '200px',
+                  flex: '1 1 220px',
+                  maxWidth: '320px'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.18)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                title={`${od.name} - Ledger බලන්න`}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-primary)' }}>
+                    #{od.debtorNo} {od.name}
+                  </span>
+                  <span style={{ fontWeight: 800, fontSize: '14px', color: '#ef4444' }}>
+                    Rs. {Number(od.totalOwed).toFixed(2)}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <FiClock style={{ fontSize: '12px', color: '#f59e0b' }} />
+                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#f59e0b' }}>
+                    {od.daysSincePayment >= 999 ? 'කිසිදා ගෙවීමක් කර නැත' : `දින ${od.daysSincePayment}ක් ගෙවීමක් නැත`}
+                  </span>
+                </div>
+                {od.lastPaymentDate && (
+                  <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '3px', fontWeight: 600 }}>
+                    අවසන් ගෙවීම: {od.lastPaymentDate.toLocaleDateString('si-LK', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Debt Summary Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
