@@ -194,7 +194,8 @@ function generateBillPDF(billData) {
   const billNum = billData.billNumber ? String(billData.billNumber).padStart(6, '0') : '000000';
   const dateStr = formatSriLankaDateTime(billData.date || billData.timestamp || getNow());
 
-  const totalItemsCount = (billData.items || []).length;
+  const totalItemsCount = (billData.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+  const totalItemTypes = (billData.items || []).length;
   const itemsCountText = `${totalItemsCount}`;
 
   const totalSavings = billData.paymentMethod === 'credit' ? 0 : billData.items.reduce((sum, item) => {
@@ -328,6 +329,10 @@ function generateBillPDF(billData) {
   <div class="divider"></div>
 
   <div class="total-section">
+    <div class="total-row">
+      <span>වර්ග ගණන (Types):</span>
+      <span>${totalItemTypes}</span>
+    </div>
     <div class="total-row">
       <span>භාණ්ඩ ගණන (Items):</span>
       <span>${itemsCountText}</span>
@@ -2440,6 +2445,15 @@ export default function Sales() {
                 ))}
               </tbody>
             </table>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>
+              <span>වර්ග ගණන / Item Types</span>
+              <span style={{ fontWeight: '700', color: '#334155' }}>{cart.length}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>
+              <span>මුළු භාණ්ඩ ගණන / Total Items</span>
+              <span style={{ fontWeight: '700', color: '#334155' }}>{cart.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0)}</span>
+            </div>
 
             <div style={{ borderTop: '2px dashed #94a3b8', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#475569' }}>TOTAL AMOUNT</span>
