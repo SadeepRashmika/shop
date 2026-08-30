@@ -74,10 +74,9 @@ function generateReloadReceiptPDF(reloadRecord) {
   <meta charset="UTF-8">
   <title>Reload Receipt #${billNum}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800;900&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Noto Sans Sinhala', 'Segoe UI', Arial, sans-serif;
+      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Segoe UI', Arial, sans-serif;
       width: 80mm;
       margin: 0 auto;
       padding: 5mm;
@@ -140,24 +139,40 @@ function generateReloadReceiptPDF(reloadRecord) {
     <div>ස්තූතියි! නැවත එන්න!</div>
     <div style="margin-top: 2px;">Thank you for your reload!</div>
   </div>
-
-  <script>
-    window.onload = function() {
-      window.print();
-      setTimeout(function() { window.close(); }, 500);
-    };
-  </script>
 </body>
 </html>`;
 
-  const printWindow = window.open('', '_blank', 'width=380,height=600');
-  if (printWindow) {
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-  } else {
-    alert('කරුණාකර Popup blocker අක්‍රිය කරන්න (Please allow popups to print receipt).');
+  const oldIframe = document.getElementById('print-receipt-frame');
+  if (oldIframe) {
+    oldIframe.remove();
   }
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'print-receipt-frame';
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0px';
+  iframe.style.height = '0px';
+  iframe.style.border = 'none';
+  iframe.style.visibility = 'hidden';
+  document.body.appendChild(iframe);
+  
+  const frameDoc = iframe.contentWindow.document;
+  frameDoc.open();
+  frameDoc.write(html);
+  frameDoc.close();
+
+  const triggerPrint = () => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch (err) {
+      console.error("Print failed: ", err);
+    }
+  };
+
+  setTimeout(triggerPrint, 50);
 }
 
 // Format bill quantity: < 1 kg displayed in grams (e.g. 500g, 250g), >= 1 kg in kg (e.g. 1.5 kg, 2 kg)
@@ -240,7 +255,6 @@ function generateBillPDF(billData) {
   <meta charset="UTF-8">
   <title>Bill #${billNum}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800;900&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Segoe UI', Arial, sans-serif;
@@ -373,46 +387,43 @@ function generateBillPDF(billData) {
     <div class="thanks">ස්තූතියි! Thank You!</div>
     <div>Please visit again</div>
   </div>
-
-  <script>
-    // Fallback script if parent fails to trigger print
-    function doPrint() {
-      try {
-        window.focus();
-        window.print();
-      } catch (e) {}
-    }
-  </script>
 </body>
 </html>`;
 
-  // Use hidden iframe for printing to bypass popup blockers
+  // Remove any previous print iframe to keep DOM clean
+  const oldIframe = document.getElementById('print-receipt-frame');
+  if (oldIframe) {
+    oldIframe.remove();
+  }
+
+  // Use hidden iframe for instant printing without popup blocker delays
   const iframe = document.createElement('iframe');
-  iframe.style.position = 'absolute';
+  iframe.id = 'print-receipt-frame';
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
   iframe.style.width = '0px';
   iframe.style.height = '0px';
   iframe.style.border = 'none';
+  iframe.style.visibility = 'hidden';
   document.body.appendChild(iframe);
   
-  iframe.contentWindow.document.open();
-  iframe.contentWindow.document.write(html);
-  iframe.contentWindow.document.close();
+  const frameDoc = iframe.contentWindow.document;
+  frameDoc.open();
+  frameDoc.write(html);
+  frameDoc.close();
 
-  iframe.onload = function() {
-    setTimeout(() => {
-      try {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
-      } catch (err) {
-        console.error("Print failed: ", err);
-      }
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
-        }
-      }, 5000);
-    }, 400); // 400ms delay to ensure Iskoola Pota / Noto Sinhala fonts are fully rendered
+  const triggerPrint = () => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch (err) {
+      console.error("Print failed: ", err);
+    }
   };
+
+  // Immediate print trigger (instant render without network delay)
+  setTimeout(triggerPrint, 50);
 }
 
 // Get next bill number from Firestore
