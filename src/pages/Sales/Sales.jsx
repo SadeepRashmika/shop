@@ -74,6 +74,7 @@ function generateReloadReceiptPDF(reloadRecord) {
   <meta charset="UTF-8">
   <title>Reload Receipt #${billNum}</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800;900&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Segoe UI', Arial, sans-serif;
@@ -255,6 +256,7 @@ function generateBillPDF(billData) {
   <meta charset="UTF-8">
   <title>Bill #${billNum}</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800;900&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Segoe UI', Arial, sans-serif;
