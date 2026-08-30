@@ -2962,9 +2962,28 @@ export default function Sales() {
                       return;
                     }
                     try {
-                      await deleteDoc(doc(db, 'transactions', selectedBill.id));
+                      const batch = writeBatch(db);
 
-                      // Also delete associated millingRecords
+                      // 1. Re-add items back to stock
+                      if (selectedBill.items && Array.isArray(selectedBill.items)) {
+                        for (const item of selectedBill.items) {
+                          if (item.id && !item.isCustom && !item.isReload && !item.isMilling) {
+                            const itemRef = doc(db, 'items', item.id);
+                            const qtyToRestore = parseFloat(item.quantity) || 0;
+                            if (qtyToRestore > 0) {
+                              batch.update(itemRef, {
+                                stock: increment(qtyToRestore)
+                              });
+                            }
+                          }
+                        }
+                      }
+
+                      // 2. Delete transaction document
+                      batch.delete(doc(db, 'transactions', selectedBill.id));
+                      await batch.commit();
+
+                      // 3. Also delete associated millingRecords
                       if (selectedBill.billNumber) {
                         const qMilling = query(collection(db, 'millingRecords'), where('billNumber', '==', selectedBill.billNumber));
                         const mSnap = await getDocs(qMilling);
@@ -2979,10 +2998,22 @@ export default function Sales() {
                         }
                       }
 
+                      // 4. Update in-memory stock state immediately
+                      if (selectedBill.items && Array.isArray(selectedBill.items)) {
+                        setItems(prevItems => prevItems.map(it => {
+                          const billItem = selectedBill.items.find(bi => bi.id === it.id);
+                          if (billItem && !billItem.isCustom && !billItem.isReload && !billItem.isMilling) {
+                            const qty = parseFloat(billItem.quantity) || 0;
+                            return { ...it, stock: (parseFloat(it.stock) || 0) + qty };
+                          }
+                          return it;
+                        }));
+                      }
+
                       setBillDetailModal(false);
                       setBillSearchResults(billSearchResults.filter(b => b.id !== selectedBill.id));
                       setSelectedBill(null);
-                      alert('Bill deleted successfully.');
+                      alert('බිල්පත සාර්ථකව මකා දැමූ අතර භාණ්ඩ නැවත Stock එකට එකතු විය (Bill deleted & stock restored).');
                     } catch (err) {
                       console.error(err);
                       alert('Failed to delete bill: ' + err.message);

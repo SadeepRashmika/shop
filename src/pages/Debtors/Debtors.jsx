@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp, increment, writeBatch } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -390,7 +390,21 @@ export default function Debtors() {
 
       // 1. Delete document from respective Firestore collection
       if (item._source === 'transactions') {
-        await deleteDoc(doc(db, 'transactions', item.id));
+        const batch = writeBatch(db);
+        if (item.items && Array.isArray(item.items)) {
+          for (const it of item.items) {
+            if (it.id && !it.isCustom && !it.isReload && !it.isMilling) {
+              const qty = parseFloat(it.quantity) || 0;
+              if (qty > 0) {
+                batch.update(doc(db, 'items', it.id), {
+                  stock: increment(qty)
+                });
+              }
+            }
+          }
+        }
+        batch.delete(doc(db, 'transactions', item.id));
+        await batch.commit();
       } else if (item._source === 'reloads') {
         await deleteDoc(doc(db, 'reloads', item.id));
       } else if (item._source === 'debtor_payments') {
