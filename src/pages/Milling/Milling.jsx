@@ -17,7 +17,7 @@ import './Milling.css';
 function generatePaddyReceiptPDF(record) {
   const shopInfo = getShopInfo();
   const dateStr = record.dateStr || getTodayDateString();
-  const supplier = record.supplierName || 'ගොවියා';
+  const supplier = record.supplierName || 'සැපයුම්කරු';
   const farmerId = record.farmerId || '';
   const paddyType = record.paddyType || 'සුදු වී';
   const weeKg = parseFloat(record.weeKg || record.kg) || 0;
@@ -63,7 +63,7 @@ function generatePaddyReceiptPDF(record) {
   <div class="row"><span>Cashier:</span><span>${cashier}</span></div>
   <div class="divider"></div>
 
-  <div class="row"><span>ගොවියා / Supplier:</span><strong>${supplier}${farmerId ? ' (' + farmerId + ')' : ''}</strong></div>
+  <div class="row"><span>සැපයුම්කරු / Supplier:</span><strong>${supplier}${farmerId ? ' (' + farmerId + ')' : ''}</strong></div>
 
   <div class="divider"></div>
   <div class="section-title">🌾 වී (Paddy)</div>
@@ -645,7 +645,7 @@ export default function Milling() {
       return;
     }
     if (!paddySupplierName.trim()) {
-      alert("කරුණාකර ගොවියාගේ / සැපයුම්කරුගේ නම ඇතුළත් කරන්න.");
+      alert("කරුණාකර සැපයුම්කරුගේ නම ඇතුළත් කරන්න.");
       return;
     }
 
@@ -1611,7 +1611,7 @@ export default function Milling() {
                                 {displayFarmerId}
                               </span>
                               <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-                                {rec.supplierName || 'නොදන්නා ගොවියා'}
+                                {rec.supplierName || 'සැපයුම්කරු'}
                               </div>
                             </div>
                           </td>
@@ -1963,7 +1963,7 @@ export default function Milling() {
             {/* Supplier Name */}
             <div>
               <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                👤 ගොවියා / සැපයුම්කරුගේ නම *
+                👤 සැපයුම්කරුගේ නම *
               </label>
               <input
                 type="text"
@@ -2211,7 +2211,7 @@ export default function Milling() {
       <Modal
         isOpen={payBalanceModalOpen}
         onClose={() => setPayBalanceModalOpen(false)}
-        title="💳 ගොවියාගේ/සැපයුම්කරුගේ ණය මුදල් ගෙවීම"
+        title="💳 සැපයුම්කරුගේ ණය මුදල් ගෙවීම"
         size="md"
       >
         {payBalanceRecord && (
