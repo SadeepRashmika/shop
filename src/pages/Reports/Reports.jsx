@@ -24,9 +24,11 @@ import {
 } from '../../services/timeService';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
+import BillModal from '../../components/common/BillModal';
+import { generateBillPDF } from '../../services/receiptService';
 import { 
   FiBarChart2, FiDollarSign, FiShoppingBag, FiTrendingUp, 
-  FiActivity, FiArrowUpRight, FiArrowDownRight, FiDownload, FiPrinter, FiCalendar, FiSearch, FiFileText, FiLayers
+  FiActivity, FiArrowUpRight, FiArrowDownRight, FiDownload, FiPrinter, FiCalendar, FiSearch, FiFileText, FiLayers, FiEye
 } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LineChart, Line } from 'recharts';
 import * as XLSX from 'xlsx';
@@ -55,6 +57,7 @@ export default function Reports() {
   const [selectedItemForChart, setSelectedItemForChart] = useState(null);
   const [itemChartData, setItemChartData] = useState([]);
   const [expandedTxnId, setExpandedTxnId] = useState(null);
+  const [viewingBillTxn, setViewingBillTxn] = useState(null);
 
   // Date selection states (calibrated to real synchronized network time)
   const [selectedDailyDate, setSelectedDailyDate] = useState(getTodayDateString());
@@ -551,7 +554,7 @@ export default function Reports() {
     <div key={txn.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '2px' }}>
       <div 
         onClick={() => setExpandedTxnId(expandedTxnId === txn.id ? null : txn.id)}
-        style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 10px', cursor: 'pointer', borderRadius: '6px', transition: 'background 0.2s' }}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 10px', cursor: 'pointer', borderRadius: '6px', transition: 'background 0.2s' }}
         onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
       >
@@ -564,10 +567,23 @@ export default function Reports() {
             </span>
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '15px' }}>Rs. {Number(txn.total || 0).toFixed(2)}</div>
-          <div style={{ fontSize: '12px', color: '#3b82f6' }}>ලාභය: Rs. {Number(txn.profit || 0).toFixed(2)}</div>
-          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{txn.items?.length || 0} භාණ්ඩ</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '15px' }}>Rs. {Number(txn.total || 0).toFixed(2)}</div>
+            <div style={{ fontSize: '12px', color: '#3b82f6' }}>ලාභය: Rs. {Number(txn.profit || 0).toFixed(2)}</div>
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{txn.items?.length || 0} භාණ්ඩ</div>
+          </div>
+          <button 
+            type="button"
+            className="view-bill-btn-pill"
+            title="බිල්පත බලන්න (View Bill)"
+            onClick={(e) => {
+              e.stopPropagation();
+              setViewingBillTxn(txn);
+            }}
+          >
+            <FiEye /> View Bill
+          </button>
         </div>
       </div>
       {expandedTxnId === txn.id && txn.items && txn.items.length > 0 && (
@@ -603,6 +619,22 @@ export default function Reports() {
               })}
             </tbody>
           </table>
+          <div className="expanded-actions-bar">
+            <button 
+              type="button"
+              className="btn-action-view"
+              onClick={() => setViewingBillTxn(txn)}
+            >
+              <FiEye /> බිල්පත බලන්න (View Bill)
+            </button>
+            <button 
+              type="button"
+              className="btn-action-print"
+              onClick={() => generateBillPDF(txn)}
+            >
+              <FiPrinter /> මුද්‍රණය කරන්න (Print Receipt)
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -997,8 +1029,18 @@ export default function Reports() {
                         </span>
                         <span className="txn-method">{txn.paymentMethod}</span>
                       </div>
-                      <div className="txn-amount">
-                        Rs. {Number(txn.total).toFixed(2)}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div className="txn-amount">
+                          Rs. {Number(txn.total).toFixed(2)}
+                        </div>
+                        <button 
+                          type="button"
+                          className="mini-view-bill-btn"
+                          title="බිල්පත බලන්න (View Bill)"
+                          onClick={() => setViewingBillTxn(txn)}
+                        >
+                          <FiEye /> Bill
+                        </button>
                       </div>
                     </div>
                   ))
@@ -1022,6 +1064,7 @@ export default function Reports() {
                     <th>{t('reports.items')}</th>
                     <th>{t('reports.payment')}</th>
                     <th>{t('reports.amount')}</th>
+                    <th>ක්‍රියාමාර්ග (Actions)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1043,11 +1086,31 @@ export default function Reports() {
                           </span>
                         </td>
                         <td className="font-bold">Rs. {Number(txn.total).toFixed(2)}</td>
+                        <td>
+                          <div className="table-action-btn-group">
+                            <button 
+                              type="button"
+                              className="btn-action-view" 
+                              title="බිල්පත බලන්න (View Bill)" 
+                              onClick={() => setViewingBillTxn(txn)}
+                            >
+                              <FiEye /> Bill
+                            </button>
+                            <button 
+                              type="button"
+                              className="btn-action-print" 
+                              title="මුද්‍රණය කරන්න (Print Receipt)" 
+                              onClick={() => generateBillPDF(txn)}
+                            >
+                              <FiPrinter /> Print
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="6" className="empty-state">{t('reports.noRecentTxns')}</td>
+                      <td colSpan="7" className="empty-state">{t('reports.noRecentTxns')}</td>
                     </tr>
                   )}
                 </tbody>
@@ -1056,6 +1119,13 @@ export default function Reports() {
           </div>
         </>
       )}
+
+      {/* VIEW BILL MODAL */}
+      <BillModal
+        isOpen={!!viewingBillTxn}
+        onClose={() => setViewingBillTxn(null)}
+        billData={viewingBillTxn}
+      />
 
       {/* FULL SYSTEM REPORT GENERATOR MODAL */}
       <Modal

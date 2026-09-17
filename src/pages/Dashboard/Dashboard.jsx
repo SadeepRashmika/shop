@@ -7,7 +7,8 @@ import { db } from '../../services/firebase';
 import { isToday, toDateObject, calibrateFromTimestamp, subscribeTimeSync, formatSriLankaTime } from '../../services/timeService';
 import Card from '../../components/ui/Card';
 import Modal from '../../components/ui/Modal';
-import { FiShoppingCart, FiPackage, FiUsers, FiTrendingUp, FiDollarSign, FiClock, FiAlertTriangle, FiPrinter, FiSearch } from 'react-icons/fi';
+import BillModal from '../../components/common/BillModal';
+import { FiShoppingCart, FiPackage, FiUsers, FiTrendingUp, FiDollarSign, FiClock, FiAlertTriangle, FiPrinter, FiSearch, FiEye } from 'react-icons/fi';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -32,6 +33,7 @@ export default function Dashboard() {
   const [lowStockCategory, setLowStockCategory] = useState('සියල්ල');
   const [lowStockSort, setLowStockSort] = useState('stock-asc');
   const [lowStockThreshold, setLowStockThreshold] = useState(5);
+  const [viewingBillTxn, setViewingBillTxn] = useState(null);
 
   const lowStockRef = useRef();
 
@@ -563,8 +565,31 @@ export default function Dashboard() {
                         <FiClock /> {formatTime(txn.timestamp)}
                       </span>
                     </div>
-                    <div className="txn-amount-badge">
-                      Rs. {Number(txn.total || 0).toFixed(2)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className="txn-amount-badge">
+                        Rs. {Number(txn.total || 0).toFixed(2)}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setViewingBillTxn(txn)}
+                        title="බිල්පත බලන්න (View Bill)"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '4px 8px',
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          borderRadius: '6px',
+                          border: '1px solid rgba(139, 92, 246, 0.35)',
+                          background: 'rgba(139, 92, 246, 0.12)',
+                          color: '#8b5cf6',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <FiEye /> Bill
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -730,6 +755,13 @@ export default function Dashboard() {
           );
         })()}
       </Modal>
+
+      {/* VIEW BILL MODAL */}
+      <BillModal
+        isOpen={!!viewingBillTxn}
+        onClose={() => setViewingBillTxn(null)}
+        billData={viewingBillTxn}
+      />
     </div>
   );
 }
