@@ -531,6 +531,8 @@ export default function Sales() {
   const weightInputRef = useRef(null);
   const weightPriceInputRef = useRef(null);
   const weightGramsInputRef = useRef(null);
+  const reloadPhoneInputRef = useRef(null);
+  const reloadAmountInputRef = useRef(null);
 
   // Weight entry for weighed items
   const [weightModal, setWeightModal] = useState(false);
@@ -783,6 +785,10 @@ export default function Sales() {
   const handleOpenReloadModal = () => {
     setReloadModal(true);
     fetchReloadModalHistory();
+    setTimeout(() => {
+      reloadPhoneInputRef.current?.focus();
+      reloadPhoneInputRef.current?.select();
+    }, 100);
   };
 
   const handleReloadPhoneChange = (val) => {
@@ -796,6 +802,14 @@ export default function Sales() {
       setReloadNetwork('hutch');
     } else if (clean.startsWith('075')) {
       setReloadNetwork('airtel');
+    }
+
+    // When 10 digits are typed, auto-advance to amount field
+    if (clean.length === 10) {
+      setTimeout(() => {
+        reloadAmountInputRef.current?.focus();
+        reloadAmountInputRef.current?.select();
+      }, 60);
     }
   };
 
@@ -813,26 +827,25 @@ export default function Sales() {
     const cleanPhone = reloadPhone.trim();
     const numAmount = parseFloat(reloadAmount);
 
-    if (!cleanPhone || cleanPhone.length < 9) {
-      alert("කරුණාකර නිවැරදි දුරකථන අංකයක් ඇතුළත් කරන්න (Valid Phone Number).");
-      return;
-    }
     if (!numAmount || numAmount <= 0) {
       alert("කරුණාකර නිවැරදි මුදලක් ඇතුළත් කරන්න (Valid Amount).");
+      reloadAmountInputRef.current?.focus();
       return;
     }
 
     const selectedNet = NETWORKS.find(n => n.id === reloadNetwork) || NETWORKS[0];
     const cartId = `reload_${Date.now()}`;
+    const displayName = cleanPhone ? `${selectedNet.name} Reload (${cleanPhone})` : `${selectedNet.name} Reload`;
+
     const reloadCartItem = {
       id: `reload_${reloadNetwork}_${Date.now()}`,
       cartId,
-      name: `${selectedNet.name} Reload (${cleanPhone})`,
+      name: displayName,
       sellPrice: numAmount,
       quantity: 1,
       subtotal: numAmount,
       isReload: true,
-      phone: cleanPhone,
+      phone: cleanPhone || 'N/A',
       network: reloadNetwork,
       amount: numAmount,
       commissionRate: parseFloat(reloadCommissionRate) || 4.0,
@@ -844,18 +857,16 @@ export default function Sales() {
     setReloadModal(false);
     setReloadPhone('');
     setReloadAmount('');
+    setTimeout(() => barcodeInputRef.current?.focus(), 50);
   };
 
   const handleDirectQuickReload = async () => {
     const cleanPhone = reloadPhone.trim();
     const numAmount = parseFloat(reloadAmount);
 
-    if (!cleanPhone || cleanPhone.length < 9) {
-      alert("කරුණාකර නිවැරදි දුරකථන අංකයක් ඇතුළත් කරන්න (Valid Phone Number).");
-      return;
-    }
     if (!numAmount || numAmount <= 0) {
       alert("කරුණාකර නිවැරදි මුදලක් ඇතුළත් කරන්න (Valid Amount).");
+      reloadAmountInputRef.current?.focus();
       return;
     }
 
@@ -866,10 +877,11 @@ export default function Sales() {
       const selectedNet = NETWORKS.find(n => n.id === reloadNetwork) || NETWORKS[0];
       const commRate = parseFloat(reloadCommissionRate) || 4.0;
       const profit = numAmount * (commRate / 100);
+      const displayName = cleanPhone ? `${selectedNet.name} Reload (${cleanPhone})` : `${selectedNet.name} Reload`;
 
       const reloadRecord = {
         billNumber,
-        phone: cleanPhone,
+        phone: cleanPhone || 'N/A',
         network: reloadNetwork,
         amount: numAmount,
         commissionRate: commRate,
@@ -887,7 +899,7 @@ export default function Sales() {
         billNumber,
         items: [{
           id: `reload_${reloadNetwork}`,
-          name: `${selectedNet.name} Reload (${cleanPhone})`,
+          name: displayName,
           sellPrice: numAmount,
           quantity: 1,
           subtotal: numAmount,
@@ -900,7 +912,7 @@ export default function Sales() {
         timestamp: serverTimestamp(),
         status: 'completed',
         isReload: true,
-        reloadPhone: cleanPhone,
+        reloadPhone: cleanPhone || 'N/A',
         reloadNetwork: reloadNetwork
       };
 
@@ -917,7 +929,7 @@ export default function Sales() {
             isSale: true,
             isReload: true,
             amount: numAmount,
-            note: `${selectedNet.name} Reload #${cleanPhone}`,
+            note: cleanPhone ? `${selectedNet.name} Reload #${cleanPhone}` : `${selectedNet.name} Reload`,
             billNumber,
             time: getNow().toISOString()
           };
@@ -932,6 +944,7 @@ export default function Sales() {
       setReloadModal(false);
       setReloadPhone('');
       setReloadAmount('');
+      setTimeout(() => barcodeInputRef.current?.focus(), 50);
       generateReloadReceiptPDF(reloadRecord);
     } catch (err) {
       console.error("Failed quick reload:", err);
@@ -1072,6 +1085,17 @@ export default function Sales() {
           if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key && e.key.length === 1 && e.key !== ' ' && e.key !== '*' && e.key !== '/' && e.key !== '.') {
             barcodeInputRef.current.focus();
           }
+        }
+      }
+
+      // Press ',' -> Open Reload Modal (when no modal is open & not typing in an input)
+      if (!isAnyModalOpen && (e.key === ',' || e.code === 'Comma')) {
+        const activeTag = document.activeElement?.tagName;
+        const isInputFocused = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
+        if (!isInputFocused) {
+          e.preventDefault();
+          setReloadModal(true);
+          return;
         }
       }
 
@@ -3412,14 +3436,23 @@ export default function Sales() {
               {/* Phone Number Input */}
               <div className="form-group mb-4">
                 <label className="input-label" style={{ fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                  {t('reload.phoneNumber')} / දුරකථන අංකය
+                  {t('reload.phoneNumber')} / දුරකථන අංකය{' '}
+                  <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 400 }}>(Optional)</span>
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
+                    ref={reloadPhoneInputRef}
                     type="text"
-                    placeholder="077XXXXXXX"
+                    placeholder="077XXXXXXX (Optional)"
                     value={reloadPhone}
                     onChange={(e) => handleReloadPhoneChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        reloadAmountInputRef.current?.focus();
+                        reloadAmountInputRef.current?.select();
+                      }
+                    }}
                     className="search-input"
                     style={{ width: '100%', paddingLeft: '40px', fontSize: '1.1rem', fontWeight: 600 }}
                     autoFocus
@@ -3434,10 +3467,17 @@ export default function Sales() {
                   {t('reload.amount')} / මුදල (රු.)
                 </label>
                 <input
+                  ref={reloadAmountInputRef}
                   type="number"
                   placeholder="0.00"
                   value={reloadAmount}
                   onChange={(e) => setReloadAmount(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleDirectQuickReload();
+                    }
+                  }}
                   className="search-input mb-2"
                   style={{ width: '100%', fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary-400)' }}
                 />
@@ -3446,7 +3486,7 @@ export default function Sales() {
                     <button
                       key={amt}
                       type="button"
-                      onClick={() => setReloadAmount(String(amt))}
+                      onClick={() => { setReloadAmount(String(amt)); setTimeout(() => { reloadAmountInputRef.current?.focus(); }, 30); }}
                       style={{
                         padding: '6px 14px',
                         borderRadius: '20px',
