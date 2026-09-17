@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { getNow, toDateObject, getTodayDateString } from '../../services/timeService';
+import { getNow, toDateObject, getTodayDateString, formatSriLankaDateTime } from '../../services/timeService';
+import { getShopInfo } from '../../services/receiptService';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { 
@@ -11,6 +12,93 @@ import {
   FiPlus, FiEdit3, FiTruck, FiUser, FiPhone, FiPackage
 } from 'react-icons/fi';
 import './Milling.css';
+
+// ---- Paddy Purchase Receipt PDF Generator ----
+function generatePaddyReceiptPDF(record) {
+  const shopInfo = getShopInfo();
+  const dateStr = record.dateStr || getTodayDateString();
+  const supplier = record.supplierName || 'ගොවියා';
+  const farmerId = record.farmerId || '';
+  const paddyType = record.paddyType || 'සුදු වී';
+  const weeKg = parseFloat(record.weeKg || record.kg) || 0;
+  const weeTotal = parseFloat(record.weeTotal) || parseFloat(record.totalAmount) || 0;
+  const kopparaKg = parseFloat(record.kopparaKg) || 0;
+  const kopparaTotal = parseFloat(record.kopparaTotal) || 0;
+  const combined = weeTotal + kopparaTotal;
+  const paid = parseFloat(record.paidAmount) || 0;
+  const balance = Math.max(0, combined - paid);
+  const cashier = record.cashierName || 'Cashier';
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Paddy Purchase - ${supplier}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800;900&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans Sinhala', 'Iskoola Pota', Arial, sans-serif; width: 80mm; margin: 0 auto; padding: 5mm; color: #000; background: #fff; }
+    .header { text-align: center; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 6px; }
+    .shop-name { font-size: 15px; font-weight: 800; text-transform: uppercase; }
+    .shop-info { font-size: 10px; margin-top: 2px; }
+    .badge { display: inline-block; border: 1px solid #000; padding: 2px 8px; font-size: 10px; font-weight: 700; border-radius: 3px; margin: 4px 0; }
+    .row { display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0; }
+    .divider { border-top: 1px dashed #000; margin: 6px 0; }
+    .section-title { font-size: 11px; font-weight: 800; margin: 5px 0 3px; text-decoration: underline; }
+    .total-row { display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; margin: 3px 0; }
+    .balance { font-size: 15px; font-weight: 900; text-align: center; border: 2px solid #000; border-radius: 5px; padding: 5px; margin: 6px 0; }
+    .footer { text-align: center; font-size: 10px; margin-top: 8px; border-top: 1px dashed #000; padding-top: 5px; }
+    @media print { @page { margin: 0; size: 80mm auto; } body { width: 80mm; margin: 0; padding: 4mm; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="shop-name">${shopInfo.name}</div>
+    <div class="shop-info">${shopInfo.address}</div>
+    <div class="shop-info">Tel: ${shopInfo.phone}</div>
+    <div><span class="badge">වී ගෙනා ලේකනය / PADDY PURCHASE</span></div>
+  </div>
+
+  <div class="row"><span>දිනය (Date):</span><strong>${dateStr}</strong></div>
+  <div class="row"><span>Cashier:</span><span>${cashier}</span></div>
+  <div class="divider"></div>
+
+  <div class="row"><span>ගොවියා / Supplier:</span><strong>${supplier}${farmerId ? ' (' + farmerId + ')' : ''}</strong></div>
+
+  <div class="divider"></div>
+  <div class="section-title">🌾 වී (Paddy)</div>
+  <div class="row"><span>වී වරගය:</span><span>${paddyType}</span></div>
+  <div class="row"><span>බර:</span><span>${weeKg.toFixed(1)} Kg</span></div>
+  <div class="row"><span>වී මුළු:</span><strong>Rs. ${weeTotal.toFixed(2)}</strong></div>
+
+  ${kopparaKg > 0 || kopparaTotal > 0 ? `
+  <div class="divider"></div>
+  <div class="section-title">🥥 කොප්පරා (Koppara)</div>
+  <div class="row"><span>බර:</span><span>${kopparaKg.toFixed(1)} Kg</span></div>
+  <div class="row"><span>කොප්පරා මුළු:</span><strong>Rs. ${kopparaTotal.toFixed(2)}</strong></div>
+  ` : ''}
+
+  <div class="divider"></div>
+  <div class="total-row"><span>මුළු වටිනාකම:</span><span>Rs. ${combined.toFixed(2)}</span></div>
+  <div class="total-row"><span>ගෙවූ මුදල:</span><span style="color:#000">Rs. ${paid.toFixed(2)}</span></div>
+  <div class="balance">ණය ශේෂය: Rs. ${balance.toFixed(2)}</div>
+
+  <div class="footer">
+    <div>ස්තුතියි! නැවත එන්න!</div>
+  </div>
+</body>
+</html>`;
+
+  const oldFrame = document.getElementById('paddy-receipt-frame');
+  if (oldFrame) oldFrame.remove();
+  const iframe = document.createElement('iframe');
+  iframe.id = 'paddy-receipt-frame';
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;visibility:hidden;';
+  document.body.appendChild(iframe);
+  const fd = iframe.contentWindow.document;
+  fd.open(); fd.write(html); fd.close();
+  setTimeout(() => { try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) {} }, 80);
+}
 
 export default function Milling() {
   const { user, userData } = useAuth();
@@ -551,7 +639,7 @@ export default function Milling() {
     setPaddyModalOpen(true);
   };
 
-  const handleSavePaddyRecord = async () => {
+  const handleSavePaddyRecord = async (printAfterSave = false) => {
     if (!paddyDate) {
       alert("කරුණාකර දිනයක් තෝරන්න.");
       return;
@@ -650,6 +738,9 @@ export default function Milling() {
       setPaddyModalOpen(false);
       resetPaddyForm();
       fetchPaddyData();
+      if (printAfterSave) {
+        generatePaddyReceiptPDF(payload);
+      }
     } catch (err) {
       console.error("Error saving paddy purchase record:", err);
       alert("ලියාපදිංචිය අසාර්ථක විය: " + err.message);
@@ -2093,15 +2184,22 @@ export default function Milling() {
           </div>
 
           {/* Modal Actions */}
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
             <Button variant="secondary" onClick={() => setPaddyModalOpen(false)}>
               අවලංගු කරන්න
             </Button>
             <Button
-              onClick={handleSavePaddyRecord}
+              onClick={() => handleSavePaddyRecord(false)}
               style={{ background: '#3b82f6', borderColor: '#3b82f6' }}
             >
-              💾 වී ලේඛනය සුරකින්න
+              💾 සුරකින්න
+            </Button>
+            <Button
+              onClick={() => handleSavePaddyRecord(true)}
+              style={{ background: '#7c3aed', borderColor: '#7c3aed' }}
+              icon={<FiPrinter />}
+            >
+              🖨️ සුරකින්න & Print
             </Button>
           </div>
         </div>
