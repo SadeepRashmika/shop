@@ -786,8 +786,8 @@ export default function Sales() {
     setReloadModal(true);
     fetchReloadModalHistory();
     setTimeout(() => {
-      reloadPhoneInputRef.current?.focus();
-      reloadPhoneInputRef.current?.select();
+      reloadAmountInputRef.current?.focus();
+      reloadAmountInputRef.current?.select();
     }, 100);
   };
 
@@ -1096,7 +1096,7 @@ export default function Sales() {
         const isOtherInputFocused = !isBarcodeFocused && (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT');
         if (!isOtherInputFocused) {
           e.preventDefault();
-          setReloadModal(true);
+          handleOpenReloadModal();
           return;
         }
       }
@@ -3457,7 +3457,6 @@ export default function Sales() {
                     }}
                     className="search-input"
                     style={{ width: '100%', paddingLeft: '40px', fontSize: '1.1rem', fontWeight: 600 }}
-                    autoFocus
                   />
                   <FiPhoneCall style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--primary-400)', fontSize: '18px' }} />
                 </div>
