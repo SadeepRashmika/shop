@@ -54,6 +54,11 @@ export default function Milling() {
   const [paddyPaidAmount, setPaddyPaidAmount] = useState('');
   const [paddyNotes, setPaddyNotes] = useState('');
   const [paddyPaymentFilter, setPaddyPaymentFilter] = useState('all'); // 'all', 'paid', 'due'
+  // Koppara fields (optional — same paddy purchase entry)
+  const [kopparaKg, setKopparaKg] = useState('');
+  const [kopparaBags, setKopparaBags] = useState('');
+  const [kopparaRate, setKopparaRate] = useState('');
+  const [kopparaTotal, setKopparaTotal] = useState('');
 
   // Pay Balance Quick Modal State
   const [payBalanceModalOpen, setPayBalanceModalOpen] = useState(false);
@@ -516,6 +521,10 @@ export default function Milling() {
     setPaddyTotalAmount('');
     setPaddyPaidAmount('0');
     setPaddyNotes('');
+    setKopparaKg('');
+    setKopparaBags('');
+    setKopparaRate('');
+    setKopparaTotal('');
   };
 
   const handleOpenAddPaddyModal = () => {
@@ -534,6 +543,10 @@ export default function Milling() {
     setPaddyTotalAmount(rec.totalAmount ? String(rec.totalAmount) : '');
     setPaddyPaidAmount(rec.paidAmount ? String(rec.paidAmount) : '');
     setPaddyNotes(rec.notes || '');
+    setKopparaKg(rec.kopparaKg ? String(rec.kopparaKg) : '');
+    setKopparaBags(rec.kopparaBags ? String(rec.kopparaBags) : '');
+    setKopparaRate(rec.kopparaRate ? String(rec.kopparaRate) : '');
+    setKopparaTotal(rec.kopparaTotal ? String(rec.kopparaTotal) : '');
 
     setPaddyModalOpen(true);
   };
@@ -552,11 +565,17 @@ export default function Milling() {
     const kgNum = parseFloat(paddyKg) || 0;
     const rateNum = parseFloat(paddyRate) || 0;
     const totalNum = paddyTotalAmount !== '' ? (parseFloat(paddyTotalAmount) || 0) : (kgNum * rateNum);
-    const paidNum = parseFloat(paddyPaidAmount) || 0; // User enters manually, no auto-fill
-    const balNum = Math.max(0, totalNum - paidNum);
 
-    if (kgNum <= 0 && totalNum <= 0) {
-      alert("කරුණාකර වී බර (Kg) හෝ මුළු වටිනාකම ඇතුළත් කරන්න.");
+    const kopparaKgNum = parseFloat(kopparaKg) || 0;
+    const kopparaRateNum = parseFloat(kopparaRate) || 0;
+    const kopparaTotalNum = kopparaTotal !== '' ? (parseFloat(kopparaTotal) || 0) : (kopparaKgNum * kopparaRateNum);
+
+    const combinedTotal = totalNum + kopparaTotalNum;
+    const paidNum = parseFloat(paddyPaidAmount) || 0;
+    const balNum = Math.max(0, combinedTotal - paidNum);
+
+    if (kgNum <= 0 && totalNum <= 0 && kopparaKgNum <= 0 && kopparaTotalNum <= 0) {
+      alert('කරුණාකර වී බර (Kg) හෝ කොප්පරා බර (Kg) හෝ මුළු වටිනාකම ඇතුළත් කරන්න.');
       return;
     }
 
@@ -603,10 +622,18 @@ export default function Milling() {
       kg: kgNum,
       bags: parseInt(paddyBags) || 0,
       rate: rateNum,
-      totalAmount: totalNum,
+      totalAmount: combinedTotal,
       paidAmount: paidNum,
       balance: balNum,
       notes: paddyNotes.trim(),
+      // Wee sub-total (for reporting)
+      weeKg: kgNum,
+      weeTotal: totalNum,
+      // Koppara fields
+      kopparaKg: kopparaKgNum,
+      kopparaBags: parseInt(kopparaBags) || 0,
+      kopparaRate: kopparaRateNum,
+      kopparaTotal: kopparaTotalNum,
       cashierName: userData?.name || user?.email?.split('@')[0] || 'Cashier',
       updatedAt: new Date()
     };
@@ -1978,6 +2005,59 @@ export default function Milling() {
             </div>
           </div>
 
+          {/* === Koppara Section === */}
+          <div style={{ background: 'rgba(234, 179, 8, 0.06)', border: '1.5px solid rgba(234, 179, 8, 0.25)', borderRadius: '12px', padding: '1rem', marginBottom: '1rem' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#d97706', marginBottom: '0.75rem' }}>🥥 කොප්පරා (Koppara) — Optional</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '1rem' }}>
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, display: 'block', marginBottom: '4px', color: 'var(--text-secondary)' }}>⚖️ කොප්පරා බර (Kg)</label>
+                <input
+                  type="number" step="0.1" placeholder="0.0"
+                  value={kopparaKg}
+                  onChange={(e) => {
+                    setKopparaKg(e.target.value);
+                    const kg = parseFloat(e.target.value);
+                    const rate = parseFloat(kopparaRate);
+                    if (!isNaN(kg) && !isNaN(rate) && rate > 0) setKopparaTotal((kg * rate).toFixed(2));
+                  }}
+                  className="search-input" style={{ width: '100%', fontWeight: 700 }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, display: 'block', marginBottom: '4px', color: 'var(--text-secondary)' }}>🎒 මලු ගණන (Bags)</label>
+                <input
+                  type="number" placeholder="0"
+                  value={kopparaBags}
+                  onChange={(e) => setKopparaBags(e.target.value)}
+                  className="search-input" style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, display: 'block', marginBottom: '4px', color: 'var(--text-secondary)' }}>💵 1 Kg මිල (Rs.)</label>
+                <input
+                  type="number" step="0.01" placeholder="0.00"
+                  value={kopparaRate}
+                  onChange={(e) => {
+                    setKopparaRate(e.target.value);
+                    const rate = parseFloat(e.target.value);
+                    const kg = parseFloat(kopparaKg);
+                    if (!isNaN(kg) && !isNaN(rate) && kg > 0) setKopparaTotal((kg * rate).toFixed(2));
+                  }}
+                  className="search-input" style={{ width: '100%', fontWeight: 700 }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, display: 'block', marginBottom: '4px', color: 'var(--text-secondary)' }}>💰 කොප්පරා මුළු (Rs.)</label>
+                <input
+                  type="number" step="0.01" placeholder="0.00"
+                  value={kopparaTotal}
+                  onChange={(e) => setKopparaTotal(e.target.value)}
+                  className="search-input" style={{ width: '100%', fontWeight: 800, color: '#d97706' }}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Notes */}
           <div className="form-group mb-4">
             <label className="input-label" style={{ fontWeight: 700, display: 'block', marginBottom: '6px' }}>
@@ -1996,21 +2076,27 @@ export default function Milling() {
           {/* Summary Calculation Preview */}
           <div style={{ background: 'rgba(59, 130, 246, 0.08)', border: '1.5px solid rgba(59, 130, 246, 0.3)', borderRadius: '12px', padding: '1rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-around', alignItems: 'center', flexWrap: 'wrap', gap: '10px', textAlign: 'center' }}>
             <div>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>මුළු වටිනාකම</span>
-              <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#8b5cf6' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>🌾 වී මුළු</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#8b5cf6' }}>
                 Rs. {(parseFloat(paddyTotalAmount) || 0).toFixed(2)}
               </span>
             </div>
             <div>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>ගෙවූ මුදල</span>
-              <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#10b981' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>🥥 කොප්පරා මුළු</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#d97706' }}>
+                Rs. {(parseFloat(kopparaTotal) || 0).toFixed(2)}
+              </span>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>💰 ගෙවූ මුදල</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#10b981' }}>
                 Rs. {(parseFloat(paddyPaidAmount) || 0).toFixed(2)}
               </span>
             </div>
             <div>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>ණය ශේෂය</span>
-              <span style={{ fontSize: '1.3rem', fontWeight: 800, color: ((parseFloat(paddyTotalAmount) || 0) - (parseFloat(paddyPaidAmount) || 0)) > 0 ? '#ef4444' : '#10b981' }}>
-                Rs. {Math.max(0, (parseFloat(paddyTotalAmount) || 0) - (parseFloat(paddyPaidAmount) || 0)).toFixed(2)}
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>⚡ ශේෂය</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: ((parseFloat(paddyTotalAmount) || 0) + (parseFloat(kopparaTotal) || 0) - (parseFloat(paddyPaidAmount) || 0)) > 0 ? '#ef4444' : '#10b981' }}>
+                Rs. {Math.max(0, (parseFloat(paddyTotalAmount) || 0) + (parseFloat(kopparaTotal) || 0) - (parseFloat(paddyPaidAmount) || 0)).toFixed(2)}
               </span>
             </div>
           </div>
