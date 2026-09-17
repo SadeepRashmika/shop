@@ -3476,7 +3476,7 @@ export default function Sales() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      handleDirectQuickReload();
+                      handleAddReloadToCart();
                     }
                   }}
                   className="search-input mb-2"
