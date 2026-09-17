@@ -1088,11 +1088,13 @@ export default function Sales() {
         }
       }
 
-      // Press ',' -> Open Reload Modal (when no modal is open & not typing in an input)
+      // Press ',' -> Open Reload Modal (when no modal is open)
+      // Allow even if barcode input is focused (comma is not a valid barcode character)
       if (!isAnyModalOpen && (e.key === ',' || e.code === 'Comma')) {
+        const isBarcodeFocused = document.activeElement === barcodeInputRef.current;
         const activeTag = document.activeElement?.tagName;
-        const isInputFocused = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
-        if (!isInputFocused) {
+        const isOtherInputFocused = !isBarcodeFocused && (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT');
+        if (!isOtherInputFocused) {
           e.preventDefault();
           setReloadModal(true);
           return;
