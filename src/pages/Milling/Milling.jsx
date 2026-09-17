@@ -2024,15 +2024,6 @@ export default function Milling() {
                 />
               </div>
               <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, display: 'block', marginBottom: '4px', color: 'var(--text-secondary)' }}>🎒 මලු ගණන (Bags)</label>
-                <input
-                  type="number" placeholder="0"
-                  value={kopparaBags}
-                  onChange={(e) => setKopparaBags(e.target.value)}
-                  className="search-input" style={{ width: '100%' }}
-                />
-              </div>
-              <div>
                 <label style={{ fontSize: '0.82rem', fontWeight: 700, display: 'block', marginBottom: '4px', color: 'var(--text-secondary)' }}>💵 1 Kg මිල (Rs.)</label>
                 <input
                   type="number" step="0.01" placeholder="0.00"
