@@ -79,6 +79,20 @@ export default function Login() {
       <div className="auth-container fade-in">
         <div className="auth-card glass">
           <div className="auth-header">
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
+              <img 
+                src="./pos_banner.jpg" 
+                alt="SmartPOS Logo" 
+                style={{ 
+                  width: '82px', 
+                  height: '82px', 
+                  borderRadius: '20px', 
+                  boxShadow: '0 8px 25px rgba(59, 130, 246, 0.45)', 
+                  border: '2px solid rgba(59, 130, 246, 0.5)',
+                  objectFit: 'cover'
+                }} 
+              />
+            </div>
             <h1 className="auth-title gradient-text">{t('auth.loginTitle', 'SmartPOS Login')}</h1>
             <p className="auth-subtitle">{t('auth.loginSubtitle', 'පද්ධතියට ඇතුළු වීමට ඔබගේ තොරතුරු ලබාදෙන්න')}</p>
           </div>

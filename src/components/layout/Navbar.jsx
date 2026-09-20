@@ -30,8 +30,8 @@ export default function Navbar({ onToggleSidebar }) {
             <FiMenu />
           </button>
         )}
-        <Link to="/" className="navbar-brand">
-          <span className="brand-icon">◆</span>
+        <Link to="/" className="navbar-brand" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <img src="./pos_banner.jpg" alt="Logo" style={{ width: '28px', height: '28px', borderRadius: '8px', objectFit: 'cover', boxShadow: '0 2px 8px rgba(59,130,246,0.4)' }} />
           <span className="brand-text gradient-text">SmartPOS</span>
         </Link>
       </div>
