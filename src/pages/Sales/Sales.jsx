@@ -428,25 +428,40 @@ function generateBillPDF(billData) {
   setTimeout(triggerPrint, 50);
 }
 
-// Get next bill number from Firestore
+// Get next bill number from Firestore with seamless offline resilience
 async function getNextBillNumber() {
   const counterRef = doc(db, 'counters', 'billNumber');
-  const counterSnap = await getDoc(counterRef);
+  let current = 0;
 
-  if (counterSnap.exists()) {
-    const current = counterSnap.data().current || 0;
-    const next = current + 1;
-    if (next > 1000000) {
-      throw new Error('Bill number limit reached (1,000,000)');
+  try {
+    const savedLocal = localStorage.getItem('smartpos_last_bill_number');
+    if (savedLocal) {
+      current = parseInt(savedLocal, 10) || 0;
     }
-    await updateDoc(counterRef, { current: next });
-    return next;
-  } else {
-    // Initialize counter
-    await setDoc(counterRef, { current: 1 });
-    return 1;
+
+    const counterSnap = await getDoc(counterRef);
+    if (counterSnap && counterSnap.exists()) {
+      const serverVal = counterSnap.data().current || 0;
+      current = Math.max(current, serverVal);
+    }
+  } catch (err) {
+    console.warn("[Sales] Operating in offline mode for bill number counter:", err.message);
+    const savedLocal = localStorage.getItem('smartpos_last_bill_number');
+    if (savedLocal) {
+      current = parseInt(savedLocal, 10) || 0;
+    }
   }
+
+  const next = current + 1;
+  try {
+    localStorage.setItem('smartpos_last_bill_number', String(next));
+    // Use setDoc with merge so Firestore queues it locally and syncs automatically when online
+    setDoc(counterRef, { current: next }, { merge: true }).catch(() => {});
+  } catch (e) {}
+
+  return next;
 }
+
 
 export default function Sales() {
   const { t } = useTranslation();
@@ -1627,9 +1642,9 @@ export default function Sales() {
       // 2. Debtor totalOwed update if credit
       if (paymentMethod === 'credit' && selectedDebtor) {
         const debtorRef = doc(db, 'debtors', selectedDebtor.id);
-        batch.update(debtorRef, {
+        batch.set(debtorRef, {
           totalOwed: increment(creditAmount)
-        });
+        }, { merge: true });
       }
 
       // 3. Update stock and extra docs in batch
@@ -1681,9 +1696,9 @@ export default function Sales() {
           batch.set(mRef, millingRecord);
         } else if (item.id && !item.isCustom) {
           const itemRef = doc(db, 'items', item.id);
-          batch.update(itemRef, {
+          batch.set(itemRef, {
             stock: increment(-item.quantity)
-          });
+          }, { merge: true });
         }
       }
 

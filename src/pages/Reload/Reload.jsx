@@ -32,23 +32,37 @@ function getShopInfo() {
   };
 }
 
-// Get next sequential bill number from Firestore
+// Get next sequential bill number from Firestore with offline resilience
 async function getNextBillNumber() {
   const counterRef = doc(db, 'counters', 'billNumber');
-  const counterSnap = await getDoc(counterRef);
+  let current = 0;
 
-  if (counterSnap.exists()) {
-    const current = counterSnap.data().current || 0;
-    const next = current + 1;
-    if (next > 1000000) {
-      throw new Error('Bill number limit reached (1,000,000)');
+  try {
+    const savedLocal = localStorage.getItem('smartpos_last_bill_number');
+    if (savedLocal) {
+      current = parseInt(savedLocal, 10) || 0;
     }
-    await updateDoc(counterRef, { current: next });
-    return next;
-  } else {
-    await setDoc(counterRef, { current: 1 });
-    return 1;
+
+    const counterSnap = await getDoc(counterRef);
+    if (counterSnap && counterSnap.exists()) {
+      const serverVal = counterSnap.data().current || 0;
+      current = Math.max(current, serverVal);
+    }
+  } catch (err) {
+    console.warn("[Reload] Operating in offline mode for bill counter:", err.message);
+    const savedLocal = localStorage.getItem('smartpos_last_bill_number');
+    if (savedLocal) {
+      current = parseInt(savedLocal, 10) || 0;
+    }
   }
+
+  const next = current + 1;
+  try {
+    localStorage.setItem('smartpos_last_bill_number', String(next));
+    setDoc(counterRef, { current: next }, { merge: true }).catch(() => {});
+  } catch (e) {}
+
+  return next;
 }
 
 // Generate Reload Receipt PDF
