@@ -100,29 +100,44 @@ export function generateBillPDF(billData) {
 
   const html = `
 <!DOCTYPE html>
-<html>
+<html lang="si">
 <head>
   <meta charset="UTF-8">
   <title>Bill #${billNum}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800;900&display=swap');
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700;800;900&display=swap');
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box;
+      letter-spacing: normal !important;
+      word-spacing: normal !important;
+    }
     body {
-      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Segoe UI', Arial, sans-serif;
+      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', 'FMAbhaya', 'Segoe UI', Arial, sans-serif;
       width: 80mm;
       margin: 0 auto;
-      padding: 5mm;
+      padding: 4mm;
       color: #000;
       font-size: 11px;
       font-weight: 700;
+      text-rendering: optimizeLegibility;
+      font-feature-settings: "kern" 1, "liga" 1;
+      -webkit-font-smoothing: antialiased;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
     .header { text-align: center; margin-bottom: 8px; }
-    .shop-name { font-size: 22px; font-weight: 900; -webkit-text-stroke: 0.6px #000; margin-bottom: 4px; color: #000; letter-spacing: 0.5px; }
-    .shop-info { font-size: 12px; font-weight: 700; color: #000; line-height: 1.4; }
+    .shop-name { 
+      font-size: 20px; 
+      font-weight: 900; 
+      margin-bottom: 4px; 
+      color: #000; 
+      line-height: 1.2;
+    }
+    .shop-info { font-size: 11px; font-weight: 700; color: #000; line-height: 1.4; }
     .divider { border-top: 1px dashed #000; margin: 6px 0; }
-    .bill-number { text-align: center; font-size: 15px; font-weight: 800; margin: 4px 0; color: #000; }
+    .bill-number { text-align: center; font-size: 14px; font-weight: 800; margin: 4px 0; color: #000; }
     .meta-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin: 2px 0; color: #000; }
     table { width: 100%; border-collapse: collapse; font-size: 11px; color: #000; }
     thead tr {
@@ -144,11 +159,11 @@ export function generateBillPDF(billData) {
     thead th:first-child { text-align: left; }
     .total-section { margin-top: 6px; }
     .total-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin: 3px 0; color: #000; }
-    .grand-total { font-size: 16px; font-weight: 800; margin: 4px 0; color: #000; }
-    .footer { text-align: center; margin-top: 10px; font-size: 12px; font-weight: 700; color: #000; }
-    .footer .thanks { font-weight: 800; font-size: 13px; color: #000; }
+    .grand-total { font-size: 16px; font-weight: 900; margin: 4px 0; color: #000; }
+    .footer { text-align: center; margin-top: 10px; font-size: 11px; font-weight: 700; color: #000; }
+    .footer .thanks { font-weight: 800; font-size: 13px; color: #000; margin-bottom: 2px; }
     @media print {
-      body { width: 80mm; margin: 0; padding: 3mm; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: #000; font-weight: 700; }
+      body { width: 80mm; margin: 0; padding: 2mm; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: #000; font-weight: 700; }
       @page { size: 80mm auto; margin: 0; }
       thead tr { background-color: #000 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       thead th { background-color: #000 !important; color: #fff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -222,7 +237,7 @@ export function generateBillPDF(billData) {
     ${totalSavings > 0 ? `
     <div class="divider"></div>
     <div style="text-align:center; padding: 6px 0; color: #000;">
-      <div style="font-size: 13px; font-weight: 800; letter-spacing: 0.5px;">ඔබට ලැබුණු ලාභය</div>
+      <div style="font-size: 13px; font-weight: 800;">ඔබට ලැබුණු ලාභය</div>
       <div style="font-size: 17px; font-weight: 800; margin-top: 2px;">Rs. ${totalSavings.toFixed(2)}</div>
     </div>
     ` : ''}
@@ -271,5 +286,165 @@ export function generateBillPDF(billData) {
     }
   };
 
-  setTimeout(triggerPrint, 50);
+  try {
+    if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
+      iframe.contentWindow.document.fonts.ready.then(() => {
+        setTimeout(triggerPrint, 120);
+      }).catch(() => {
+        setTimeout(triggerPrint, 200);
+      });
+    } else {
+      setTimeout(triggerPrint, 200);
+    }
+  } catch {
+    setTimeout(triggerPrint, 200);
+  }
+}
+
+// Generate Reload Receipt - supports Sinhala Unicode text cleanly on all browsers
+export function generateReloadReceiptPDF(reloadRecord) {
+  if (!reloadRecord) return;
+  const shopInfo = getShopInfo();
+  const billNum = reloadRecord.billNumber ? String(reloadRecord.billNumber).padStart(6, '0') : '000000';
+  const dateStr = formatSriLankaDateTime(reloadRecord.date || reloadRecord.timestamp || getNow());
+
+  const html = `
+<!DOCTYPE html>
+<html lang="si">
+<head>
+  <meta charset="UTF-8">
+  <title>Reload Receipt #${billNum}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700;800;900&display=swap');
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+      letter-spacing: normal !important;
+      word-spacing: normal !important;
+    }
+    body {
+      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', 'FMAbhaya', 'Segoe UI', Arial, sans-serif;
+      width: 80mm;
+      margin: 0 auto;
+      padding: 4mm;
+      color: #000;
+      background: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      text-rendering: optimizeLegibility;
+      font-feature-settings: "kern" 1, "liga" 1;
+      -webkit-font-smoothing: antialiased;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .header { text-align: center; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 6px; }
+    .shop-name { 
+      font-size: 18px; 
+      font-weight: 900; 
+      margin-bottom: 3px; 
+      color: #000; 
+      line-height: 1.2;
+    }
+    .shop-info { font-size: 11px; font-weight: 700; color: #000; margin-bottom: 2px; }
+    .badge { display: inline-block; border: 1px solid #000; padding: 2px 6px; font-size: 10px; font-weight: 800; border-radius: 3px; margin: 3px 0; }
+    .meta-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin: 3px 0; color: #000; }
+    .divider { border-top: 1px dashed #000; margin: 6px 0; }
+    .amount-box { text-align: center; border: 2px solid #000; border-radius: 6px; padding: 8px 4px; margin: 8px 0; }
+    .amount-label { font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .amount-val { font-size: 20px; font-weight: 900; margin-top: 2px; }
+    .footer { text-align: center; font-size: 11px; font-weight: 700; margin-top: 8px; border-top: 1px dashed #000; padding-top: 6px; color: #000; }
+    .footer .thanks { font-weight: 800; font-size: 12px; margin-bottom: 2px; }
+    @media print {
+      @page { margin: 0; size: 80mm auto; }
+      body { width: 80mm; margin: 0; padding: 2mm; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="shop-name">${shopInfo.name}</div>
+    <div class="shop-info">${shopInfo.address}</div>
+    <div class="shop-info">Tel: ${shopInfo.phone}</div>
+    <div><span class="badge">RELOAD RECEIPT</span></div>
+  </div>
+
+  <div class="meta-row">
+    <span>Bill No: <strong>#${billNum}</strong></span>
+    <span>Date: ${dateStr}</span>
+  </div>
+  <div class="meta-row">
+    <span>Cashier: ${reloadRecord.cashierName || 'Cashier'}</span>
+    <span>Method: ${reloadRecord.paymentMethod ? reloadRecord.paymentMethod.toUpperCase() : 'CASH'}</span>
+  </div>
+  ${reloadRecord.debtorName ? `<div class="meta-row"><span>Debtor: <strong>${reloadRecord.debtorName}</strong></span></div>` : ''}
+
+  <div class="divider"></div>
+
+  <div class="meta-row" style="font-size: 12px;">
+    <span>Network:</span>
+    <strong style="text-transform: uppercase;">${reloadRecord.network}</strong>
+  </div>
+  <div class="meta-row" style="font-size: 13px; margin: 4px 0;">
+    <span>Phone:</span>
+    <strong>${reloadRecord.phone}</strong>
+  </div>
+
+  <div class="amount-box">
+    <div class="amount-label">Reload Amount</div>
+    <div class="amount-val">Rs. ${parseFloat(reloadRecord.amount || 0).toFixed(2)}</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="footer">
+    <div class="thanks">ස්තූතියි! Thank You!</div>
+    <div>SmartPOS Reload Service</div>
+  </div>
+</body>
+</html>`;
+
+  const oldIframe = document.getElementById('print-receipt-frame');
+  if (oldIframe) {
+    oldIframe.remove();
+  }
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'print-receipt-frame';
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0px';
+  iframe.style.height = '0px';
+  iframe.style.border = 'none';
+  iframe.style.visibility = 'hidden';
+  document.body.appendChild(iframe);
+  
+  const frameDoc = iframe.contentWindow.document;
+  frameDoc.open();
+  frameDoc.write(html);
+  frameDoc.close();
+
+  const triggerPrint = () => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch (err) {
+      console.error("Print failed: ", err);
+    }
+  };
+
+  try {
+    if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
+      iframe.contentWindow.document.fonts.ready.then(() => {
+        setTimeout(triggerPrint, 120);
+      }).catch(() => {
+        setTimeout(triggerPrint, 200);
+      });
+    } else {
+      setTimeout(triggerPrint, 200);
+    }
+  } catch {
+    setTimeout(triggerPrint, 200);
+  }
 }

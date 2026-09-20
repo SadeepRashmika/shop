@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../../services/firebase';
 import { safeCommit, getResilientBillNumber } from '../../services/offlineHelper';
+import { getShopInfo } from '../../services/receiptService';
 import { useAuth } from '../../context/AuthContext';
 import { getNow, toDateObject, isToday, getTodayDateString, formatSriLankaDateTime, formatSriLankaDate, formatSriLankaTime } from '../../services/timeService';
 import Button from '../../components/ui/Button';
@@ -17,27 +18,7 @@ import {
 
 import './Sales.css';
 
-// Dynamic Shop information & Settings helper
-function getShopInfo() {
-  try {
-    const saved = localStorage.getItem('smartpos_settings');
-    if (saved) {
-      const data = JSON.parse(saved);
-      return {
-        name: data.shopName || 'සුමින්ද ස්ටෝර්ස්',
-        phone: data.shopPhone || '0777640334',
-        email: data.shopEmail || 'sumindapradeep1111@gmail.com',
-        address: data.shopAddress || 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
-      };
-    }
-  } catch { }
-  return {
-    name: 'සුමින්ද ස්ටෝර්ස්',
-    phone: '0777640334',
-    email: 'sumindapradeep1111@gmail.com',
-    address: 'සුමින්ද ස්ටෝර්ස්, තලහගම, මාකදුර'
-  };
-}
+
 
 function getMillingRates() {
   try {
@@ -62,120 +43,7 @@ const NETWORKS = [
   { id: 'slt', name: 'SLT / Broadband', color: '#0d9488', ussdPrefix: '*123*' }
 ];
 
-// Generate Reload Receipt PDF
-function generateReloadReceiptPDF(reloadRecord) {
-  const shopInfo = getShopInfo();
-  const billNum = reloadRecord.billNumber ? String(reloadRecord.billNumber).padStart(6, '0') : '000000';
-  const dateStr = formatSriLankaDateTime(reloadRecord.date || reloadRecord.timestamp || getNow());
 
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Reload Receipt #${billNum}</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800;900&display=swap');
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Segoe UI', Arial, sans-serif;
-      width: 80mm;
-      margin: 0 auto;
-      padding: 5mm;
-      color: #000;
-      background: #fff;
-    }
-    .header { text-align: center; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 6px; }
-    .shop-name { font-size: 16px; font-weight: 800; text-transform: uppercase; margin-bottom: 2px; }
-    .shop-info { font-size: 11px; margin-bottom: 2px; }
-    .badge { display: inline-block; border: 1px solid #000; padding: 1px 6px; font-size: 10px; font-weight: 700; border-radius: 3px; margin: 3px 0; }
-    .meta-row { display: flex; justify-content: space-between; font-size: 11px; margin: 2px 0; }
-    .divider { border-top: 1px dashed #000; margin: 6px 0; }
-    .amount-box { text-align: center; border: 2px solid #000; border-radius: 6px; padding: 8px 4px; margin: 8px 0; }
-    .amount-label { font-size: 11px; font-weight: 700; text-transform: uppercase; }
-    .amount-val { font-size: 22px; font-weight: 900; }
-    .footer { text-align: center; font-size: 10px; margin-top: 8px; border-top: 1px dashed #000; padding-top: 6px; }
-    @media print {
-      @page { margin: 0; size: 80mm auto; }
-      body { width: 80mm; margin: 0; padding: 4mm; }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="shop-name">${shopInfo.name}</div>
-    <div class="shop-info">${shopInfo.address}</div>
-    <div class="shop-info">Tel: ${shopInfo.phone}</div>
-    <div><span class="badge">RELOAD RECEIPT</span></div>
-  </div>
-
-  <div class="meta-row">
-    <span>Bill No: <strong>#${billNum}</strong></span>
-    <span>Date: ${dateStr}</span>
-  </div>
-  <div class="meta-row">
-    <span>Cashier: ${reloadRecord.cashierName || 'Cashier'}</span>
-    <span>Method: ${reloadRecord.paymentMethod ? reloadRecord.paymentMethod.toUpperCase() : 'CASH'}</span>
-  </div>
-  ${reloadRecord.debtorName ? `<div class="meta-row"><span>Debtor: <strong>${reloadRecord.debtorName}</strong></span></div>` : ''}
-
-  <div class="divider"></div>
-
-  <div class="meta-row" style="font-size: 13px;">
-    <span>Network:</span>
-    <strong style="text-transform: uppercase;">${reloadRecord.network}</strong>
-  </div>
-  <div class="meta-row" style="font-size: 14px; margin: 4px 0;">
-    <span>Phone:</span>
-    <strong style="letter-spacing: 1px;">${reloadRecord.phone}</strong>
-  </div>
-
-  <div class="amount-box">
-    <div class="amount-label">Reload Amount</div>
-    <div class="amount-val">Rs. ${parseFloat(reloadRecord.amount || 0).toFixed(2)}</div>
-  </div>
-
-  <div class="divider"></div>
-
-  <div class="footer">
-    <div>ස්තූතියි! නැවත එන්න!</div>
-    <div style="margin-top: 2px;">Thank you for your reload!</div>
-  </div>
-</body>
-</html>`;
-
-  const oldIframe = document.getElementById('print-receipt-frame');
-  if (oldIframe) {
-    oldIframe.remove();
-  }
-
-  const iframe = document.createElement('iframe');
-  iframe.id = 'print-receipt-frame';
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0px';
-  iframe.style.height = '0px';
-  iframe.style.border = 'none';
-  iframe.style.visibility = 'hidden';
-  document.body.appendChild(iframe);
-  
-  const frameDoc = iframe.contentWindow.document;
-  frameDoc.open();
-  frameDoc.write(html);
-  frameDoc.close();
-
-  const triggerPrint = () => {
-    try {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    } catch (err) {
-      console.error("Print failed: ", err);
-    }
-  };
-
-  setTimeout(triggerPrint, 50);
-}
 
 // Format bill quantity: < 1 kg displayed in grams (e.g. 500g, 250g), >= 1 kg in kg (e.g. 1.5 kg, 2 kg)
 export function formatBillQty(item) {

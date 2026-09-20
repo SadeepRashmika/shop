@@ -8,7 +8,7 @@ export default defineConfig({
   server: {
     port: 5173,
     watch: {
-      ignored: ['**/Software/**', '**/dist/**', '**/.git/**', '**/server/**']
+      ignored: ['**/Software/**', '**/dist/**', '**/.git/**', '**/server/**', '**/public/fonts/**']
     }
   },
   build: {

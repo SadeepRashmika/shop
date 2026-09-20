@@ -1,6 +1,34 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
 
 /* ============================================
+   LOCAL SINHALA FONT — Offline Support
+   ============================================ */
+
+@font-face {
+  font-family: 'Noto Sans Sinhala';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Noto Sans Sinhala';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/NotoSansSinhala-SemiBold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Noto Sans Sinhala';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+}
+
+/* ============================================
    CSS DESIGN SYSTEM — SmartPOS
    ============================================ */
 
@@ -61,8 +89,8 @@
   --shadow-glow-accent: 0 0 20px rgba(34, 211, 238, 0.2);
 
   /* — Typography — */
-  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-heading: 'Outfit', 'Inter', sans-serif;
+  --font-body: 'Inter', 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Outfit', 'Inter', 'Noto Sans Sinhala', 'Iskoola Pota', sans-serif;
 
   --fs-xs: 0.75rem;
   --fs-sm: 0.875rem;
