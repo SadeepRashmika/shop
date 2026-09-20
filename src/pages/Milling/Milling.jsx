@@ -35,10 +35,36 @@ function generatePaddyReceiptPDF(record) {
   <meta charset="UTF-8">
   <title>Receipt - ${supplier}</title>
   <style>
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 400;
+      src: local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 700;
+      src: local('Noto Sans Sinhala Bold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 900;
+      src: local('Noto Sans Sinhala Black'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700;800;900&display=swap');
-    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+      letter-spacing: normal !important;
+      word-spacing: normal !important;
+      -webkit-print-color-adjust: exact; 
+      print-color-adjust: exact; 
+    }
     body {
-      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', Arial, sans-serif;
+      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', 'FMAbhaya', 'Segoe UI', Arial, sans-serif !important;
       width: 78mm;
       margin: 0 auto;
       padding: 4mm 3mm;
@@ -46,6 +72,9 @@ function generatePaddyReceiptPDF(record) {
       background: #fff;
       font-size: 13px;
       line-height: 1.35;
+      text-rendering: optimizeLegibility;
+      font-feature-settings: "kern" 1, "liga" 1;
+      -webkit-font-smoothing: antialiased;
     }
     .header {
       text-align: center;
@@ -56,8 +85,6 @@ function generatePaddyReceiptPDF(record) {
     .shop-name {
       font-size: 19px;
       font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
       margin-bottom: 3px;
       color: #000;
     }
@@ -119,7 +146,6 @@ function generatePaddyReceiptPDF(record) {
       padding: 7px 4px;
       margin: 8px 0;
       color: #000;
-      letter-spacing: 0.3px;
     }
     .footer {
       text-align: center;
@@ -210,7 +236,27 @@ function generatePaddyReceiptPDF(record) {
   document.body.appendChild(iframe);
   const fd = iframe.contentWindow.document;
   fd.open(); fd.write(html); fd.close();
-  setTimeout(() => { try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) {} }, 80);
+  
+  const triggerPrint = () => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch (e) {}
+  };
+
+  try {
+    if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
+      iframe.contentWindow.document.fonts.ready.then(() => {
+        setTimeout(triggerPrint, 250);
+      }).catch(() => {
+        setTimeout(triggerPrint, 350);
+      });
+    } else {
+      setTimeout(triggerPrint, 350);
+    }
+  } catch {
+    setTimeout(triggerPrint, 350);
+  }
 }
 
 export default function Milling() {

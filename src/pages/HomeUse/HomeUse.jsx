@@ -198,11 +198,42 @@ export default function HomeUse() {
   <meta charset="UTF-8">
   <title>නිවසට ගත් භාණ්ඩ වාර්තාව - ${periodTitle}</title>
   <style>
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      weight: 400;
+      src: local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      weight: 700;
+      src: local('Noto Sans Sinhala Bold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      weight: 900;
+      src: local('Noto Sans Sinhala Black'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800;900&display=swap');
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Noto Sans Sinhala', 'Segoe UI', Arial, sans-serif; padding: 15mm 20mm; color: #000; }
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+      letter-spacing: normal !important;
+      word-spacing: normal !important;
+    }
+    body { 
+      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', 'FMAbhaya', 'Segoe UI', Arial, sans-serif !important; 
+      padding: 15mm 20mm; 
+      color: #000; 
+      text-rendering: optimizeLegibility;
+      font-feature-settings: "kern" 1, "liga" 1;
+      -webkit-font-smoothing: antialiased;
+    }
     .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 12px; }
-    .shop-name { font-size: 24px; font-weight: 900; -webkit-text-stroke: 0.6px #000; color: #000; margin-bottom: 4px; }
+    .shop-name { font-size: 24px; font-weight: 900; color: #000; margin-bottom: 4px; }
     .shop-info { font-size: 13px; font-weight: 700; color: #333; }
     .report-title { font-size: 19px; font-weight: 800; margin-top: 10px; color: #000; }
     .report-meta { font-size: 13px; font-weight: 700; margin-top: 4px; color: #555; }

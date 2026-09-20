@@ -267,15 +267,36 @@ export default function Inventory() {
   <meta charset="UTF-8">
   <title>Barcode Label - ${item.name || ''}</title>
   <style>
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      weight: 400;
+      src: local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      weight: 700;
+      src: local('Noto Sans Sinhala Bold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700&display=swap');
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+      letter-spacing: normal !important;
+      word-spacing: normal !important;
+    }
     body {
-      font-family: 'Noto Sans Sinhala', Arial, sans-serif;
+      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', 'Segoe UI', Arial, sans-serif !important;
       width: 50mm;
       margin: 0 auto;
       padding: 3mm;
       text-align: center;
       color: #000;
+      text-rendering: optimizeLegibility;
+      font-feature-settings: "kern" 1, "liga" 1;
+      -webkit-font-smoothing: antialiased;
     }
     .shop-name { font-size: 10px; font-weight: 700; text-transform: uppercase; margin-bottom: 2px; }
     .item-title { font-size: 12px; font-weight: 700; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

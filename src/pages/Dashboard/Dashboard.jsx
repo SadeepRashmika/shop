@@ -77,30 +77,57 @@ export default function Dashboard() {
   <meta charset="UTF-8">
   <title>Low Stock Bill - 80mm</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 400;
+      src: local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 700;
+      src: local('Noto Sans Sinhala Bold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 900;
+      src: local('Noto Sans Sinhala Black'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700;800;900&display=swap');
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+      letter-spacing: normal !important;
+      word-spacing: normal !important;
+    }
     body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      font-size: 15px;
+      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', 'FMAbhaya', 'Segoe UI', Arial, sans-serif !important;
+      font-size: 14px;
       font-weight: 800;
       color: #000000;
       background: #ffffff;
       width: 78mm;
       padding: 3mm 2mm;
+      text-rendering: optimizeLegibility;
+      font-feature-settings: "kern" 1, "liga" 1;
+      -webkit-font-smoothing: antialiased;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     .center { text-align: center; }
     .shop-name { 
-      font-size: 21px; 
+      font-size: 20px; 
       font-weight: 900; 
       text-align: center; 
       margin-bottom: 3px; 
       color: #000000;
-      letter-spacing: 0.5px;
     }
     .shop-sub { 
-      font-size: 13.5px; 
-      font-weight: 800; 
+      font-size: 12.5px; 
+      font-weight: 700; 
       text-align: center; 
       color: #000000; 
       line-height: 1.35;
@@ -111,11 +138,10 @@ export default function Dashboard() {
       margin: 7px 0; 
     }
     .title { 
-      font-size: 16px; 
+      font-size: 15px; 
       font-weight: 900; 
       text-align: center; 
       margin: 5px 0; 
-      letter-spacing: 0.5px;
       color: #000000;
     }
     .info-box { 

@@ -7,7 +7,7 @@ import Modal from '../../components/ui/Modal';
 import {
   FiSettings, FiCheck, FiSave, FiShoppingBag, FiPhone, FiMail, FiMapPin,
   FiScissors, FiDollarSign, FiDatabase, FiDownload, FiUploadCloud,
-  FiAlertTriangle, FiCheckCircle, FiFileText, FiRefreshCw, FiLock, FiKey
+  FiAlertTriangle, FiCheckCircle, FiFileText, FiRefreshCw, FiLock, FiKey, FiHash
 } from 'react-icons/fi';
 import {
   SUPPORTED_COLLECTIONS,
@@ -15,6 +15,7 @@ import {
   parseBackupFile,
   importDatabase
 } from '../../services/dbBackupService';
+import { syncLatestBillNumber } from '../../services/offlineHelper';
 import './Settings.css';
 
 const EXPORT_SECURITY_PASSWORD = '723412641';
@@ -30,6 +31,8 @@ export default function Settings() {
   const [shopEmail, setShopEmail] = useState('sumindapradeep1111@gmail.com');
   const [weeRate, setWeeRate] = useState('7');
   const [polRate, setPolRate] = useState('65');
+  const [nextBillNumber, setNextBillNumber] = useState('1');
+  const [syncingBill, setSyncingBill] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,6 +85,9 @@ export default function Settings() {
 
           localStorage.setItem('smartpos_settings', JSON.stringify(data));
         }
+
+        const currentBill = await syncLatestBillNumber();
+        setNextBillNumber(String((currentBill || 0) + 1));
       } catch (err) {
         console.error("Error fetching settings:", err);
       } finally {
@@ -90,6 +96,19 @@ export default function Settings() {
     };
     fetchSettings();
   }, []);
+
+  const handleSyncBillNumber = async () => {
+    setSyncingBill(true);
+    try {
+      const highest = await syncLatestBillNumber();
+      setNextBillNumber(String((highest || 0) + 1));
+      alert(`✅ Cloud දත්ත සමඟ සමමුහුර්ත විය! ඊළඟ බිල්පත් අංකය: #${String((highest || 0) + 1).padStart(6, '0')}`);
+    } catch (e) {
+      alert('සමමුහුර්ත කිරීම අසාර්ථකයි: ' + e.message);
+    } finally {
+      setSyncingBill(false);
+    }
+  };
 
   const handleSaveSettings = async (e) => {
     e.preventDefault();
@@ -109,6 +128,14 @@ export default function Settings() {
     try {
       await setDoc(doc(db, 'settings', 'general'), newSettings, { merge: true });
       localStorage.setItem('smartpos_settings', JSON.stringify(newSettings));
+
+      const parsedBill = parseInt(nextBillNumber, 10);
+      if (!isNaN(parsedBill) && parsedBill > 0) {
+        const lastNo = parsedBill - 1;
+        localStorage.setItem('smartpos_last_bill_number', String(lastNo));
+        await setDoc(doc(db, 'counters', 'billNumber'), { current: lastNo }, { merge: true }).catch(() => {});
+      }
+
       setSuccessMsg('පද්ධති සැකසුම් (Settings) සාර්ථකව යාවත්කාලීන විය!');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
@@ -357,6 +384,38 @@ export default function Settings() {
               </div>
               <small style={{ display: 'block', marginTop: '6px', opacity: 0.8 }}>
                 පොල් කෙටීමේ ගාස්තුව ගණනය වීමට භාවිතා වන 1 Kg මිල
+              </small>
+            </div>
+
+            {/* Bill Number Counter Section */}
+            <div className="form-group mb-4" style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontWeight: 700, fontSize: '0.95rem', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <FiHash /> <span>ඊළඟ බිල්පත් අංකය (Next Bill #)</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleSyncBillNumber}
+                  disabled={syncingBill}
+                  style={{ background: 'rgba(59, 130, 246, 0.2)', border: '1px solid rgba(59, 130, 246, 0.4)', borderRadius: '6px', color: '#93c5fd', padding: '3px 8px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <FiRefreshCw className={syncingBill ? 'spin' : ''} /> {syncingBill ? 'සමමුහුර්ත වෙමින්...' : 'Sync Cloud'}
+                </button>
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="number"
+                  min="1"
+                  value={nextBillNumber}
+                  onChange={(e) => setNextBillNumber(e.target.value)}
+                  className="search-input"
+                  style={{ width: '100%', paddingLeft: '38px', fontSize: '1.2rem', fontWeight: 700, color: '#38bdf8' }}
+                  required
+                />
+                <FiHash style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#60a5fa' }} />
+              </div>
+              <small style={{ display: 'block', marginTop: '6px', opacity: 0.8 }}>
+                සියලුම උපකරණ වල බිල්පත් අංක නිවැරදිව පවත්වා ගැනීමට මෙම අංකය භාවිතා වේ.
               </small>
             </div>
 

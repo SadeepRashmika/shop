@@ -105,6 +105,36 @@ export function generateBillPDF(billData) {
   <meta charset="UTF-8">
   <title>Bill #${billNum}</title>
   <style>
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 400;
+      src: local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 600;
+      src: local('Noto Sans Sinhala SemiBold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-SemiBold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 700;
+      src: local('Noto Sans Sinhala Bold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 800;
+      src: local('Noto Sans Sinhala ExtraBold'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 900;
+      src: local('Noto Sans Sinhala Black'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700;800;900&display=swap');
     * { 
       margin: 0; 
@@ -114,7 +144,7 @@ export function generateBillPDF(billData) {
       word-spacing: normal !important;
     }
     body {
-      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', 'FMAbhaya', 'Segoe UI', Arial, sans-serif;
+      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', 'FMAbhaya', 'Segoe UI', Arial, sans-serif !important;
       width: 80mm;
       margin: 0 auto;
       padding: 4mm;
@@ -289,15 +319,15 @@ export function generateBillPDF(billData) {
   try {
     if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
       iframe.contentWindow.document.fonts.ready.then(() => {
-        setTimeout(triggerPrint, 120);
+        setTimeout(triggerPrint, 250);
       }).catch(() => {
-        setTimeout(triggerPrint, 200);
+        setTimeout(triggerPrint, 350);
       });
     } else {
-      setTimeout(triggerPrint, 200);
+      setTimeout(triggerPrint, 350);
     }
   } catch {
-    setTimeout(triggerPrint, 200);
+    setTimeout(triggerPrint, 350);
   }
 }
 
@@ -315,6 +345,36 @@ export function generateReloadReceiptPDF(reloadRecord) {
   <meta charset="UTF-8">
   <title>Reload Receipt #${billNum}</title>
   <style>
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 400;
+      src: local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 600;
+      src: local('Noto Sans Sinhala SemiBold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-SemiBold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 700;
+      src: local('Noto Sans Sinhala Bold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 800;
+      src: local('Noto Sans Sinhala ExtraBold'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Noto Sans Sinhala';
+      font-style: normal;
+      font-weight: 900;
+      src: local('Noto Sans Sinhala Black'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+    }
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700;800;900&display=swap');
     * { 
       margin: 0; 
@@ -324,7 +384,7 @@ export function generateReloadReceiptPDF(reloadRecord) {
       word-spacing: normal !important;
     }
     body {
-      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', 'FMAbhaya', 'Segoe UI', Arial, sans-serif;
+      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', 'FMAbhaya', 'Segoe UI', Arial, sans-serif !important;
       width: 80mm;
       margin: 0 auto;
       padding: 4mm;
@@ -437,14 +497,14 @@ export function generateReloadReceiptPDF(reloadRecord) {
   try {
     if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
       iframe.contentWindow.document.fonts.ready.then(() => {
-        setTimeout(triggerPrint, 120);
+        setTimeout(triggerPrint, 250);
       }).catch(() => {
-        setTimeout(triggerPrint, 200);
+        setTimeout(triggerPrint, 350);
       });
     } else {
-      setTimeout(triggerPrint, 200);
+      setTimeout(triggerPrint, 350);
     }
   } catch {
-    setTimeout(triggerPrint, 200);
+    setTimeout(triggerPrint, 350);
   }
 }

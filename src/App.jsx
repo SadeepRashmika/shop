@@ -1,9 +1,10 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import DashboardLayout from './components/layout/DashboardLayout';
+import { syncLatestBillNumber } from './services/offlineHelper';
 
 // Lazy Loaded Pages for Instant Initial Page Load
 const Home = lazy(() => import('./pages/Home/Home'));
@@ -38,6 +39,10 @@ function PageLoader() {
 }
 
 function App() {
+  useEffect(() => {
+    syncLatestBillNumber().catch(() => {});
+  }, []);
+
   return (
     <ThemeProvider>
       <AuthProvider>

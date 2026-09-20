@@ -1,7 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Sinhala:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800&display=swap');
 
 /* ============================================
-   LOCAL SINHALA FONT — Offline Support
+   LOCAL SINHALA FONT — Offline & Legacy Browser Support
    ============================================ */
 
 @font-face {
@@ -9,7 +9,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
+  src: local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
 }
 
 @font-face {
@@ -17,7 +17,7 @@
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url('/fonts/NotoSansSinhala-SemiBold.ttf') format('truetype');
+  src: local('Noto Sans Sinhala SemiBold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-SemiBold.ttf') format('truetype');
 }
 
 @font-face {
@@ -25,7 +25,23 @@
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+  src: local('Noto Sans Sinhala Bold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Noto Sans Sinhala';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: local('Noto Sans Sinhala ExtraBold'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Noto Sans Sinhala';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: local('Noto Sans Sinhala Black'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
 }
 
 /* ============================================
@@ -89,8 +105,8 @@
   --shadow-glow-accent: 0 0 20px rgba(34, 211, 238, 0.2);
 
   /* — Typography — */
-  --font-body: 'Inter', 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', system-ui, -apple-system, sans-serif;
-  --font-heading: 'Outfit', 'Inter', 'Noto Sans Sinhala', 'Iskoola Pota', sans-serif;
+  --font-body: 'Noto Sans Sinhala', 'Inter', 'Iskoola Pota', 'Nirmala UI', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Outfit', 'Noto Sans Sinhala', 'Inter', 'Iskoola Pota', sans-serif;
 
   --fs-xs: 0.75rem;
   --fs-sm: 0.875rem;
@@ -186,6 +202,8 @@ html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1;
 }
 
 body {
@@ -196,6 +214,14 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   transition: background-color 0.3s ease, color 0.3s ease;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* Ensure Sinhala complex script shaping (kombuwa, ispilli, etc.) never breaks */
+[lang="si"], :lang(si) {
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
 }
 
 h1, h2, h3, h4, h5, h6 {
