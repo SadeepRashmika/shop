@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp, increment, writeBatch } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
+import { safeCommit } from '../../services/offlineHelper';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -210,7 +211,7 @@ export default function Debtors() {
     try {
       // 1. Save payment/loan record
       const paymentRef = doc(collection(db, 'debtor_payments'));
-      await setDoc(paymentRef, {
+      await safeCommit(setDoc(paymentRef, {
         debtorId: paymentDebtor.id,
         debtorName: paymentDebtor.name,
         amount: Number(paymentAmount),
@@ -219,13 +220,13 @@ export default function Debtors() {
         cashierName: userData?.name || 'Unknown',
         timestamp: serverTimestamp(),
         type: transactionType
-      });
+      }));
       
       // 2. Reduce or Increase debtor total Owed
       const amountChange = transactionType === 'payment' ? -Number(paymentAmount) : Number(paymentAmount);
-      await updateDoc(doc(db, 'debtors', paymentDebtor.id), {
+      await safeCommit(updateDoc(doc(db, 'debtors', paymentDebtor.id), {
         totalOwed: increment(amountChange)
-      });
+      }));
 
       setIsPaymentModalOpen(false);
       setPaymentNote('');
@@ -404,11 +405,11 @@ export default function Debtors() {
           }
         }
         batch.delete(doc(db, 'transactions', item.id));
-        await batch.commit();
+        await safeCommit(batch.commit());
       } else if (item._source === 'reloads') {
-        await deleteDoc(doc(db, 'reloads', item.id));
+        await safeCommit(deleteDoc(doc(db, 'reloads', item.id)));
       } else if (item._source === 'debtor_payments') {
-        await deleteDoc(doc(db, 'debtor_payments', item.id));
+        await safeCommit(deleteDoc(doc(db, 'debtor_payments', item.id)));
       }
 
       // 2. Compute new history and recalculate exact total
@@ -425,10 +426,10 @@ export default function Debtors() {
       newTotal = Math.max(0, newTotal);
 
       if (ledgerDebtor?.id) {
-        await updateDoc(doc(db, 'debtors', ledgerDebtor.id), {
+        await safeCommit(updateDoc(doc(db, 'debtors', ledgerDebtor.id), {
           totalOwed: newTotal,
           updatedAt: serverTimestamp()
-        });
+        }));
       }
 
       // 3. Update local state

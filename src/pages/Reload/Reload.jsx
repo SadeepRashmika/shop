@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
+import { safeCommit, getResilientBillNumber } from '../../services/offlineHelper';
 import { useAuth } from '../../context/AuthContext';
 import { getNow, toDateObject, isToday, getTodayDateString, calibrateFromTimestamp, formatSriLankaDateTime, formatSriLankaDate, formatSriLankaTime } from '../../services/timeService';
 import Button from '../../components/ui/Button';
@@ -32,38 +33,8 @@ function getShopInfo() {
   };
 }
 
-// Get next sequential bill number from Firestore with offline resilience
-async function getNextBillNumber() {
-  const counterRef = doc(db, 'counters', 'billNumber');
-  let current = 0;
-
-  try {
-    const savedLocal = localStorage.getItem('smartpos_last_bill_number');
-    if (savedLocal) {
-      current = parseInt(savedLocal, 10) || 0;
-    }
-
-    const counterSnap = await getDoc(counterRef);
-    if (counterSnap && counterSnap.exists()) {
-      const serverVal = counterSnap.data().current || 0;
-      current = Math.max(current, serverVal);
-    }
-  } catch (err) {
-    console.warn("[Reload] Operating in offline mode for bill counter:", err.message);
-    const savedLocal = localStorage.getItem('smartpos_last_bill_number');
-    if (savedLocal) {
-      current = parseInt(savedLocal, 10) || 0;
-    }
-  }
-
-  const next = current + 1;
-  try {
-    localStorage.setItem('smartpos_last_bill_number', String(next));
-    setDoc(counterRef, { current: next }, { merge: true }).catch(() => {});
-  } catch (e) {}
-
-  return next;
-}
+// Get next sequential bill number from shared counter (100% offline & online compatible)
+const getNextBillNumber = getResilientBillNumber;
 
 // Generate Reload Receipt PDF
 function generateReloadReceiptPDF(reloadRecord) {
@@ -359,13 +330,13 @@ export default function Reload() {
         reloadRecord.debtorName = selectedDebtor.name;
 
         // Update Debtor Balance
-        await updateDoc(doc(db, 'debtors', selectedDebtor.id), {
+        await safeCommit(updateDoc(doc(db, 'debtors', selectedDebtor.id), {
           totalOwed: increment(numAmount)
-        });
+        }));
       }
 
       // Save to Reloads collection
-      await setDoc(doc(db, 'reloads', reloadId), reloadRecord);
+      await safeCommit(setDoc(doc(db, 'reloads', reloadId), reloadRecord));
 
       // Also save to POS Transactions so it shows in main reports & sales
       const transactionData = {
@@ -394,7 +365,7 @@ export default function Reload() {
         transactionData.creditAmount = numAmount;
       }
 
-      await setDoc(doc(db, 'transactions', `TXN_RLD_${Date.now()}`), transactionData);
+      await safeCommit(setDoc(doc(db, 'transactions', `TXN_RLD_${Date.now()}`), transactionData));
 
       // Sync with Cash Manager if Cash
       if (paymentMethod === 'cash') {

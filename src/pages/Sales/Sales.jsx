@@ -3,6 +3,7 @@ import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, increment, serv
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../../services/firebase';
+import { safeCommit, getResilientBillNumber } from '../../services/offlineHelper';
 import { useAuth } from '../../context/AuthContext';
 import { getNow, toDateObject, isToday, getTodayDateString, formatSriLankaDateTime, formatSriLankaDate, formatSriLankaTime } from '../../services/timeService';
 import Button from '../../components/ui/Button';
@@ -428,39 +429,8 @@ function generateBillPDF(billData) {
   setTimeout(triggerPrint, 50);
 }
 
-// Get next bill number from Firestore with seamless offline resilience
-async function getNextBillNumber() {
-  const counterRef = doc(db, 'counters', 'billNumber');
-  let current = 0;
-
-  try {
-    const savedLocal = localStorage.getItem('smartpos_last_bill_number');
-    if (savedLocal) {
-      current = parseInt(savedLocal, 10) || 0;
-    }
-
-    const counterSnap = await getDoc(counterRef);
-    if (counterSnap && counterSnap.exists()) {
-      const serverVal = counterSnap.data().current || 0;
-      current = Math.max(current, serverVal);
-    }
-  } catch (err) {
-    console.warn("[Sales] Operating in offline mode for bill number counter:", err.message);
-    const savedLocal = localStorage.getItem('smartpos_last_bill_number');
-    if (savedLocal) {
-      current = parseInt(savedLocal, 10) || 0;
-    }
-  }
-
-  const next = current + 1;
-  try {
-    localStorage.setItem('smartpos_last_bill_number', String(next));
-    // Use setDoc with merge so Firestore queues it locally and syncs automatically when online
-    setDoc(counterRef, { current: next }, { merge: true }).catch(() => {});
-  } catch (e) {}
-
-  return next;
-}
+// Resilient sequential Bill Number generator (100% offline & online compatible)
+const getNextBillNumber = getResilientBillNumber;
 
 
 export default function Sales() {
@@ -908,7 +878,7 @@ export default function Sales() {
         date: getNow()
       };
 
-      await setDoc(doc(db, 'reloads', reloadId), reloadRecord);
+      await safeCommit(setDoc(doc(db, 'reloads', reloadId), reloadRecord));
 
       const transactionData = {
         billNumber,
@@ -931,7 +901,7 @@ export default function Sales() {
         reloadNetwork: reloadNetwork
       };
 
-      await setDoc(doc(db, 'transactions', `TXN_RLD_${Date.now()}`), transactionData);
+      await safeCommit(setDoc(doc(db, 'transactions', `TXN_RLD_${Date.now()}`), transactionData));
 
       try {
         const qSession = query(collection(db, 'cashSessions'), where('status', '==', 'open'));
@@ -1703,7 +1673,7 @@ export default function Sales() {
       }
 
       // Commit ALL writes in ONE single parallel request!
-      await batch.commit();
+      await safeCommit(batch.commit());
 
       // Non-blocking background sync for cash session & order completion
       const cashReceived = paymentMethod === 'cash' ? subtotal : (paymentMethod === 'credit' ? upfrontPayment : 0);
@@ -1946,7 +1916,7 @@ export default function Sales() {
       });
 
       // Commit batch
-      await batch.commit();
+      await safeCommit(batch.commit());
 
       // 3. Cash Session Adjustment in background
       if (paymentMethod === 'cash' && Math.abs(totalDiff) > 0.001) {
@@ -3022,7 +2992,7 @@ export default function Sales() {
 
                       // 2. Delete transaction document
                       batch.delete(doc(db, 'transactions', selectedBill.id));
-                      await batch.commit();
+                      await safeCommit(batch.commit());
 
                       // 3. Also delete associated millingRecords
                       if (selectedBill.billNumber) {

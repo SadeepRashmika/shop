@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:software": "vite build && powershell -Command \"Copy-Item -Path 'dist/*' -Destination 'Software/app' -Recurse -Force\"",
+    "build:software": "powershell -Command \"if (Test-Path 'Software/app/assets') { Remove-Item 'Software/app/assets/*' -Force }\" && vite build && powershell -Command \"Copy-Item -Path 'dist/*' -Destination 'Software/app' -Recurse -Force\",
     "lint": "eslint .",
     "preview": "vite preview"
   },
