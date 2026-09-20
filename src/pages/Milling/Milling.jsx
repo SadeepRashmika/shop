@@ -33,22 +33,108 @@ function generatePaddyReceiptPDF(record) {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Paddy Purchase - ${supplier}</title>
+  <title>Receipt - ${supplier}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;700;800;900&display=swap');
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Noto Sans Sinhala', 'Iskoola Pota', Arial, sans-serif; width: 80mm; margin: 0 auto; padding: 5mm; color: #000; background: #fff; }
-    .header { text-align: center; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 6px; }
-    .shop-name { font-size: 15px; font-weight: 800; text-transform: uppercase; }
-    .shop-info { font-size: 10px; margin-top: 2px; }
-    .badge { display: inline-block; border: 1px solid #000; padding: 2px 8px; font-size: 10px; font-weight: 700; border-radius: 3px; margin: 4px 0; }
-    .row { display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0; }
-    .divider { border-top: 1px dashed #000; margin: 6px 0; }
-    .section-title { font-size: 11px; font-weight: 800; margin: 5px 0 3px; text-decoration: underline; }
-    .total-row { display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; margin: 3px 0; }
-    .balance { font-size: 15px; font-weight: 900; text-align: center; border: 2px solid #000; border-radius: 5px; padding: 5px; margin: 6px 0; }
-    .footer { text-align: center; font-size: 10px; margin-top: 8px; border-top: 1px dashed #000; padding-top: 5px; }
-    @media print { @page { margin: 0; size: 80mm auto; } body { width: 80mm; margin: 0; padding: 4mm; } }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700;800;900&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body {
+      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', Arial, sans-serif;
+      width: 78mm;
+      margin: 0 auto;
+      padding: 4mm 3mm;
+      color: #000;
+      background: #fff;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 8px;
+      border-bottom: 1.5px dashed #000;
+      padding-bottom: 7px;
+    }
+    .shop-name {
+      font-size: 19px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 3px;
+      color: #000;
+    }
+    .shop-info {
+      font-size: 12px;
+      font-weight: 700;
+      color: #000;
+      margin-top: 1px;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      margin: 4px 0;
+      color: #000;
+    }
+    .divider {
+      border-top: 1.5px dashed #000;
+      margin: 7px 0;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 900;
+      margin: 6px 0 4px;
+      padding-bottom: 2px;
+      border-bottom: 1px solid #000;
+      color: #000;
+    }
+    .item-block {
+      margin: 5px 0;
+      padding: 3px 0;
+    }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 15px;
+      font-weight: 900;
+      margin: 5px 0;
+      color: #000;
+    }
+    .paid-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      font-weight: 800;
+      margin: 4px 0;
+      color: #000;
+    }
+    .balance-box {
+      font-size: 16px;
+      font-weight: 900;
+      text-align: center;
+      border: 2px solid #000;
+      border-radius: 6px;
+      padding: 7px 4px;
+      margin: 8px 0;
+      color: #000;
+      letter-spacing: 0.3px;
+    }
+    .footer {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 8px;
+      border-top: 1.5px dashed #000;
+      padding-top: 6px;
+      color: #000;
+    }
+    @media print {
+      @page { margin: 0; size: 80mm auto; }
+      body { width: 78mm; margin: 0; padding: 3mm 2mm; }
+      * { color: #000 !important; }
+    }
   </style>
 </head>
 <body>
@@ -56,32 +142,59 @@ function generatePaddyReceiptPDF(record) {
     <div class="shop-name">${shopInfo.name}</div>
     <div class="shop-info">${shopInfo.address}</div>
     <div class="shop-info">Tel: ${shopInfo.phone}</div>
-    <div><span class="badge">වී ගෙනා ලේකනය / PADDY PURCHASE</span></div>
   </div>
 
-  <div class="row"><span>දිනය (Date):</span><strong>${dateStr}</strong></div>
+  <div class="row"><span>දිනය:</span><strong>${dateStr}</strong></div>
   <div class="row"><span>Cashier:</span><span>${cashier}</span></div>
   <div class="divider"></div>
 
-  <div class="row"><span>සැපයුම්කරු / Supplier:</span><strong>${supplier}${farmerId ? ' (' + farmerId + ')' : ''}</strong></div>
+  <div class="row" style="font-size:13.5px">
+    <span>සැපයුම්කරු:</span>
+    <strong>${supplier}${farmerId ? ' (' + farmerId + ')' : ''}</strong>
+  </div>
 
   <div class="divider"></div>
-  <div class="section-title">🌾 වී (Paddy)</div>
-  <div class="row"><span>වී වරගය:</span><span>${paddyType}</span></div>
-  <div class="row"><span>බර:</span><span>${weeKg.toFixed(1)} Kg</span></div>
-  <div class="row"><span>වී මුළු:</span><strong>Rs. ${weeTotal.toFixed(2)}</strong></div>
+  <div class="section-title">🌾 වී වර්ග (Paddy Items)</div>
+  ${(record.paddyItems && record.paddyItems.length > 0
+    ? record.paddyItems
+    : [{ type: paddyType, kg: weeKg, rate: parseFloat(record.rate) || 0, total: weeTotal }]
+  ).map(it => `
+    <div class="item-block">
+      <div class="row" style="font-size:13.5px">
+        <strong>${it.type}</strong>
+        <strong>Rs. ${parseFloat(it.total || 0).toFixed(2)}</strong>
+      </div>
+      <div class="row" style="font-size:12px; opacity:0.85; margin-top:-1px">
+        <span>${parseFloat(it.kg || 0).toFixed(1)} Kg ${it.rate > 0 ? ' × Rs.' + parseFloat(it.rate).toFixed(2) : ''}${it.bags > 0 ? ' (' + it.bags + ' මලු)' : ''}</span>
+      </div>
+    </div>
+  `).join('')}
+
+  <div class="row" style="font-size:13px; font-weight:900; margin-top:4px; padding-top:3px; border-top:1px dotted #000">
+    <span>වී මුළු එකතුව:</span>
+    <strong>Rs. ${weeTotal.toFixed(2)}</strong>
+  </div>
 
   ${kopparaKg > 0 || kopparaTotal > 0 ? `
   <div class="divider"></div>
   <div class="section-title">🥥 කොප්පරා (Koppara)</div>
-  <div class="row"><span>බර:</span><span>${kopparaKg.toFixed(1)} Kg</span></div>
-  <div class="row"><span>කොප්පරා මුළු:</span><strong>Rs. ${kopparaTotal.toFixed(2)}</strong></div>
+  <div class="item-block">
+    <div class="row" style="font-size:13.5px">
+      <strong>කොප්පරා</strong>
+      <strong>Rs. ${kopparaTotal.toFixed(2)}</strong>
+    </div>
+    <div class="row" style="font-size:12px; opacity:0.85; margin-top:-1px">
+      <span>${kopparaKg.toFixed(1)} Kg ${record.kopparaRate > 0 ? ' × Rs.' + parseFloat(record.kopparaRate).toFixed(2) : ''}</span>
+    </div>
+  </div>
   ` : ''}
 
   <div class="divider"></div>
   <div class="total-row"><span>මුළු වටිනාකම:</span><span>Rs. ${combined.toFixed(2)}</span></div>
-  <div class="total-row"><span>ගෙවූ මුදල:</span><span style="color:#000">Rs. ${paid.toFixed(2)}</span></div>
-  <div class="balance">ණය ශේෂය: Rs. ${balance.toFixed(2)}</div>
+  <div class="paid-row"><span>ගෙවූ මුදල:</span><span>Rs. ${paid.toFixed(2)}</span></div>
+  <div class="balance-box">
+    ${balance > 0 ? `ණය ශේෂය: Rs. ${balance.toFixed(2)}` : `✅ සම්පූර්ණයෙන් ගෙවා ඇත`}
+  </div>
 
   <div class="footer">
     <div>ස්තුතියි! නැවත එන්න!</div>
@@ -134,11 +247,8 @@ export default function Milling() {
   const [editingPaddyId, setEditingPaddyId] = useState(null);
   const [paddyDate, setPaddyDate] = useState(getTodayDateString());
   const [paddySupplierName, setPaddySupplierName] = useState('');
-  const [paddyType, setPaddyType] = useState('සුදු වී');
-  const [paddyKg, setPaddyKg] = useState('');
-  const [paddyBags, setPaddyBags] = useState('');
-  const [paddyRate, setPaddyRate] = useState('');
-  const [paddyTotalAmount, setPaddyTotalAmount] = useState('');
+  // Multi-variety wee items
+  const [paddyItems, setPaddyItems] = useState([{ type: 'අලුත් සුදු වී', kg: '', bags: '', rate: '', total: '' }]);
   const [paddyPaidAmount, setPaddyPaidAmount] = useState('');
   const [paddyNotes, setPaddyNotes] = useState('');
   const [paddyPaymentFilter, setPaddyPaymentFilter] = useState('all'); // 'all', 'paid', 'due'
@@ -147,6 +257,20 @@ export default function Milling() {
   const [kopparaBags, setKopparaBags] = useState('');
   const [kopparaRate, setKopparaRate] = useState('');
   const [kopparaTotal, setKopparaTotal] = useState('');
+
+  // Paddy multi-variety calculated totals
+  const totalWeeAmount = useMemo(() => {
+    return paddyItems.reduce((s, it) => {
+      const kg = parseFloat(it.kg) || 0;
+      const rate = parseFloat(it.rate) || 0;
+      const rowTotal = it.total !== '' && it.total !== undefined ? (parseFloat(it.total) || 0) : (kg * rate);
+      return s + rowTotal;
+    }, 0);
+  }, [paddyItems]);
+
+  const totalWeeKg = useMemo(() => {
+    return paddyItems.reduce((s, it) => s + (parseFloat(it.kg) || 0), 0);
+  }, [paddyItems]);
 
   // Pay Balance Quick Modal State
   const [payBalanceModalOpen, setPayBalanceModalOpen] = useState(false);
@@ -602,11 +726,7 @@ export default function Milling() {
     setEditingPaddyId(null);
     setPaddyDate(selectedDate || getTodayDateString());
     setPaddySupplierName('');
-    setPaddyType('සුදු වී');
-    setPaddyKg('');
-    setPaddyBags('');
-    setPaddyRate('');
-    setPaddyTotalAmount('');
+    setPaddyItems([{ type: 'අලුත් සුදු වී', kg: '', bags: '', rate: '', total: '' }]);
     setPaddyPaidAmount('0');
     setPaddyNotes('');
     setKopparaKg('');
@@ -624,100 +744,111 @@ export default function Milling() {
     setEditingPaddyId(rec.id);
     setPaddyDate(rec.dateStr || getTodayDateString());
     setPaddySupplierName(rec.supplierName || '');
-    setPaddyType(rec.paddyType === 'කැකුළු වී' ? 'කැකුළු වී' : 'සුදු වී');
-    setPaddyKg(rec.kg ? String(rec.kg) : '');
-    setPaddyBags(rec.bags ? String(rec.bags) : '');
-    setPaddyRate(rec.rate ? String(rec.rate) : '');
-    setPaddyTotalAmount(rec.totalAmount ? String(rec.totalAmount) : '');
+    // Load paddyItems: use stored array or fall back to single legacy entry
+    if (rec.paddyItems && Array.isArray(rec.paddyItems) && rec.paddyItems.length > 0) {
+      setPaddyItems(rec.paddyItems.map(it => ({ ...it, kg: String(it.kg || ''), bags: String(it.bags || ''), rate: String(it.rate || ''), total: String(it.total || '') })));
+    } else {
+      setPaddyItems([{ type: rec.paddyType || 'අලුත් සුදු වී', kg: rec.kg ? String(rec.kg) : '', bags: rec.bags ? String(rec.bags) : '', rate: rec.rate ? String(rec.rate) : '', total: rec.weeTotal ? String(rec.weeTotal) : '' }]);
+    }
     setPaddyPaidAmount(rec.paidAmount ? String(rec.paidAmount) : '');
     setPaddyNotes(rec.notes || '');
     setKopparaKg(rec.kopparaKg ? String(rec.kopparaKg) : '');
     setKopparaBags(rec.kopparaBags ? String(rec.kopparaBags) : '');
     setKopparaRate(rec.kopparaRate ? String(rec.kopparaRate) : '');
     setKopparaTotal(rec.kopparaTotal ? String(rec.kopparaTotal) : '');
-
     setPaddyModalOpen(true);
   };
 
-  const handleSavePaddyRecord = async (printAfterSave = false) => {
-    if (!paddyDate) {
-      alert("කරුණාකර දිනයක් තෝරන්න.");
-      return;
-    }
-    if (!paddySupplierName.trim()) {
-      alert("කරුණාකර සැපයුම්කරුගේ නම ඇතුළත් කරන්න.");
-      return;
-    }
+  const addPaddyItem = () => {
+    setPaddyItems(prev => [...prev, { type: 'අලුත් සුදු වී', kg: '', bags: '', rate: '', total: '' }]);
+  };
 
-    const finalPaddyType = paddyType === 'කැකුළු වී' ? 'කැකුළු වී' : 'සුදු වී';
-    const kgNum = parseFloat(paddyKg) || 0;
-    const rateNum = parseFloat(paddyRate) || 0;
-    const totalNum = paddyTotalAmount !== '' ? (parseFloat(paddyTotalAmount) || 0) : (kgNum * rateNum);
+  const removePaddyItem = (index) => {
+    if (paddyItems.length <= 1) {
+      setPaddyItems([{ type: 'අලුත් සුදු වී', kg: '', bags: '', rate: '', total: '' }]);
+      return;
+    }
+    setPaddyItems(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const updatePaddyItem = (index, field, value) => {
+    setPaddyItems(prev => {
+      const copy = [...prev];
+      const current = { ...copy[index], [field]: value };
+      if (field === 'kg' || field === 'rate') {
+        const kg = parseFloat(field === 'kg' ? value : current.kg);
+        const rate = parseFloat(field === 'rate' ? value : current.rate);
+        if (!isNaN(kg) && !isNaN(rate) && rate > 0) {
+          current.total = (kg * rate).toFixed(2);
+        }
+      }
+      copy[index] = current;
+      return copy;
+    });
+  };
+
+  const handleSavePaddyRecord = async (printAfterSave = false) => {
+    if (!paddyDate) { alert('කරුණාකර දිනයක් තෝරන්න.'); return; }
+    if (!paddySupplierName.trim()) { alert('කරුණාකර සැපයුම්කරුගේ නම ඇතුළත් කරන්න.'); return; }
+
+    // Compute each paddy item
+    const computedItems = paddyItems.map(it => {
+      const kg = parseFloat(it.kg) || 0;
+      const rate = parseFloat(it.rate) || 0;
+      const total = it.total !== '' && it.total !== undefined ? (parseFloat(it.total) || 0) : (kg * rate);
+      return { type: it.type, kg, bags: parseInt(it.bags) || 0, rate, total };
+    }).filter(it => it.kg > 0 || it.total > 0);
 
     const kopparaKgNum = parseFloat(kopparaKg) || 0;
     const kopparaRateNum = parseFloat(kopparaRate) || 0;
     const kopparaTotalNum = kopparaTotal !== '' ? (parseFloat(kopparaTotal) || 0) : (kopparaKgNum * kopparaRateNum);
 
-    const combinedTotal = totalNum + kopparaTotalNum;
+    const weeTotalAll = computedItems.reduce((s, it) => s + it.total, 0);
+    const weeKgAll = computedItems.reduce((s, it) => s + it.kg, 0);
+    const combinedTotal = weeTotalAll + kopparaTotalNum;
     const paidNum = parseFloat(paddyPaidAmount) || 0;
     const balNum = Math.max(0, combinedTotal - paidNum);
 
-    if (kgNum <= 0 && totalNum <= 0 && kopparaKgNum <= 0 && kopparaTotalNum <= 0) {
-      alert('කරුණාකර වී බර (Kg) හෝ කොප්පරා බර (Kg) හෝ මුළු වටිනාකම ඇතුළත් කරන්න.');
+    if (computedItems.length === 0 && kopparaKgNum <= 0 && kopparaTotalNum <= 0) {
+      alert('කරුණාකර වී බර (Kg) හෝ කොප්පරා බර ඇතුළත් කරන්න.');
       return;
     }
 
-    // Auto-generate or reuse Farmer ID (e.g. F-001, F-002...)
+    // Auto-generate or reuse Supplier ID
     let farmerId = editingPaddyId ? (paddyRecords.find(r => r.id === editingPaddyId)?.farmerId || null) : null;
-
     if (!farmerId) {
       const existingSupplier = paddyRecords.find(r => r.supplierName && r.supplierName.trim().toLowerCase() === paddySupplierName.trim().toLowerCase() && r.farmerId);
       if (existingSupplier) {
         farmerId = existingSupplier.farmerId;
       } else {
         let maxNo = 0;
-        paddyRecords.forEach(r => {
-          if (r.farmerId) {
-            const match = r.farmerId.match(/\d+/);
-            if (match) {
-              const val = parseInt(match[0], 10);
-              if (val > maxNo) maxNo = val;
-            }
-          }
-        });
+        paddyRecords.forEach(r => { if (r.farmerId) { const match = r.farmerId.match(/\d+/); if (match) { const val = parseInt(match[0], 10); if (val > maxNo) maxNo = val; } } });
         farmerId = `F-${String(maxNo + 1).padStart(3, '0')}`;
       }
     }
 
-    const [y, m, d] = paddyDate.split('-').map(Number);
-    const recordDate = new Date(y, m - 1, d, 12, 0, 0);
+    const [y, m, dv] = paddyDate.split('-').map(Number);
+    const recordDate = new Date(y, m - 1, dv, 12, 0, 0);
+    const initialHistory = paidNum > 0 ? [{ amount: paidNum, dateStr: paddyDate, timestamp: recordDate.toISOString(), cashierName: userData?.name || user?.email?.split('@')[0] || 'Cashier', notes: 'ආරම්භක ගෙවීම' }] : [];
 
-    const initialHistory = paidNum > 0 ? [{
-      amount: paidNum,
-      dateStr: paddyDate,
-      timestamp: recordDate.toISOString(),
-      cashierName: userData?.name || user?.email?.split('@')[0] || 'Cashier',
-      notes: 'ආරම්භක ගෙවීම'
-    }] : [];
-
+    const firstItem = computedItems[0] || { type: 'සුදු වී', kg: 0, bags: 0, rate: 0, total: 0 };
     const payload = {
       dateStr: paddyDate,
       date: recordDate.toISOString(),
       timestamp: recordDate,
       supplierName: paddySupplierName.trim(),
-      farmerId: farmerId,
-      paddyType: finalPaddyType,
-      kg: kgNum,
-      bags: parseInt(paddyBags) || 0,
-      rate: rateNum,
+      farmerId,
+      paddyType: firstItem.type,
+      kg: weeKgAll,
+      bags: computedItems.reduce((s, it) => s + it.bags, 0),
+      rate: firstItem.rate,
       totalAmount: combinedTotal,
       paidAmount: paidNum,
       balance: balNum,
       notes: paddyNotes.trim(),
-      // Wee sub-total (for reporting)
-      weeKg: kgNum,
-      weeTotal: totalNum,
-      // Koppara fields
+      weeKg: weeKgAll,
+      weeTotal: weeTotalAll,
+      paddyItems: computedItems,
       kopparaKg: kopparaKgNum,
       kopparaBags: parseInt(kopparaBags) || 0,
       kopparaRate: kopparaRateNum,
@@ -734,16 +865,13 @@ export default function Milling() {
         const newId = `paddy_buy_${paddyDate}_${Date.now()}`;
         await setDoc(doc(db, 'paddyPurchases', newId), payload);
       }
-
       setPaddyModalOpen(false);
       resetPaddyForm();
       fetchPaddyData();
-      if (printAfterSave) {
-        generatePaddyReceiptPDF(payload);
-      }
+      if (printAfterSave) generatePaddyReceiptPDF(payload);
     } catch (err) {
-      console.error("Error saving paddy purchase record:", err);
-      alert("ලියාපදිංචිය අසාර්ථක විය: " + err.message);
+      console.error('Error saving paddy purchase record:', err);
+      alert('ලියාපදිංචිය අසාර්ථක විය: ' + err.message);
     }
   };
 
@@ -1616,9 +1744,19 @@ export default function Milling() {
                             </div>
                           </td>
                           <td style={{ padding: '12px' }}>
-                            <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '4px 10px', borderRadius: '8px', fontWeight: 700, fontSize: '0.82rem' }}>
-                              🌾 {rec.paddyType || 'නාඩු'}
-                            </span>
+                            {rec.paddyItems && rec.paddyItems.length > 1 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                {rec.paddyItems.map((it, i) => (
+                                  <span key={i} style={{ background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                    🌾 {it.type}: {parseFloat(it.kg || 0).toFixed(1)} Kg
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '4px 10px', borderRadius: '8px', fontWeight: 700, fontSize: '0.82rem' }}>
+                                🌾 {rec.paddyType || 'සුදු වී'}
+                              </span>
+                            )}
                           </td>
                           <td style={{ padding: '12px', textAlign: 'right', fontWeight: 800, fontSize: '0.95rem' }}>
                             {parseFloat(rec.kg).toFixed(1)} Kg
@@ -1976,123 +2114,153 @@ export default function Milling() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-            {/* Paddy Type */}
-            <div>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                🌾 වී වර්ගය (Paddy Variety)
-              </label>
-              <select
-                value={paddyType}
-                onChange={(e) => setPaddyType(e.target.value)}
-                className="search-input"
-                style={{ width: '100%', fontWeight: 700 }}
+          {/* Multi-variety Paddy Items Section */}
+          <div style={{ background: 'rgba(99, 102, 241, 0.05)', border: '1.5px solid rgba(99, 102, 241, 0.25)', borderRadius: '12px', padding: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#6366f1' }}>
+                🌾 වී වර්ග (Paddy Varieties)
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={addPaddyItem}
+                icon={<FiPlus />}
+                style={{ fontSize: '0.8rem', padding: '4px 10px' }}
               >
-                <option value="සුදු වී">🌾 සුදු වී (Sudu Wee)</option>
-                <option value="කැකුළු වී">🌾 කැකුළු වී (Kakulu Wee)</option>
-              </select>
+                තවත් වර්ගයක් එක්කරන්න
+              </Button>
             </div>
 
-            {/* Weight Kg */}
-            <div>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                ⚖️ මුළු බර (Kg) *
-              </label>
-              <input
-                type="number"
-                step="0.1"
-                placeholder="0.0"
-                value={paddyKg}
-                onChange={(e) => {
-                  setPaddyKg(e.target.value);
-                  const kg = parseFloat(e.target.value);
-                  const rate = parseFloat(paddyRate);
-                  if (!isNaN(kg) && !isNaN(rate) && rate > 0) {
-                    const tot = (kg * rate).toFixed(2);
-                    setPaddyTotalAmount(tot);
-                    // No auto-fill paidAmount — user enters manually
-                  }
-                }}
-                className="search-input"
-                style={{ width: '100%', fontWeight: 800 }}
-              />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {paddyItems.map((item, index) => (
+                <div
+                  key={index}
+                  style={{
+                    background: 'var(--bg-card, #fff)',
+                    border: '1px solid var(--border-color, rgba(0,0,0,0.12))',
+                    borderRadius: '10px',
+                    padding: '10px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                  }}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', alignItems: 'flex-end' }}>
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '3px', color: 'var(--text-secondary)' }}>
+                        වර්ගය #{index + 1}
+                      </label>
+                      <select
+                        value={item.type}
+                        onChange={(e) => updatePaddyItem(index, 'type', e.target.value)}
+                        className="search-input"
+                        style={{ width: '100%', fontWeight: 700, fontSize: '0.85rem' }}
+                      >
+                        <option value="අලුත් සුදු වී">🌾 අලුත් සුදු වී (New Sudu Wee)</option>
+                        <option value="පරණ සුදු වී">🌾 පරණ සුදු වී (Old Sudu Wee)</option>
+                        <option value="අලුත් කැකුළු වී">🌾 අලුත් කැකුළු වී (New Kakulu Wee)</option>
+                        <option value="පරණ කැකුළු වී">🌾 පරණ කැකුළු වී (Old Kakulu Wee)</option>
+                        <option value="සුදු වී">🌾 සුදු වී (Sudu Wee)</option>
+                        <option value="කැකුළු වී">🌾 කැකුළු වී (Kakulu Wee)</option>
+                        <option value="නාඩු වී">🌾 නාඩු වී (Nadu Wee)</option>
+                        <option value="සම්බා වී">🌾 සම්බා වී (Samba Wee)</option>
+                        <option value="රතු කැකුළු වී">🌾 රතු කැකුළු (Rathu Kakulu)</option>
+                        <option value="කීරි සම්බා">🌾 කීරි සම්බා (Keeri Samba)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '3px', color: 'var(--text-secondary)' }}>
+                        ⚖️ බර (Kg) *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        placeholder="0.0"
+                        value={item.kg}
+                        onChange={(e) => updatePaddyItem(index, 'kg', e.target.value)}
+                        className="search-input"
+                        style={{ width: '100%', fontWeight: 700, fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '3px', color: 'var(--text-secondary)' }}>
+                        🎒 මලු (Bags)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={item.bags}
+                        onChange={(e) => updatePaddyItem(index, 'bags', e.target.value)}
+                        className="search-input"
+                        style={{ width: '100%', fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '3px', color: 'var(--text-secondary)' }}>
+                        💵 1 Kg මිල (Rs.)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={item.rate}
+                        onChange={(e) => updatePaddyItem(index, 'rate', e.target.value)}
+                        className="search-input"
+                        style={{ width: '100%', fontWeight: 700, fontSize: '0.85rem' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 700, display: 'block', marginBottom: '3px', color: 'var(--text-secondary)' }}>
+                        💰 එකතුව (Rs.)
+                      </label>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={item.total}
+                          onChange={(e) => updatePaddyItem(index, 'total', e.target.value)}
+                          className="search-input"
+                          style={{ width: '100%', fontWeight: 800, color: '#8b5cf6', fontSize: '0.85rem' }}
+                        />
+                        {paddyItems.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removePaddyItem(index)}
+                            title="ඉවත් කරන්න"
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.1)',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              color: '#ef4444',
+                              borderRadius: '6px',
+                              padding: '6px 8px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <FiTrash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            {/* Bags count */}
-            <div>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                🎒 මලු ගණන (Bags - optional)
-              </label>
-              <input
-                type="number"
-                placeholder="0"
-                value={paddyBags}
-                onChange={(e) => setPaddyBags(e.target.value)}
-                className="search-input"
-                style={{ width: '100%' }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-            {/* Rate per Kg */}
-            <div>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                💵 1 Kg මිල (Price/Kg Rs.)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={paddyRate}
-                onChange={(e) => {
-                  setPaddyRate(e.target.value);
-                  const rate = parseFloat(e.target.value);
-                  const kg = parseFloat(paddyKg);
-                  if (!isNaN(kg) && !isNaN(rate) && kg > 0) {
-                    const tot = (kg * rate).toFixed(2);
-                    setPaddyTotalAmount(tot);
-                    // No auto-fill paidAmount — user enters manually
-                  }
-                }}
-                className="search-input"
-                style={{ width: '100%', fontWeight: 700 }}
-              />
-            </div>
-
-            {/* Total Amount */}
-            <div>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                💰 මුළු වටිනාකම (Total Amount Rs.)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={paddyTotalAmount}
-                onChange={(e) => {
-                  setPaddyTotalAmount(e.target.value);
-                  // No auto-fill paidAmount — user enters manually
-                }}
-                className="search-input"
-                style={{ width: '100%', fontWeight: 800, color: '#8b5cf6' }}
-              />
-            </div>
-
-            {/* Paid Amount */}
-            <div>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                💳 ගෙවූ මුදල (Paid Amount Rs.)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={paddyPaidAmount}
-                onChange={(e) => setPaddyPaidAmount(e.target.value)}
-                className="search-input"
-                style={{ width: '100%', fontWeight: 800, color: '#10b981' }}
-              />
+            {/* Total Wee Summary Bar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', padding: '8px 12px', background: 'rgba(99, 102, 241, 0.12)', borderRadius: '8px', flexWrap: 'wrap', gap: '6px' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#6366f1' }}>
+                🌾 මුළු වී එකතුව: {totalWeeKg.toFixed(1)} Kg
+              </span>
+              <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#6366f1' }}>
+                Rs. {totalWeeAmount.toFixed(2)}
+              </span>
             </div>
           </div>
 
@@ -2140,6 +2308,32 @@ export default function Milling() {
             </div>
           </div>
 
+          {/* === Paid Amount (Common for both Paddy & Koppara) === */}
+          <div style={{ background: 'rgba(16, 185, 129, 0.06)', border: '1.5px solid rgba(16, 185, 129, 0.25)', borderRadius: '12px', padding: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '6px' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#059669' }}>
+                💳 මුදල් ගෙවීම (වී + කොප්පරා දෙකටම පොදු ගෙවූ මුදල)
+              </span>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                මුළු එකතුව: Rs. {(totalWeeAmount + (parseFloat(kopparaTotal) || 0)).toFixed(2)}
+              </span>
+            </div>
+            <div>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                ගෙවූ මුදල (Paid Amount Rs.)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={paddyPaidAmount}
+                onChange={(e) => setPaddyPaidAmount(e.target.value)}
+                className="search-input"
+                style={{ width: '100%', fontWeight: 800, color: '#10b981', fontSize: '1.05rem' }}
+              />
+            </div>
+          </div>
+
           {/* Notes */}
           <div className="form-group mb-4">
             <label className="input-label" style={{ fontWeight: 700, display: 'block', marginBottom: '6px' }}>
@@ -2160,7 +2354,7 @@ export default function Milling() {
             <div>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>🌾 වී මුළු</span>
               <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#8b5cf6' }}>
-                Rs. {(parseFloat(paddyTotalAmount) || 0).toFixed(2)}
+                Rs. {totalWeeAmount.toFixed(2)}
               </span>
             </div>
             <div>
@@ -2177,8 +2371,8 @@ export default function Milling() {
             </div>
             <div>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, display: 'block' }}>⚡ ශේෂය</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: ((parseFloat(paddyTotalAmount) || 0) + (parseFloat(kopparaTotal) || 0) - (parseFloat(paddyPaidAmount) || 0)) > 0 ? '#ef4444' : '#10b981' }}>
-                Rs. {Math.max(0, (parseFloat(paddyTotalAmount) || 0) + (parseFloat(kopparaTotal) || 0) - (parseFloat(paddyPaidAmount) || 0)).toFixed(2)}
+              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: (totalWeeAmount + (parseFloat(kopparaTotal) || 0) - (parseFloat(paddyPaidAmount) || 0)) > 0 ? '#ef4444' : '#10b981' }}>
+                Rs. {Math.max(0, totalWeeAmount + (parseFloat(kopparaTotal) || 0) - (parseFloat(paddyPaidAmount) || 0)).toFixed(2)}
               </span>
             </div>
           </div>

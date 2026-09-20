@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import LanguageSwitcher from '../common/LanguageSwitcher';
+import NetworkStatus from '../common/NetworkStatus';
 import { FiMenu, FiLogOut, FiUser, FiSun, FiMoon } from 'react-icons/fi';
 import './Navbar.css';
 
@@ -36,6 +37,9 @@ export default function Navbar({ onToggleSidebar }) {
       </div>
 
       <div className="navbar-right">
+        {/* Network & Cloud Sync Status Badge */}
+        <NetworkStatus />
+
         <LanguageSwitcher />
 
         {/* Theme Toggle Button */}

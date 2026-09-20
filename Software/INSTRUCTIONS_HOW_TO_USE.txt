@@ -1,0 +1,36 @@
+========================================================================
+                      SMARTPOS SYSTEM - STANDALONE SOFTWARE
+========================================================================
+
+මෙම Folder එක (Software Folder එක) ඔබගේ Customer හට සෘජුවම ලබාදිය හැක.
+මෙහි කිසිදු Source Code එකක් (React/JSX/Raw Code) අඩංගු නොවන අතර, 
+එය සම්පූර්ණයෙන්ම ආරක්ෂිත Production POS Software එකක් ලෙස සකස් කර ඇත.
+
+------------------------------------------------------------------------
+භාවිතා කරන ආකාරය (How to Use):
+------------------------------------------------------------------------
+
+1. ක්‍රමය 1 (පහසුම ක්‍රමය):
+   * 'SmartPOS.vbs' හෝ 'SmartPOS.bat' මත Double-Click කරන්න.
+   * කිසිදු Browser Bar / URL එකක් නොපෙනෙන පරිදි Native Windows App එකක් 
+     ලෙස POS System එක විවෘත වේ.
+
+2. ඩෙස්ක්ටොප් එකට Shortcut එකක් දැමීම:
+   * 'Create_Desktop_Shortcut.bat' මත Double-Click කරන්න.
+   * පරිගණකයේ Desktop එක මත 'SmartPOS' නමින් Icon එකක් නිර්මාණය වේ.
+
+3. පාරිභෝගිකයාට ලබාදීම (Giving to a Customer):
+   * මෙම සම්පූර්ණ 'Software' Folder එක Pen Drive එකකට Copy කර පාරිභෝගිකයාගේ 
+     පරිගණකයට දමන්න (උදා: C:\ හෝ Desktop එකට).
+   * පසුව 'Create_Desktop_Shortcut.bat' run කරන්න.
+
+------------------------------------------------------------------------
+විශේෂ පහසුකම් (Special Features):
+------------------------------------------------------------------------
+✔ 100% No Source Code: පාරිභෝගිකයාට කිසිදු Code එකක් බලාගත නොහැක.
+✔ Offline Support: Signal / Internet නැති වුවද දත්ත Local Save වේ.
+✔ Cloud Sync: Signal ලැබුණු පසු Cloud එකට ස්වයංක්‍රීයව Upload වේ.
+✔ Dedicated Data Storage: දත්ත 'Software/data' folder එකේ සුරක්ෂිතව තැන්පත් වේ.
+✔ Bill / Thermal Receipt Printing: සාමාන්‍ය පරිදි POS Printers මගින් බිල්පත් print කළ හැක.
+
+========================================================================

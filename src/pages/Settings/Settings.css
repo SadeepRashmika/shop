@@ -5,7 +5,224 @@
 }
 
 .settings-page .glass-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: var(--bg-card, rgba(30, 41, 59, 0.7));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
   backdrop-filter: blur(12px);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.settings-page .glass-card:hover {
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.alert-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.alert-box.success {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1.5px solid #22c55e;
+  color: #22c55e;
+}
+
+.alert-box.error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1.5px solid #ef4444;
+  color: #ef4444;
+}
+
+/* Database Management Section */
+.database-management-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+.db-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.db-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 1.25rem;
+}
+
+.db-icon-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.db-icon-circle.export {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.db-icon-circle.import {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.db-card-body {
+  flex: 1;
+  margin-bottom: 1.5rem;
+}
+
+.db-info-box {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px dashed rgba(59, 130, 246, 0.3);
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 0.84rem;
+  color: var(--text-secondary, #94a3b8);
+  display: flex;
+  gap: 10px;
+  line-height: 1.45;
+}
+
+.db-info-box .info-icon {
+  color: #3b82f6;
+  font-size: 1.1rem;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.db-info-box strong {
+  color: var(--text-primary, #f8fafc);
+}
+
+/* File Drop Area */
+.file-drop-area {
+  background: rgba(255, 255, 255, 0.02);
+  border: 2px dashed var(--border-color, rgba(255, 255, 255, 0.15));
+  border-radius: 14px;
+  padding: 1.5rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-drop-area:hover {
+  background: rgba(59, 130, 246, 0.06);
+  border-color: #3b82f6;
+}
+
+/* Parsed Backup Preview */
+.parsed-backup-preview {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--text-primary, #f8fafc);
+  margin-bottom: 8px;
+}
+
+.preview-stats-grid {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.stat-badge {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.stat-badge strong {
+  color: #3b82f6;
+}
+
+.preview-collections-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.collection-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.collection-chip strong {
+  color: var(--text-primary, #ffffff);
+}
+
+/* Progress Bar */
+.db-progress-wrap {
+  margin-top: 14px;
+}
+
+.db-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.db-progress-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.db-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.db-progress-fill.import-fill {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
