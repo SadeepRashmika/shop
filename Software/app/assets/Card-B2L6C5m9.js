@@ -1,0 +1,1 @@
+import{xt as e}from"./vendor-react-s6yDqvTV.js";var t=e();function n({children:e,className:n=``,hover:r=!0,...i}){return(0,t.jsx)(`div`,{className:`card glass-card ${r?`card-hover`:``} ${n}`,...i,children:e})}export{n as t};
