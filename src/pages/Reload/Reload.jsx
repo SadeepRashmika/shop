@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, query, where, orderBy, limit } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
 import { safeCommit, getResilientBillNumber } from '../../services/offlineHelper';
@@ -126,11 +126,18 @@ export default function Reload() {
       const debtorSnap = await getDocs(collection(db, 'debtors'));
       setDebtors(debtorSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-      // Reloads history
-      const reloadSnap = await getDocs(collection(db, 'reloads'));
-      const history = reloadSnap.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+      // Reloads history (fetch latest 100 records for fast load)
+      let history = [];
+      try {
+        const qReloads = query(collection(db, 'reloads'), orderBy('timestamp', 'desc'), limit(100));
+        const reloadSnap = await getDocs(qReloads);
+        history = reloadSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } catch (e) {
+        const reloadSnap = await getDocs(collection(db, 'reloads'));
+        history = reloadSnap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+      }
       setReloadHistory(history);
     } catch (err) {
       console.error("Error fetching reload data:", err);

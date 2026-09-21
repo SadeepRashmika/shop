@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp, increment, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp, increment, writeBatch, query, where } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
 import { safeCommit } from '../../services/offlineHelper';
@@ -93,8 +93,26 @@ export default function Debtors() {
         return;
       }
 
-      const paySnapshot = await getDocs(collection(db, 'debtor_payments'));
-      const txnSnapshot = await getDocs(collection(db, 'transactions'));
+      // Target only payment records and credit transactions instead of downloading the whole database
+      let payDocs = [];
+      try {
+        const qPay = query(collection(db, 'debtor_payments'), where('type', '==', 'payment'));
+        const paySnapshot = await getDocs(qPay);
+        payDocs = paySnapshot.docs;
+      } catch (e) {
+        const paySnapshot = await getDocs(collection(db, 'debtor_payments'));
+        payDocs = paySnapshot.docs;
+      }
+
+      let txnDocs = [];
+      try {
+        const qCredit = query(collection(db, 'transactions'), where('paymentMethod', '==', 'credit'));
+        const txnSnapshot = await getDocs(qCredit);
+        txnDocs = txnSnapshot.docs;
+      } catch (e) {
+        const txnSnapshot = await getDocs(collection(db, 'transactions'));
+        txnDocs = txnSnapshot.docs;
+      }
 
       const getTimestampMs = (ts) => {
         if (!ts) return 0;
@@ -107,7 +125,7 @@ export default function Debtors() {
       // Build map of debtorId -> last payment timestamp (ms)
       const lastPaymentMap = {};
 
-      paySnapshot.docs.forEach(docSnap => {
+      payDocs.forEach(docSnap => {
         const d = docSnap.data();
         if (d.type !== 'payment') return; // Only count actual payments, not loans/opening
         const debtorId = d.debtorId;
@@ -120,7 +138,7 @@ export default function Debtors() {
 
       // Also check credit transactions for last activity
       const lastActivityMap = {};
-      txnSnapshot.docs.forEach(docSnap => {
+      txnDocs.forEach(docSnap => {
         const d = docSnap.data();
         if (d.paymentMethod !== 'credit') return;
         const debtorId = d.debtorId;

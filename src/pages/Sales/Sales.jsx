@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, getDoc, query, where, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -1049,11 +1049,13 @@ export default function Sales() {
   };
 
   const isCreditMode = paymentMethod === 'credit';
-  const subtotal = cart.reduce((acc, item) => {
-    const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
-    const effectivePrice = (isCreditMode && mPrice > Number(item.sellPrice)) ? mPrice : Number(item.sellPrice);
-    return acc + (effectivePrice * item.quantity);
-  }, 0);
+  const subtotal = useMemo(() => {
+    return cart.reduce((acc, item) => {
+      const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
+      const effectivePrice = (isCreditMode && mPrice > Number(item.sellPrice)) ? mPrice : Number(item.sellPrice);
+      return acc + (effectivePrice * (Number(item.quantity) || 0));
+    }, 0);
+  }, [cart, isCreditMode]);
 
   // Helper: get effective barcode for an item (stored barcode OR auto-generated ITM{itemNo})
   const getEffectiveBarcode = (item) => {
@@ -1062,41 +1064,55 @@ export default function Sales() {
     return null;
   };
 
-  const filteredItems = search ? items.filter(item => {
+  const favoriteCount = useMemo(() => {
+    return items.filter(i => favoriteItemIds.includes(i.id) || i.isFavorite).length;
+  }, [items, favoriteItemIds]);
+
+  const filteredItems = useMemo(() => {
+    if (!search) return [];
     const s = search.toLowerCase().trim();
     const cleanS = s.replace('#', '').replace('itm', '').replace('item', '').replace('no', '').trim();
-    const effectiveBarcode = getEffectiveBarcode(item);
-    return (
-      item.name?.toLowerCase().includes(s) ||
-      (effectiveBarcode && (effectiveBarcode === s || effectiveBarcode.includes(s))) ||
-      item.itemNo?.toString() === cleanS ||
-      item.itemNo?.toString() === s ||
-      item.category?.toLowerCase().includes(s)
-    );
-  }) : [];
+    const matches = [];
 
-  const gridDisplayItems = items.filter(item => {
-    const isFav = favoriteItemIds.includes(item.id) || item.isFavorite;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const effectiveBarcode = getEffectiveBarcode(item);
+      const isMatch = (
+        (item.name && item.name.toLowerCase().includes(s)) ||
+        (effectiveBarcode && (effectiveBarcode === s || effectiveBarcode.includes(s))) ||
+        (item.itemNo !== undefined && item.itemNo !== null && (item.itemNo.toString() === cleanS || item.itemNo.toString() === s)) ||
+        (item.category && item.category.toLowerCase().includes(s))
+      );
+      if (isMatch) {
+        matches.push(item);
+        if (matches.length >= 40) break; // Limit dropdown list to 40 items for smooth 60fps rendering
+      }
+    }
+    return matches;
+  }, [search, items]);
+
+  const gridDisplayItems = useMemo(() => {
     if (selectedCategory === 'favorites') {
-      return isFav;
+      return items.filter(item => favoriteItemIds.includes(item.id) || item.isFavorite);
     }
     if (selectedCategory) {
-      return item.category === selectedCategory;
+      return items.filter(item => item.category === selectedCategory);
     }
     if (search) {
       const s = search.toLowerCase().trim();
       const cleanS = s.replace('#', '').replace('itm', '').replace('item', '').replace('no', '').trim();
-      const effectiveBarcode = getEffectiveBarcode(item);
-      return (
-        item.name?.toLowerCase().includes(s) ||
-        (effectiveBarcode && effectiveBarcode.includes(s)) ||
-        item.category?.toLowerCase().includes(s) ||
-        item.itemNo?.toString() === cleanS ||
-        item.itemNo?.toString().includes(cleanS)
-      );
+      return items.filter(item => {
+        const effectiveBarcode = getEffectiveBarcode(item);
+        return (
+          (item.name && item.name.toLowerCase().includes(s)) ||
+          (effectiveBarcode && effectiveBarcode.includes(s)) ||
+          (item.category && item.category.toLowerCase().includes(s)) ||
+          (item.itemNo !== undefined && item.itemNo !== null && (item.itemNo.toString() === cleanS || item.itemNo.toString().includes(cleanS)))
+        );
+      });
     }
-    return true;
-  });
+    return items;
+  }, [items, selectedCategory, search, favoriteItemIds]);
 
   const handleSearchKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -1380,34 +1396,56 @@ export default function Sales() {
     }
   };
 
-  // Bill Search Functions
+  // Bill Search Functions - Optimized to fetch recent records with limit
   const handleBillSearch = async (overrideQuery) => {
     const queryToUse = (overrideQuery !== undefined ? overrideQuery : billSearchQuery).trim();
     setBillSearchLoading(true);
     try {
-      const transactionsSnapshot = await getDocs(collection(db, 'transactions'));
-      const allTransactions = transactionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      // Sort all transactions descending by bill number (latest first)
-      allTransactions.sort((a, b) => (b.billNumber || 0) - (a.billNumber || 0));
-
       const cleanQuery = queryToUse.toLowerCase();
-
       let results = [];
+
       if (!cleanQuery || cleanQuery === 'l' || cleanQuery === 'last' || cleanQuery === 'latest') {
-        // 'L' / 'l' or empty query -> return all bills starting from the latest bill downwards
-        results = allTransactions;
+        // 'L' / 'l' or empty query -> return recent 40 bills starting from the latest downwards
+        try {
+          const qLatest = query(collection(db, 'transactions'), orderBy('billNumber', 'desc'), limit(40));
+          const snap = await getDocs(qLatest);
+          results = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (err) {
+          const qFallback = query(collection(db, 'transactions'), orderBy('timestamp', 'desc'), limit(40));
+          const snap = await getDocs(qFallback);
+          results = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        }
       } else {
-        const searchNum = parseInt(cleanQuery);
-        results = allTransactions.filter(txn => {
-          // Exact bill number match
-          if (!isNaN(searchNum) && txn.billNumber && txn.billNumber === searchNum) return true;
-          // Padded bill number match (e.g. "000075" or "75")
-          if (txn.billNumber && String(txn.billNumber).padStart(6, '0').includes(cleanQuery)) return true;
-          // Customer / debtor name match
-          if (txn.debtorName && txn.debtorName.toLowerCase().includes(cleanQuery)) return true;
-          return false;
-        });
+        const searchNum = parseInt(cleanQuery, 10);
+        if (!isNaN(searchNum) && String(searchNum) === cleanQuery) {
+          // Exact bill number match via indexed query
+          try {
+            const qExact = query(collection(db, 'transactions'), where('billNumber', '==', searchNum), limit(5));
+            const snap = await getDocs(qExact);
+            results = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          } catch (e) {}
+        }
+
+        // If no results found yet (e.g. debtorName search or padded query), search recent 150 transactions
+        if (results.length === 0) {
+          let recentDocs = [];
+          try {
+            const qRecent = query(collection(db, 'transactions'), orderBy('billNumber', 'desc'), limit(150));
+            const snap = await getDocs(qRecent);
+            recentDocs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          } catch (err) {
+            const qFallback = query(collection(db, 'transactions'), orderBy('timestamp', 'desc'), limit(150));
+            const snap = await getDocs(qFallback);
+            recentDocs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          }
+
+          results = recentDocs.filter(txn => {
+            if (!isNaN(searchNum) && txn.billNumber && txn.billNumber === searchNum) return true;
+            if (txn.billNumber && String(txn.billNumber).padStart(6, '0').includes(cleanQuery)) return true;
+            if (txn.debtorName && txn.debtorName.toLowerCase().includes(cleanQuery)) return true;
+            return false;
+          });
+        }
       }
 
       setBillSearchResults(results);
@@ -1715,7 +1753,7 @@ export default function Sales() {
                 <FiStar style={{ color: '#f59e0b', fontSize: '14px' }} />
                 <span>{t('sales.favorites')}</span>
                 <span className="fav-count-badge">
-                  {items.filter(i => favoriteItemIds.includes(i.id) || i.isFavorite).length}
+                  {favoriteCount}
                 </span>
               </button>
               {['වී කෙටීම', 'පොල් කෙටීම', 'සහල්', 'පොල්තෙල්', 'හාඩ්වයාර්', 'බිස්කට්', 'සබන්', 'කුළුබඩු', 'ඉලෙක්ට්රනික බඩු', 'වෙනත් භාණ්ඩ'].map(cat => (

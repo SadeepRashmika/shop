@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../services/firebase';
-import { isToday, toDateObject, calibrateFromTimestamp, subscribeTimeSync, formatSriLankaTime } from '../../services/timeService';
+import { isToday, toDateObject, calibrateFromTimestamp, subscribeTimeSync, formatSriLankaTime, getSriLankaTodayBounds } from '../../services/timeService';
 import Card from '../../components/ui/Card';
 import Modal from '../../components/ui/Modal';
 import BillModal from '../../components/common/BillModal';
@@ -282,31 +282,49 @@ export default function Dashboard() {
           console.warn("Could not fetch items:", e);
         }
 
-        // Fetch transactions
+        // Fetch transactions for Today and Recent
         let todaySales = 0;
         let todayProfit = 0;
-        let totalSales = 0;
-        const txns = [];
+        let recentTxnsList = [];
 
         try {
-          const txnSnapshot = await getDocs(collection(db, 'transactions'));
-          txnSnapshot.forEach(doc => {
-            const data = doc.data();
-            const total = data.total || 0;
-            totalSales += total;
-            txns.push({ id: doc.id, ...data });
+          const todayBounds = getSriLankaTodayBounds();
+          const startTimestamp = Timestamp.fromMillis(todayBounds.startMs);
 
+          // 1. Query today's transactions only (drastically reduces network & memory overhead)
+          let todayDocs = [];
+          try {
+            const qToday = query(
+              collection(db, 'transactions'),
+              where('timestamp', '>=', startTimestamp)
+            );
+            const todaySnap = await getDocs(qToday);
+            todayDocs = todaySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          } catch (e) {
+            console.warn("Targeted today query failed, trying recent limit fallback:", e);
+            const qFallback = query(
+              collection(db, 'transactions'),
+              orderBy('timestamp', 'desc'),
+              limit(100)
+            );
+            const fallbackSnap = await getDocs(qFallback);
+            todayDocs = fallbackSnap.docs
+              .map(doc => ({ id: doc.id, ...doc.data() }))
+              .filter(d => isToday(d.timestamp || d.date));
+          }
+
+          todayDocs.forEach(data => {
+            const total = Number(data.total) || 0;
             if (data.timestamp?.seconds) {
               calibrateFromTimestamp(data.timestamp.seconds);
             }
 
-            // Check if today (calibrated real time)
             if (isToday(data.timestamp || data.date)) {
               todaySales += total;
-              
+
               // Calculate cost and profit for today's transactions
               let txnCost = 0;
-              if (data.items) {
+              if (data.items && Array.isArray(data.items)) {
                 data.items.forEach(item => {
                   const invItem = itemsMap[item.id] || itemsMap[item.name];
                   const unitCost = invItem ? (Number(invItem.purchasePrice) || 0) : 0;
@@ -316,19 +334,30 @@ export default function Dashboard() {
               todayProfit += (total - txnCost);
             }
           });
+
+          // 2. Fetch Recent 5 transactions
+          try {
+            const qRecent = query(
+              collection(db, 'transactions'),
+              orderBy('timestamp', 'desc'),
+              limit(5)
+            );
+            const recentSnap = await getDocs(qRecent);
+            recentTxnsList = recentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          } catch (e) {
+            recentTxnsList = [...todayDocs].sort((a, b) => {
+              const tB = toDateObject(b.timestamp || b.date)?.getTime() || 0;
+              const tA = toDateObject(a.timestamp || a.date)?.getTime() || 0;
+              return tB - tA;
+            }).slice(0, 5);
+          }
         } catch (e) {
           console.warn("Could not fetch transactions:", e);
         }
 
-        // Sort by timestamp descending
-        txns.sort((a, b) => {
-          const tB = toDateObject(b.timestamp || b.date)?.getTime() || 0;
-          const tA = toDateObject(a.timestamp || a.date)?.getTime() || 0;
-          return tB - tA;
-        });
-        setRecentTxns(txns.slice(0, 5));
+        setRecentTxns(recentTxnsList);
 
-        // Fetch users / debtors
+        // Fetch users / debtors count
         let totalUsers = 0;
         let totalDebtors = 0;
         try {
@@ -349,7 +378,7 @@ export default function Dashboard() {
           todayProfit,
           totalItems,
           totalUsers,
-          totalSales,
+          totalSales: todaySales,
           totalDebtors,
           lowStockCount,
         });
@@ -365,14 +394,6 @@ export default function Dashboard() {
     } else {
       setLoading(false);
     }
-
-    const unsubscribe = subscribeTimeSync(() => {
-      if (isOwner || isCashier) {
-        fetchDashboardData();
-      }
-    });
-
-    return unsubscribe;
   }, [isOwner, isCashier]);
 
   const handleClearBillsOnly = async () => {

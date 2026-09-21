@@ -136,16 +136,15 @@ if (typeof window !== 'undefined') {
   // Sync on startup after a small delay to let Firebase initialize
   setTimeout(() => {
     syncTime();
-  }, 100);
+  }, 1000);
 
-  // Periodic sync every 3 minutes
+  // Periodic sync every 10 minutes
   setInterval(() => {
     syncTime();
-  }, 3 * 60 * 1000);
+  }, 10 * 60 * 1000);
 
-  // Sync on window focus or network reconnect
+  // Sync on network reconnect
   window.addEventListener('online', () => syncTime());
-  window.addEventListener('focus', () => syncTime());
 }
 
 /**

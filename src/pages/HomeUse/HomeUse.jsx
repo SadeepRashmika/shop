@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -53,15 +53,22 @@ export default function HomeUse() {
   const fetchHomeUseRecords = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'transactions'));
-      const homeTxns = [];
-
-      snap.forEach(docSnap => {
-        const data = docSnap.data();
-        if (data.paymentMethod === 'home_use') {
-          homeTxns.push({ id: docSnap.id, ...data });
-        }
-      });
+      let homeTxns = [];
+      try {
+        const qHome = query(collection(db, 'transactions'), where('paymentMethod', '==', 'home_use'));
+        const snap = await getDocs(qHome);
+        snap.forEach(docSnap => {
+          homeTxns.push({ id: docSnap.id, ...docSnap.data() });
+        });
+      } catch (qErr) {
+        const snap = await getDocs(collection(db, 'transactions'));
+        snap.forEach(docSnap => {
+          const data = docSnap.data();
+          if (data.paymentMethod === 'home_use') {
+            homeTxns.push({ id: docSnap.id, ...data });
+          }
+        });
+      }
 
       // Sort descending by timestamp
       homeTxns.sort((a, b) => {
