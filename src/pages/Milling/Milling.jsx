@@ -237,7 +237,10 @@ function generatePaddyReceiptPDF(record) {
   const fd = iframe.contentWindow.document;
   fd.open(); fd.write(html); fd.close();
   
+  let printed = false;
   const triggerPrint = () => {
+    if (printed) return;
+    printed = true;
     try {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
@@ -245,17 +248,20 @@ function generatePaddyReceiptPDF(record) {
   };
 
   try {
-    if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
+    if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.status === 'loaded') {
+      setTimeout(triggerPrint, 10);
+    } else if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
       iframe.contentWindow.document.fonts.ready.then(() => {
-        setTimeout(triggerPrint, 250);
+        setTimeout(triggerPrint, 15);
       }).catch(() => {
-        setTimeout(triggerPrint, 350);
+        setTimeout(triggerPrint, 25);
       });
+      setTimeout(triggerPrint, 80);
     } else {
-      setTimeout(triggerPrint, 350);
+      setTimeout(triggerPrint, 15);
     }
   } catch {
-    setTimeout(triggerPrint, 350);
+    setTimeout(triggerPrint, 15);
   }
 }
 

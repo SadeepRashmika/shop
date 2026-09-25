@@ -135,6 +135,43 @@
 }
 
 /* ============================================
+   REFRESH BUTTON
+   ============================================ */
+
+.refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1.5px solid var(--border-glass);
+  border-radius: var(--radius-full);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.refresh-btn:hover {
+  transform: rotate(180deg);
+  border-color: var(--primary-400);
+  color: var(--primary-400);
+  box-shadow: 0 0 14px rgba(108, 43, 217, 0.3);
+  background: rgba(108, 43, 217, 0.08);
+}
+
+.refresh-btn:active {
+  transform: rotate(360deg);
+  transition: all 0.15s ease;
+}
+
+.refresh-icon {
+  font-size: 1rem;
+  stroke-width: 2.2;
+}
+
+/* ============================================
    THEME TOGGLE BUTTON
    ============================================ */
 

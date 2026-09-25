@@ -53,6 +53,7 @@ export function formatBillQty(item) {
 // Generate Bill Receipt - opens in print window (supports Sinhala text)
 export function generateBillPDF(billData) {
   if (!billData) return;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const shopInfo = getShopInfo();
   const billNum = billData.billNumber ? String(billData.billNumber).padStart(6, '0') : (billData.id ? billData.id.substring(0, 8) : '000000');
   const dateStr = formatSriLankaDateTime(billData.date || billData.timestamp || getNow());
@@ -75,13 +76,13 @@ export function generateBillPDF(billData) {
     const formattedQty = formatBillQty(item);
     return `
       <tr style="border-top: 1px solid #000;">
-        <td colspan="4" style="font-weight: 800; padding: 5px 2px 2px 2px; font-size: 14px; color: #000;">${item.name || 'Item'}</td>
+        <td colspan="4" style="font-weight: 900; padding: 6px 2px 2px 2px; font-size: 15px; color: #000;">${item.name || 'Item'}</td>
       </tr>
       <tr style="border-bottom: 1px solid #000;">
-        <td style="text-align:left; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 700; color: #000;">${formattedQty}</td>
-        <td style="text-align:right; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 700; color: #000;">${mPrice.toFixed(2)}</td>
-        <td style="text-align:right; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 700; color: #000;">${sPrice.toFixed(2)}</td>
-        <td style="text-align:right; padding: 2px 2px 5px 2px; font-size: 11px; font-weight: 800; color: #000;">${subtotal.toFixed(2)}</td>
+        <td style="text-align:left; padding: 3px 2px 6px 2px; font-size: 13px; font-weight: 800; color: #000;">${formattedQty}</td>
+        <td style="text-align:right; padding: 3px 2px 6px 2px; font-size: 13px; font-weight: 700; color: #000;">${mPrice.toFixed(2)}</td>
+        <td style="text-align:right; padding: 3px 2px 6px 2px; font-size: 13px; font-weight: 700; color: #000;">${sPrice.toFixed(2)}</td>
+        <td style="text-align:right; padding: 3px 2px 6px 2px; font-size: 14px; font-weight: 900; color: #000;">${subtotal.toFixed(2)}</td>
       </tr>
     `;
   }).join('');
@@ -103,39 +104,39 @@ export function generateBillPDF(billData) {
 <html lang="si">
 <head>
   <meta charset="UTF-8">
+  <base href="${origin}/">
   <title>Bill #${billNum}</title>
   <style>
     @font-face {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 400;
-      src: local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
+      src: local('Noto Sans Sinhala'), url('${origin}/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
     }
     @font-face {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 600;
-      src: local('Noto Sans Sinhala SemiBold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-SemiBold.ttf') format('truetype');
+      src: local('Noto Sans Sinhala SemiBold'), url('${origin}/fonts/NotoSansSinhala-SemiBold.ttf') format('truetype');
     }
     @font-face {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 700;
-      src: local('Noto Sans Sinhala Bold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+      src: local('Noto Sans Sinhala Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
     }
     @font-face {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 800;
-      src: local('Noto Sans Sinhala ExtraBold'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+      src: local('Noto Sans Sinhala ExtraBold'), local('Noto Sans Sinhala Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
     }
     @font-face {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 900;
-      src: local('Noto Sans Sinhala Black'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+      src: local('Noto Sans Sinhala Black'), local('Noto Sans Sinhala Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
     }
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700;800;900&display=swap');
     * { 
       margin: 0; 
       padding: 0; 
@@ -144,12 +145,12 @@ export function generateBillPDF(billData) {
       word-spacing: normal !important;
     }
     body {
-      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', 'FMAbhaya', 'Segoe UI', Arial, sans-serif !important;
+      font-family: 'Noto Sans Sinhala', 'Nirmala UI', 'Iskoola Pota', 'FMAbhaya', 'Segoe UI', Arial, sans-serif !important;
       width: 80mm;
       margin: 0 auto;
       padding: 4mm;
       color: #000;
-      font-size: 11px;
+      font-size: 13px;
       font-weight: 700;
       text-rendering: optimizeLegibility;
       font-feature-settings: "kern" 1, "liga" 1;
@@ -159,17 +160,17 @@ export function generateBillPDF(billData) {
     }
     .header { text-align: center; margin-bottom: 8px; }
     .shop-name { 
-      font-size: 20px; 
+      font-size: 22px; 
       font-weight: 900; 
       margin-bottom: 4px; 
       color: #000; 
       line-height: 1.2;
     }
-    .shop-info { font-size: 11px; font-weight: 700; color: #000; line-height: 1.4; }
-    .divider { border-top: 1px dashed #000; margin: 6px 0; }
-    .bill-number { text-align: center; font-size: 14px; font-weight: 800; margin: 4px 0; color: #000; }
-    .meta-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin: 2px 0; color: #000; }
-    table { width: 100%; border-collapse: collapse; font-size: 11px; color: #000; }
+    .shop-info { font-size: 12px; font-weight: 700; color: #000; line-height: 1.4; }
+    .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
+    .bill-number { text-align: center; font-size: 16px; font-weight: 900; margin: 4px 0; color: #000; }
+    .meta-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin: 3px 0; color: #000; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; color: #000; }
     thead tr {
       background-color: #000 !important;
       color: #fff !important;
@@ -178,8 +179,8 @@ export function generateBillPDF(billData) {
     }
     thead th {
       font-weight: 800;
-      padding: 4px 2px;
-      font-size: 11px;
+      padding: 5px 3px;
+      font-size: 13px;
       color: #fff !important;
       text-align: right;
       background-color: #000 !important;
@@ -188,10 +189,18 @@ export function generateBillPDF(billData) {
     }
     thead th:first-child { text-align: left; }
     .total-section { margin-top: 6px; }
-    .total-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin: 3px 0; color: #000; }
-    .grand-total { font-size: 16px; font-weight: 900; margin: 4px 0; color: #000; }
-    .footer { text-align: center; margin-top: 10px; font-size: 11px; font-weight: 700; color: #000; }
-    .footer .thanks { font-weight: 800; font-size: 13px; color: #000; margin-bottom: 2px; }
+    .total-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin: 4px 0; color: #000; }
+    .grand-total { 
+      font-size: 21px; 
+      font-weight: 900; 
+      margin: 6px 0; 
+      padding: 3px 0; 
+      border-top: 1px dashed #000; 
+      border-bottom: 1px dashed #000; 
+      color: #000; 
+    }
+    .footer { text-align: center; margin-top: 10px; font-size: 12px; font-weight: 700; color: #000; }
+    .footer .thanks { font-weight: 900; font-size: 15px; color: #000; margin-bottom: 3px; }
     @media print {
       body { width: 80mm; margin: 0; padding: 2mm; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: #000; font-weight: 700; }
       @page { size: 80mm auto; margin: 0; }
@@ -239,7 +248,7 @@ export function generateBillPDF(billData) {
   <div class="total-section">
     <div class="total-row">
       <span>වර්ග ගණන (Types):</span>
-      <span>${totalItemTypes}</span>
+      <span style="font-weight: 800;">${totalItemTypes}</span>
     </div>
     <div class="total-row grand-total">
       <span>මුළු එකතුව</span>
@@ -248,17 +257,17 @@ export function generateBillPDF(billData) {
     ${!isHomeUse ? `
     <div class="total-row">
       <span>ගෙවීම් :</span>
-      <span>${tendered.toFixed(2)}</span>
+      <span style="font-weight: 800;">${tendered.toFixed(2)}</span>
     </div>
     ` : ''}
     ${isCash ? `
-    <div class="total-row font-bold">
+    <div class="total-row" style="font-size: 16px; font-weight: 900; margin: 4px 0;">
       <span>ඉතිරි:</span>
       <span>Rs. ${change.toFixed(2)}</span>
     </div>
     ` : ''}
     ${isCredit ? `
-    <div class="total-row font-bold">
+    <div class="total-row" style="font-size: 16px; font-weight: 900; margin: 4px 0;">
       <span>ණය මුදල (Owed):</span>
       <span>Rs. ${creditOwed.toFixed(2)}</span>
     </div>
@@ -267,15 +276,15 @@ export function generateBillPDF(billData) {
     ${totalSavings > 0 ? `
     <div class="divider"></div>
     <div style="text-align:center; padding: 6px 0; color: #000;">
-      <div style="font-size: 13px; font-weight: 800;">ඔබට ලැබුණු ලාභය</div>
-      <div style="font-size: 17px; font-weight: 800; margin-top: 2px;">Rs. ${totalSavings.toFixed(2)}</div>
+      <div style="font-size: 14px; font-weight: 800;">ඔබට ලැබුණු ලාභය</div>
+      <div style="font-size: 18px; font-weight: 900; margin-top: 2px;">Rs. ${totalSavings.toFixed(2)}</div>
     </div>
     ` : ''}
   </div>
 
   <div class="divider"></div>
 
-  <div class="meta-row" style="justify-content:center;">
+  <div class="meta-row" style="justify-content:center; font-size: 13px;">
     <span>Payment: ${(billData.paymentMethod || 'CASH').toUpperCase()}</span>
   </div>
 
@@ -307,7 +316,10 @@ export function generateBillPDF(billData) {
   frameDoc.write(html);
   frameDoc.close();
 
+  let printed = false;
   const triggerPrint = () => {
+    if (printed) return;
+    printed = true;
     try {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
@@ -317,23 +329,27 @@ export function generateBillPDF(billData) {
   };
 
   try {
-    if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
+    if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.status === 'loaded') {
+      setTimeout(triggerPrint, 10);
+    } else if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
       iframe.contentWindow.document.fonts.ready.then(() => {
-        setTimeout(triggerPrint, 250);
+        setTimeout(triggerPrint, 15);
       }).catch(() => {
-        setTimeout(triggerPrint, 350);
+        setTimeout(triggerPrint, 25);
       });
+      setTimeout(triggerPrint, 80);
     } else {
-      setTimeout(triggerPrint, 350);
+      setTimeout(triggerPrint, 15);
     }
   } catch {
-    setTimeout(triggerPrint, 350);
+    setTimeout(triggerPrint, 15);
   }
 }
 
 // Generate Reload Receipt - supports Sinhala Unicode text cleanly on all browsers
 export function generateReloadReceiptPDF(reloadRecord) {
   if (!reloadRecord) return;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const shopInfo = getShopInfo();
   const billNum = reloadRecord.billNumber ? String(reloadRecord.billNumber).padStart(6, '0') : '000000';
   const dateStr = formatSriLankaDateTime(reloadRecord.date || reloadRecord.timestamp || getNow());
@@ -343,39 +359,39 @@ export function generateReloadReceiptPDF(reloadRecord) {
 <html lang="si">
 <head>
   <meta charset="UTF-8">
+  <base href="${origin}/">
   <title>Reload Receipt #${billNum}</title>
   <style>
     @font-face {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 400;
-      src: local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
+      src: local('Noto Sans Sinhala'), url('${origin}/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
     }
     @font-face {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 600;
-      src: local('Noto Sans Sinhala SemiBold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-SemiBold.ttf') format('truetype');
+      src: local('Noto Sans Sinhala SemiBold'), url('${origin}/fonts/NotoSansSinhala-SemiBold.ttf') format('truetype');
     }
     @font-face {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 700;
-      src: local('Noto Sans Sinhala Bold'), local('Noto Sans Sinhala'), local('Iskoola Pota'), local('Nirmala UI'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+      src: local('Noto Sans Sinhala Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
     }
     @font-face {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 800;
-      src: local('Noto Sans Sinhala ExtraBold'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+      src: local('Noto Sans Sinhala ExtraBold'), local('Noto Sans Sinhala Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
     }
     @font-face {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 900;
-      src: local('Noto Sans Sinhala Black'), local('Noto Sans Sinhala Bold'), url('/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+      src: local('Noto Sans Sinhala Black'), local('Noto Sans Sinhala Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
     }
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700;800;900&display=swap');
     * { 
       margin: 0; 
       padding: 0; 
@@ -384,13 +400,13 @@ export function generateReloadReceiptPDF(reloadRecord) {
       word-spacing: normal !important;
     }
     body {
-      font-family: 'Noto Sans Sinhala', 'Iskoola Pota', 'Nirmala UI', 'FMAbhaya', 'Segoe UI', Arial, sans-serif !important;
+      font-family: 'Noto Sans Sinhala', 'Nirmala UI', 'Iskoola Pota', 'FMAbhaya', 'Segoe UI', Arial, sans-serif !important;
       width: 80mm;
       margin: 0 auto;
       padding: 4mm;
       color: #000;
       background: #fff;
-      font-size: 11px;
+      font-size: 13px;
       font-weight: 700;
       text-rendering: optimizeLegibility;
       font-feature-settings: "kern" 1, "liga" 1;
@@ -398,23 +414,23 @@ export function generateReloadReceiptPDF(reloadRecord) {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    .header { text-align: center; margin-bottom: 8px; border-bottom: 1px dashed #000; padding-bottom: 6px; }
+    .header { text-align: center; margin-bottom: 8px; border-bottom: 1.5px dashed #000; padding-bottom: 6px; }
     .shop-name { 
-      font-size: 18px; 
+      font-size: 22px; 
       font-weight: 900; 
       margin-bottom: 3px; 
       color: #000; 
       line-height: 1.2;
     }
-    .shop-info { font-size: 11px; font-weight: 700; color: #000; margin-bottom: 2px; }
-    .badge { display: inline-block; border: 1px solid #000; padding: 2px 6px; font-size: 10px; font-weight: 800; border-radius: 3px; margin: 3px 0; }
-    .meta-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; margin: 3px 0; color: #000; }
-    .divider { border-top: 1px dashed #000; margin: 6px 0; }
-    .amount-box { text-align: center; border: 2px solid #000; border-radius: 6px; padding: 8px 4px; margin: 8px 0; }
-    .amount-label { font-size: 11px; font-weight: 700; text-transform: uppercase; }
-    .amount-val { font-size: 20px; font-weight: 900; margin-top: 2px; }
-    .footer { text-align: center; font-size: 11px; font-weight: 700; margin-top: 8px; border-top: 1px dashed #000; padding-top: 6px; color: #000; }
-    .footer .thanks { font-weight: 800; font-size: 12px; margin-bottom: 2px; }
+    .shop-info { font-size: 12px; font-weight: 700; color: #000; margin-bottom: 2px; }
+    .badge { display: inline-block; border: 1.5px solid #000; padding: 3px 8px; font-size: 11px; font-weight: 900; border-radius: 4px; margin: 4px 0; }
+    .meta-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin: 3px 0; color: #000; }
+    .divider { border-top: 1.5px dashed #000; margin: 6px 0; }
+    .amount-box { text-align: center; border: 2px solid #000; border-radius: 6px; padding: 10px 4px; margin: 8px 0; }
+    .amount-label { font-size: 12px; font-weight: 800; text-transform: uppercase; }
+    .amount-val { font-size: 24px; font-weight: 900; margin-top: 2px; }
+    .footer { text-align: center; font-size: 12px; font-weight: 700; margin-top: 8px; border-top: 1.5px dashed #000; padding-top: 6px; color: #000; }
+    .footer .thanks { font-weight: 900; font-size: 14px; margin-bottom: 2px; }
     @media print {
       @page { margin: 0; size: 80mm auto; }
       body { width: 80mm; margin: 0; padding: 2mm; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -485,7 +501,10 @@ export function generateReloadReceiptPDF(reloadRecord) {
   frameDoc.write(html);
   frameDoc.close();
 
+  let printed = false;
   const triggerPrint = () => {
+    if (printed) return;
+    printed = true;
     try {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
@@ -495,16 +514,19 @@ export function generateReloadReceiptPDF(reloadRecord) {
   };
 
   try {
-    if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
+    if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.status === 'loaded') {
+      setTimeout(triggerPrint, 10);
+    } else if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
       iframe.contentWindow.document.fonts.ready.then(() => {
-        setTimeout(triggerPrint, 250);
+        setTimeout(triggerPrint, 15);
       }).catch(() => {
-        setTimeout(triggerPrint, 350);
+        setTimeout(triggerPrint, 25);
       });
+      setTimeout(triggerPrint, 80);
     } else {
-      setTimeout(triggerPrint, 350);
+      setTimeout(triggerPrint, 15);
     }
   } catch {
-    setTimeout(triggerPrint, 350);
+    setTimeout(triggerPrint, 15);
   }
 }

@@ -2290,11 +2290,11 @@ export default function Sales() {
             </div>
 
             <div style={{ marginTop: '1rem', padding: '1rem', borderRadius: 'var(--radius-md)', background: 'var(--bg-glass)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--border-color)' }}>
-              <span className="text-secondary font-medium">{t('sales.balanceOrDue')}</span>
+              <span className="text-secondary font-medium" style={{ fontSize: '1.05rem', fontWeight: 600 }}>{t('sales.balanceOrDue')}</span>
               <span style={{
-                fontSize: '1.5rem',
-                fontWeight: 'bold',
-                color: (parseFloat(tenderedAmount) || 0) >= subtotal ? 'var(--success-500)' : 'var(--error-500)'
+                fontSize: '1.75rem',
+                fontWeight: 800,
+                color: '#dc2626'
               }}>
                 Rs. {Math.abs((parseFloat(tenderedAmount) || 0) - subtotal).toFixed(2)}
               </span>

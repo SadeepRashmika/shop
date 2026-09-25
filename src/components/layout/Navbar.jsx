@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import LanguageSwitcher from '../common/LanguageSwitcher';
 import NetworkStatus from '../common/NetworkStatus';
-import { FiMenu, FiLogOut, FiUser, FiSun, FiMoon } from 'react-icons/fi';
+import { FiMenu, FiLogOut, FiUser, FiSun, FiMoon, FiRefreshCw } from 'react-icons/fi';
 import './Navbar.css';
 
 export default function Navbar({ onToggleSidebar }) {
@@ -39,6 +39,17 @@ export default function Navbar({ onToggleSidebar }) {
       <div className="navbar-right">
         {/* Network & Cloud Sync Status Badge */}
         <NetworkStatus />
+
+        {/* Refresh Button */}
+        <button
+          className="refresh-btn"
+          onClick={() => window.location.reload()}
+          id="refresh-btn"
+          title="Refresh / නැවත පූරණය (F5)"
+          aria-label="Refresh page"
+        >
+          <FiRefreshCw className="refresh-icon" />
+        </button>
 
         <LanguageSwitcher />
 
