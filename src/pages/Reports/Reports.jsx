@@ -74,8 +74,15 @@ export default function Reports() {
 
   // Shared invMap ref so onSnapshot listener can access it
   const [invMap, setInvMap] = useState({});
-  const [catDailyIncome, setCatDailyIncome] = useState([]);
-  const [catMonthlyIncome, setCatMonthlyIncome] = useState([]);
+  const [sahalChartData, setSahalChartData] = useState([]);
+  const [sahalStats, setSahalStats] = useState({
+    todaySales: 0,
+    todayQty: 0,
+    monthSales: 0,
+    monthQty: 0,
+    varietiesCount: 0
+  });
+  const [sahalViewMode, setSahalViewMode] = useState('revenue'); // 'revenue' or 'quantity'
 
   useEffect(() => {
     // ---- Step 1: Fetch inventory once ----
@@ -106,6 +113,28 @@ export default function Reports() {
   useEffect(() => {
     if (Object.keys(invMap).length === 0) return; // Wait for inventory
 
+    // Helper to determine if an item is a rice (සහල්) product
+    const isRiceItem = (item, invItem) => {
+      const cat = (invItem?.category || invItem?.type || '').toString().toLowerCase();
+      const name = (item?.name || invItem?.name || '').toString().toLowerCase();
+      return (
+        cat === 'සහල්' ||
+        cat.includes('සහල්') ||
+        cat.includes('rice') ||
+        cat.includes('sahal') ||
+        name.includes('සහල්') ||
+        name.includes('sahal') ||
+        name.includes('rice') ||
+        name.includes('කැකුළු') ||
+        name.includes('නාඩු') ||
+        name.includes('සම්බා') ||
+        name.includes('බාස්මතී') ||
+        name.includes('කීරි') ||
+        name.includes('සුවඳැල්') ||
+        name.includes('පොන්නි')
+      );
+    };
+
     // ---- Step 2: Real-time listener for transactions ----
     // onSnapshot fires INSTANTLY whenever a transaction is added or deleted
     const processSnapshot = (txnSnapshot) => {
@@ -119,8 +148,30 @@ export default function Reports() {
       const itemRevenue = {};
       const transactions = [];
       const dailySalesMap = {};
-      const catDailyMap = {};
-      const catMonthlyMap = {};
+
+      // Rice (සහල්) specific tracking
+      let sahalTodaySales = 0;
+      let sahalTodayQty = 0;
+      let sahalMonthSales = 0;
+      let sahalMonthQty = 0;
+      const sahalItemsMap = {};
+
+      // Pre-seed sahal map with rice items configured in inventory
+      Object.values(invMap).forEach(invItem => {
+        if (invItem && invItem.name && isRiceItem(invItem, invItem)) {
+          const riceKey = invItem.name;
+          if (!sahalItemsMap[riceKey]) {
+            sahalItemsMap[riceKey] = {
+              name: riceKey,
+              itemNo: invItem.itemNo || invItem.itemno || '—',
+              dailyRev: 0,
+              dailyQty: 0,
+              monthlyRev: 0,
+              monthlyQty: 0
+            };
+          }
+        }
+      });
 
       txnSnapshot.forEach(doc => {
         const data = doc.data();
@@ -157,17 +208,39 @@ export default function Reports() {
           monthCount++;
         }
 
-        // Category-wise income aggregation
+        // Aggregate item sales and rice specific sales
         data.items?.forEach(item => {
-          itemFreq[item.name] = (itemFreq[item.name] || 0) + item.quantity;
-          const rev = Number(item.subtotal) || (Number(item.sellPrice) * Number(item.quantity)) || 0;
+          const qty = Number(item.quantity) || 0;
+          const rev = Number(item.subtotal) || ((Number(item.sellPrice) || 0) * qty) || 0;
+          itemFreq[item.name] = (itemFreq[item.name] || 0) + qty;
           itemRevenue[item.name] = (itemRevenue[item.name] || 0) + rev;
 
-          // Lookup category from inventory
           const invItem = invMap[item.id] || invMap[item.name];
-          const cat = invItem?.category || invItem?.type || 'වෙනත්';
-          if (isT) catDailyMap[cat] = (catDailyMap[cat] || 0) + rev;
-          if (isM) catMonthlyMap[cat] = (catMonthlyMap[cat] || 0) + rev;
+          if (isRiceItem(item, invItem)) {
+            const riceKey = item.name || invItem?.name || item.id;
+            if (!sahalItemsMap[riceKey]) {
+              sahalItemsMap[riceKey] = {
+                name: riceKey,
+                itemNo: item.itemNo || invItem?.itemNo || invItem?.itemno || '—',
+                dailyRev: 0,
+                dailyQty: 0,
+                monthlyRev: 0,
+                monthlyQty: 0
+              };
+            }
+            if (isT) {
+              sahalTodaySales += rev;
+              sahalTodayQty += qty;
+              sahalItemsMap[riceKey].dailyRev += rev;
+              sahalItemsMap[riceKey].dailyQty += qty;
+            }
+            if (isM) {
+              sahalMonthSales += rev;
+              sahalMonthQty += qty;
+              sahalItemsMap[riceKey].monthlyRev += rev;
+              sahalItemsMap[riceKey].monthlyQty += qty;
+            }
+          }
         });
 
         if (txnDate) {
@@ -176,17 +249,26 @@ export default function Reports() {
         }
       });
 
-      // Build category chart data (union of daily & monthly categories)
-      const allCats = new Set([...Object.keys(catDailyMap), ...Object.keys(catMonthlyMap)]);
-      const catChartArr = Array.from(allCats).map(cat => ({
-        name: cat,
-        daily: Math.round((catDailyMap[cat] || 0) * 100) / 100,
-        monthly: Math.round((catMonthlyMap[cat] || 0) * 100) / 100,
-      })).sort((a, b) => b.monthly - a.monthly);
-      setCatDailyIncome(catChartArr);
-      setCatMonthlyIncome(catChartArr);
+      // Build rice chart data array (sorted by monthly revenue descending)
+      const sahalChartArr = Object.values(sahalItemsMap).map(item => ({
+        name: item.name,
+        itemNo: item.itemNo,
+        daily: Math.round(item.dailyRev * 100) / 100,
+        monthly: Math.round(item.monthlyRev * 100) / 100,
+        dailyQty: Math.round(item.dailyQty * 1000) / 1000,
+        monthlyQty: Math.round(item.monthlyQty * 1000) / 1000,
+      })).sort((a, b) => b.monthly - a.monthly || b.daily - a.daily);
 
-      // Chart data
+      setSahalChartData(sahalChartArr);
+      setSahalStats({
+        todaySales: sahalTodaySales,
+        todayQty: sahalTodayQty,
+        monthSales: sahalMonthSales,
+        monthQty: sahalMonthQty,
+        varietiesCount: sahalChartArr.length
+      });
+
+      // Chart data - top items
       const sortedItems = Object.entries(itemFreq)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
@@ -946,25 +1028,118 @@ export default function Reports() {
                       )}
                     </div>
 
-                    {/* Category-wise Income Chart */}
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        🗂️ කාණ්ඩ අනුව ලැබුණු ආදායම (Category Income)
+                    {/* Dedicated Rice (සහල්) Sales Chart & Income Summary */}
+                    <div style={{
+                      background: 'rgba(16, 185, 129, 0.03)',
+                      border: '1.5px solid rgba(16, 185, 129, 0.25)',
+                      borderRadius: '16px',
+                      padding: '18px 20px',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.03)'
+                    }}>
+                      {/* Top Rice Income Highlights */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                        gap: '12px',
+                        paddingBottom: '16px',
+                        marginBottom: '16px',
+                        borderBottom: '1px solid rgba(16, 185, 129, 0.15)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: 40, height: 40, borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                            🌾
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>අද දින සහල් ආදායම (Today Rice)</div>
+                            <div style={{ fontSize: '18px', fontWeight: 800, color: '#10b981' }}>Rs. {sahalStats.todaySales.toFixed(2)}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sahalStats.todayQty.toFixed(2)} kg අලෙවි විය</div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: 40, height: 40, borderRadius: '10px', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                            📆
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>මේ මාසයේ සහල් ආදායම (Month Rice)</div>
+                            <div style={{ fontSize: '18px', fontWeight: 800, color: '#3b82f6' }}>Rs. {sahalStats.monthSales.toFixed(2)}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sahalStats.monthQty.toFixed(2)} kg අලෙවි විය</div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: 40, height: 40, borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                            🏷️
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>සහල් වර්ග (Rice Varieties)</div>
+                            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)' }}>{sahalStats.varietiesCount} <span style={{ fontSize: '12px', fontWeight: 500 }}>වර්ග</span></div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>පද්ධතියේ ඇති සහල් වර්ග</div>
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', fontSize: '12px', fontWeight: 600 }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <span style={{ width: 12, height: 12, borderRadius: 3, background: '#10b981', display: 'inline-block' }}></span> අද දින (Daily)
-                        </span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <span style={{ width: 12, height: 12, borderRadius: 3, background: '#3b82f6', display: 'inline-block' }}></span> මේ මාසය (Monthly)
-                        </span>
+
+                      {/* Header and Toggle */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            🌾 සහල් වර්ග අනුව අලෙවි ප්‍රස්ථාරය (Rice Sales Graph)
+                          </div>
+                          <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '12px', fontWeight: 600 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#10b981', display: 'inline-block' }}></span> අද දින (Daily)
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#3b82f6', display: 'inline-block' }}></span> මේ මාසය (Monthly)
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', background: 'var(--bg-card, rgba(0,0,0,0.05))', padding: '3px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                          <button
+                            type="button"
+                            onClick={() => setSahalViewMode('revenue')}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              background: sahalViewMode === 'revenue' ? '#10b981' : 'transparent',
+                              color: sahalViewMode === 'revenue' ? '#fff' : 'var(--text-secondary)',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            මුදලින් (Rs.)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSahalViewMode('quantity')}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              background: sahalViewMode === 'quantity' ? '#3b82f6' : 'transparent',
+                              color: sahalViewMode === 'quantity' ? '#fff' : 'var(--text-secondary)',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            ප්‍රමාණයෙන් (Kg)
+                          </button>
+                        </div>
                       </div>
-                      {catDailyIncome.length > 0 ? (
-                        <ResponsiveContainer width="100%" height={Math.max(220, catDailyIncome.length * 42)}>
+
+                      {/* Chart Area */}
+                      {sahalChartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={Math.max(220, sahalChartData.length * 44)}>
                           <BarChart
-                            data={catDailyIncome}
+                            data={sahalChartData}
                             layout="vertical"
-                            margin={{ top: 0, right: 20, left: 10, bottom: 0 }}
+                            margin={{ top: 0, right: 25, left: 10, bottom: 0 }}
                             barCategoryGap="20%"
                             barGap={4}
                           >
@@ -973,31 +1148,62 @@ export default function Reports() {
                               type="number"
                               stroke="var(--text-secondary)"
                               fontSize={11}
-                              tickFormatter={v => `Rs.${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`}
+                              tickFormatter={v => sahalViewMode === 'revenue'
+                                ? `Rs.${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`
+                                : `${v}kg`}
                             />
                             <YAxis
                               type="category"
                               dataKey="name"
                               stroke="var(--text-secondary)"
                               fontSize={12}
-                              width={90}
+                              width={110}
                               tick={{ fontWeight: 700 }}
                             />
                             <Tooltip
                               contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px' }}
-                              formatter={(value, name) => [
-                                `Rs. ${Number(value).toFixed(2)}`,
-                                name === 'daily' ? '📅 අද දින ආදායම' : '📆 මේ මාස ආදායම'
-                              ]}
-                              labelStyle={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '13px', marginBottom: 4 }}
+                              content={({ active, payload, label }) => {
+                                if (active && payload && payload.length) {
+                                  const d = payload[0].payload;
+                                  return (
+                                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px', minWidth: '190px' }}>
+                                      <div style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
+                                        🌾 {label}
+                                      </div>
+                                      {d.itemNo && d.itemNo !== '—' && (
+                                        <div style={{ color: 'var(--text-secondary)', fontWeight: '600', fontSize: '12px', marginBottom: '4px' }}>
+                                          Item No: <span style={{ color: 'var(--primary-400)', fontWeight: '700' }}>#{d.itemNo}</span>
+                                        </div>
+                                      )}
+                                      <div style={{ color: '#10b981', fontWeight: '600', fontSize: '13px', marginBottom: '3px' }}>
+                                        📅 අද දින: <strong>Rs. {d.daily.toFixed(2)}</strong> ({d.dailyQty} kg)
+                                      </div>
+                                      <div style={{ color: '#3b82f6', fontWeight: '600', fontSize: '13px' }}>
+                                        📆 මේ මාසය: <strong>Rs. {d.monthly.toFixed(2)}</strong> ({d.monthlyQty} kg)
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
                             />
-                            <Bar dataKey="daily" name="daily" fill="#10b981" radius={[0, 4, 4, 0]} />
-                            <Bar dataKey="monthly" name="monthly" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                            <Bar
+                              dataKey={sahalViewMode === 'revenue' ? "daily" : "dailyQty"}
+                              name="daily"
+                              fill="#10b981"
+                              radius={[0, 4, 4, 0]}
+                            />
+                            <Bar
+                              dataKey={sahalViewMode === 'revenue' ? "monthly" : "monthlyQty"}
+                              name="monthly"
+                              fill="#3b82f6"
+                              radius={[0, 4, 4, 0]}
+                            />
                           </BarChart>
                         </ResponsiveContainer>
                       ) : (
                         <div className="empty-chart" style={{ padding: '30px', fontSize: '13px' }}>
-                          කාණ්ඩ ආදායම් දත්ත නොමැත
+                          🌾 සහල් අලෙවි දත්ත නොමැත
                         </div>
                       )}
                     </div>

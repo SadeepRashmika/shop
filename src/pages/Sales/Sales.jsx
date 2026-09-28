@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, getDoc, query, where, orderBy, limit, writeBatch, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, increment, serverTimestamp, getDoc, query, where, orderBy, limit, writeBatch } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../../services/firebase';
 import { safeCommit, getResilientBillNumber, syncLatestBillNumber } from '../../services/offlineHelper';
 import { getShopInfo, generateBillPDF, generateReloadReceiptPDF, formatBillQty } from '../../services/receiptService';
 import { useAuth } from '../../context/AuthContext';
-import { getNow, toDateObject, isToday, isThisMonth, getTodayDateString, formatSriLankaDateTime, formatSriLankaDate, formatSriLankaTime } from '../../services/timeService';
+import { getNow, toDateObject, isToday, getTodayDateString, formatSriLankaDateTime, formatSriLankaDate, formatSriLankaTime } from '../../services/timeService';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
@@ -62,26 +62,6 @@ export default function Sales() {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [debtorSearch, setDebtorSearch] = useState('');
-
-  // Daily/Monthly sales summary (real-time)
-  const [salesSummary, setSalesSummary] = useState({
-    todaySales: 0, todayCount: 0,
-    monthSales: 0, monthCount: 0
-  });
-
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'transactions'), (snap) => {
-      let todaySales = 0, todayCount = 0, monthSales = 0, monthCount = 0;
-      snap.forEach(d => {
-        const data = d.data();
-        const total = data.total || 0;
-        if (isToday(data.timestamp || data.date)) { todaySales += total; todayCount++; }
-        if (isThisMonth(data.timestamp || data.date)) { monthSales += total; monthCount++; }
-      });
-      setSalesSummary({ todaySales, todayCount, monthSales, monthCount });
-    }, () => {});
-    return () => unsub();
-  }, []);
   const [favoriteItemIds, setFavoriteItemIds] = useState(() => {
     try {
       const saved = localStorage.getItem('smartpos_favorites');
@@ -1742,38 +1722,6 @@ export default function Sales() {
               >
                 <FiFileText /> <span>{t('sales.searchBill')}</span>
               </button>
-            </div>
-          </div>
-
-          {/* Daily / Monthly Sales Summary Bar */}
-          <div style={{
-            display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap'
-          }}>
-            <div style={{
-              flex: 1, minWidth: '160px',
-              background: 'linear-gradient(135deg, rgba(16,185,129,0.13) 0%, rgba(16,185,129,0.06) 100%)',
-              border: '1.5px solid rgba(16,185,129,0.25)', borderRadius: '14px',
-              padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '14px'
-            }}>
-              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(16,185,129,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📅</div>
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>අද දින විකුණුම්</div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: '#10b981', lineHeight: 1.2 }}>Rs. {salesSummary.todaySales.toFixed(2)}</div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>{salesSummary.todayCount} ගනුදෙනු</div>
-              </div>
-            </div>
-            <div style={{
-              flex: 1, minWidth: '160px',
-              background: 'linear-gradient(135deg, rgba(139,92,246,0.13) 0%, rgba(59,130,246,0.07) 100%)',
-              border: '1.5px solid rgba(139,92,246,0.25)', borderRadius: '14px',
-              padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '14px'
-            }}>
-              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(139,92,246,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📆</div>
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>මාසික විකුණුම්</div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: '#8b5cf6', lineHeight: 1.2 }}>Rs. {salesSummary.monthSales.toFixed(2)}</div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>{salesSummary.monthCount} ගනුදෙනු</div>
-              </div>
             </div>
           </div>
 
