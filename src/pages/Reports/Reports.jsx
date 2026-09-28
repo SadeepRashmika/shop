@@ -142,36 +142,39 @@ export default function Reports() {
     return name.includes('පොල්තෙල්') || name.includes('පොල් තෙල්') || name.includes('coconut oil') || name.includes('තෙල් බෝතල්') || name.includes('තෙල් බෝ');
   };
 
-  // Helper to extract the volume in Liters (L) for coconut oil bottles/containers (e.g. 750ml, 500ml, 1L, 2L, 5L, or standard bottle)
-  const getItemVolumeInLiters = (itemName, invItem) => {
+  // Helper to extract the bottle multiplier for coconut oil (e.g. 1 bottle -> 1, 1/2 bottle (බාග) -> 0.5, 1/4 bottle (කාල) -> 0.25)
+  const getItemVolumeInBottles = (itemName, invItem) => {
     const name = (itemName || invItem?.name || '').toString().toLowerCase();
 
-    // 1. Check for liters "1l", "2l", "5l", "1.5l", "ලීටර් 5", "5 ලීටර්", "5 l"
-    const lMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:l|ltr|litre|liters|ලීටර්|ලී)/i);
-    if (lMatch && !name.includes('ml') && !name.includes('මිලී')) {
-      return parseFloat(lMatch[1]);
+    // 1. Check for 1/4 or 'කාල' (Quarter bottle = 0.25) -> 4 make 1 bottle
+    if (name.includes('1/4') || name.includes('0.25') || name.includes('කාල') || name.includes('quarter') || name.includes('187.5ml') || name.includes('180ml')) {
+      return 0.25;
     }
 
-    // 2. Check for ml "750ml", "500ml", "250ml", "100ml", "750 ml"
-    const mlMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:ml|මි\.ලී|මිලී)/i);
-    if (mlMatch) {
-      return parseFloat(mlMatch[1]) / 1000;
+    // 2. Check for 1/2 or 'බාග' or 'බාගය' (Half bottle = 0.5) -> 2 make 1 bottle
+    if (name.includes('1/2') || name.includes('0.5') || name.includes('බාග') || name.includes('half') || name.includes('375ml')) {
+      return 0.5;
     }
 
-    // 3. Check for bottle keywords (e.g. 750ml standard bottle if named බෝතල්)
-    if (name.includes('බෝතල්') || name.includes('bottle')) {
-      if (name.includes('බාග') || name.includes('half')) return 0.375;
-      if (name.includes('කාල') || name.includes('quarter')) return 0.1875;
-      return 0.75; // Standard Sri Lankan oil bottle is 750ml
+    // 3. Check for 3/4 (0.75 bottles)
+    if (name.includes('3/4') || name.includes('0.75') || name.includes('මුක්කාල')) {
+      return 0.75;
     }
 
-    // 4. Check explicit volume/packetWeight field if present
-    if (invItem?.volume || invItem?.packetWeight || invItem?.weight) {
-      const v = parseFloat(invItem.volume || invItem.packetWeight || invItem.weight);
-      if (!isNaN(v) && v > 0) return v;
+    // 4. Check for multiple bottles pattern like "2 බෝතල්", "5 බෝතල්", "2 bottle"
+    const bMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:බෝතල්|බෝ|bottles?)/i);
+    if (bMatch) {
+      const val = parseFloat(bMatch[1]);
+      if (!isNaN(val) && val > 0) return val;
     }
 
-    // 5. Default: loose oil sold per liter -> 1 unit = 1 L
+    // 5. Check if invItem has explicit bottleCount or packetWeight field
+    if (invItem?.bottleCount || invItem?.packetWeight) {
+      const b = parseFloat(invItem.bottleCount || invItem.packetWeight);
+      if (!isNaN(b) && b > 0) return b;
+    }
+
+    // 6. Default: 1 unit = 1 standard bottle (බෝතල් 1)
     return 1;
   };
 
@@ -289,9 +292,9 @@ export default function Reports() {
           polthelItemsMap[invItem.name] = {
             name: invItem.name,
             itemNo: invItem.itemNo || invItem.itemno || '—',
-            unitLiters: getItemVolumeInLiters(invItem.name, invItem),
+            unitBottles: getItemVolumeInBottles(invItem.name, invItem),
             revenue: 0,
-            volumeLiters: 0,
+            volumeBottles: 0,
             units: 0
           };
         }
@@ -320,26 +323,26 @@ export default function Reports() {
           const oilKey = invItem?.name || item.name;
           const qty = Number(item.quantity) || 0;
           const rev = Number(item.subtotal) || ((Number(item.sellPrice) || 0) * qty) || 0;
-          const unitLiters = getItemVolumeInLiters(oilKey, invItem);
-          const totalVolumeLiters = qty * unitLiters;
+          const unitBottles = getItemVolumeInBottles(oilKey, invItem);
+          const totalVolumeBottles = qty * unitBottles;
 
           if (!polthelItemsMap[oilKey]) {
             polthelItemsMap[oilKey] = {
               name: oilKey,
               itemNo: invItem?.itemNo || item.itemNo || invItem?.itemno || '—',
-              unitLiters: unitLiters,
+              unitBottles: unitBottles,
               revenue: 0,
-              volumeLiters: 0,
+              volumeBottles: 0,
               units: 0
             };
           }
 
           periodSales += rev;
-          periodQty += totalVolumeLiters;
+          periodQty += totalVolumeBottles;
           periodUnits += qty;
 
           polthelItemsMap[oilKey].revenue += rev;
-          polthelItemsMap[oilKey].volumeLiters += totalVolumeLiters;
+          polthelItemsMap[oilKey].volumeBottles += totalVolumeBottles;
           polthelItemsMap[oilKey].units += qty;
         }
       });
@@ -348,11 +351,11 @@ export default function Reports() {
     const chartArr = Object.values(polthelItemsMap).map(item => ({
       name: item.name,
       itemNo: item.itemNo,
-      unitLiters: item.unitLiters || 1,
+      unitBottles: item.unitBottles || 1,
       revenue: Math.round(item.revenue * 100) / 100,
-      volumeLiters: Math.round(item.volumeLiters * 1000) / 1000,
+      volumeBottles: Math.round(item.volumeBottles * 100) / 100,
       units: item.units || 0,
-    })).sort((a, b) => (polthelViewMode === 'revenue' ? b.revenue - a.revenue : b.volumeLiters - a.volumeLiters));
+    })).sort((a, b) => (polthelViewMode === 'revenue' ? b.revenue - a.revenue : b.volumeBottles - a.volumeBottles));
 
     return {
       polthelChartData: chartArr,
@@ -1858,13 +1861,13 @@ export default function Reports() {
                           </div>
                           <div>
                             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                              අලෙවි වූ පොල්තෙල් මුළු පරිමාව (Volume Sold)
+                              අලෙවි වූ පොල්තෙල් මුළු බෝතල් ගණන (Bottles Sold)
                             </div>
                             <div style={{ fontSize: '20px', fontWeight: 800, color: '#ea580c' }}>
-                              {polthelStats.totalQty.toFixed(2)} <span style={{ fontSize: '13px', fontWeight: 600 }}>L (ලීටර්)</span>
+                              {polthelStats.totalQty.toFixed(2)} <span style={{ fontSize: '13px', fontWeight: 600 }}>බෝතල් (Bottles)</span>
                             </div>
                             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                              බෝතල් හා තොග එකතුව
+                              1/2 බාග 2ක් = බෝතල් 1 | 1/4 කාල 4ක් = බෝතල් 1
                             </div>
                           </div>
                         </div>
@@ -1894,7 +1897,7 @@ export default function Reports() {
                             🥥 පොල්තෙල් වර්ග අනුව අලෙවි ප්‍රස්ථාරය ({polthelPeriodMode === 'daily' ? (polthelSelectedDate === getTodayDateString() ? 'අද දින' : polthelSelectedDate) : (polthelSelectedMonth === getCurrentMonthString() ? 'මේ මාසය' : polthelSelectedMonth)})
                           </div>
                           <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                            {polthelViewMode === 'revenue' ? 'මුදලින් (රුපියල්)' : 'පරිමාවෙන් (ලීටර්)'} අලෙවිය
+                            {polthelViewMode === 'revenue' ? 'මුදලින් (රුපියල්)' : 'බෝතල් ගණනින් (Bottles)'} අලෙවිය
                           </div>
                         </div>
 
@@ -1931,7 +1934,7 @@ export default function Reports() {
                               transition: 'all 0.2s ease'
                             }}
                           >
-                            ප්‍රමාණයෙන් (L)
+                            බෝතල් වලින් (Bottles)
                           </button>
                         </div>
                       </div>
@@ -1962,7 +1965,7 @@ export default function Reports() {
                               fontSize={11}
                               tickFormatter={v => polthelViewMode === 'revenue'
                                 ? `Rs.${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`
-                                : `${v}L`}
+                                : `${v} බෝතල්`}
                             />
                             <YAxis
                               type="category"
@@ -1977,7 +1980,7 @@ export default function Reports() {
                               content={({ active, payload, label }) => {
                                 if (active && payload && payload.length) {
                                   const d = payload[0].payload;
-                                  const isBottleOrPack = d.unitLiters && d.unitLiters !== 1;
+                                  const isCustomUnit = d.unitBottles && d.unitBottles !== 1;
                                   return (
                                     <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px', minWidth: '200px' }}>
                                       <div style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
@@ -1992,7 +1995,7 @@ export default function Reports() {
                                         💰 ආදායම: <strong>Rs. {d.revenue.toFixed(2)}</strong>
                                       </div>
                                       <div style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '13px' }}>
-                                        🛢️ අලෙවි වූ පරිමාව: <strong>{d.volumeLiters} L</strong> {isBottleOrPack && d.units > 0 ? `(${d.units} බෝතල්/පැකට්)` : ''}
+                                        🛢️ අලෙවි වූ බෝතල් ගණන: <strong>{d.volumeBottles} බෝතල්</strong> {isCustomUnit && d.units > 0 ? `(${d.units} පැකට්/බෝතල්)` : ''}
                                       </div>
                                     </div>
                                   );
@@ -2001,8 +2004,8 @@ export default function Reports() {
                               }}
                             />
                             <Bar
-                              dataKey={polthelViewMode === 'revenue' ? "revenue" : "volumeLiters"}
-                              name={polthelViewMode === 'revenue' ? "ආදායම" : "පරිමාව (L)"}
+                              dataKey={polthelViewMode === 'revenue' ? "revenue" : "volumeBottles"}
+                              name={polthelViewMode === 'revenue' ? "ආදායම" : "බෝතල් ගණන"}
                               fill={polthelPeriodMode === 'daily' ? "url(#polthelDailyGrad)" : "url(#polthelMonthlyGrad)"}
                               radius={[0, 6, 6, 0]}
                             />
