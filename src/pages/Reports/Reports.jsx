@@ -365,48 +365,6 @@ export default function Reports() {
       setLoading(false);
     };
 
-      // Chart data - top items
-      const sortedItems = Object.entries(itemFreq)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([name, qty]) => ({
-          name,
-          qty,
-          revenue: itemRevenue[name] || 0,
-          itemNo: invMap[name]?.itemNo || invMap[name]?.itemno || '—'
-        }));
-      setChartData(sortedItems);
-
-      const last7Days = [];
-      const now = getNow();
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-        const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        last7Days.push({ name: key, sales: dailySalesMap[key] || 0 });
-      }
-      setDailyChartData(last7Days);
-
-      transactions.sort((a, b) => {
-        const tB = toDateObject(b.timestamp || b.date)?.getTime() || 0;
-        const tA = toDateObject(a.timestamp || a.date)?.getTime() || 0;
-        return tB - tA;
-      });
-      setAllTxns(transactions);
-      setRecentTxns(transactions.slice(0, 10));
-
-      setStats(prev => ({
-        ...prev,
-        todaySales,
-        todayProfit,
-        todayTxns: todayCount,
-        monthSales,
-        monthProfit,
-        monthTxns: monthCount
-      }));
-
-      setLoading(false);
-    };
-
     // Subscribe to real-time updates
     const unsubTxn = onSnapshot(
       collection(db, 'transactions'),
