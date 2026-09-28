@@ -17,7 +17,7 @@ import './Milling.css';
 function generatePaddyReceiptPDF(record) {
   const shopInfo = getShopInfo();
   const dateStr = record.dateStr || getTodayDateString();
-  const supplier = record.supplierName || 'සැපයුම්කරු';
+  const supplier = record.supplierName ? record.supplierName.trim() : '';
   const farmerId = record.farmerId || '';
   const paddyType = record.paddyType || 'සුදු වී';
   const weeKg = parseFloat(record.weeKg || record.kg) || 0;
@@ -184,7 +184,7 @@ function generatePaddyReceiptPDF(record) {
 
   <div class="row" style="font-size:13.5px">
     <strong>සැපයුම්කරු:</strong>
-    <strong>${supplier}${farmerId ? ' (' + farmerId + ')' : ''}</strong>
+    <strong>${supplier ? (supplier + (farmerId ? ' (' + farmerId + ')' : '')) : '-'}</strong>
   </div>
 
   <div class="divider"></div>
@@ -849,7 +849,7 @@ export default function Milling() {
 
   const handleSavePaddyRecord = async (printAfterSave = false) => {
     if (!paddyDate) { alert('කරුණාකර දිනයක් තෝරන්න.'); return; }
-    const finalSupplierName = paddySupplierName.trim() || 'වැව ලග වී කඩේ';
+    const finalSupplierName = paddySupplierName.trim();
 
     // Compute each paddy item
     const computedItems = paddyItems.map(it => {
@@ -874,9 +874,9 @@ export default function Milling() {
       return;
     }
 
-    // Auto-generate or reuse Supplier ID
+    // Auto-generate or reuse Supplier ID (only if supplier name is provided)
     let farmerId = editingPaddyId ? (paddyRecords.find(r => r.id === editingPaddyId)?.farmerId || null) : null;
-    if (!farmerId) {
+    if (!farmerId && finalSupplierName) {
       const existingSupplier = paddyRecords.find(r => r.supplierName && r.supplierName.trim().toLowerCase() === finalSupplierName.toLowerCase() && r.farmerId);
       if (existingSupplier) {
         farmerId = existingSupplier.farmerId;
@@ -2161,7 +2161,11 @@ export default function Milling() {
             {/* Supplier Name */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '6px' }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>
+                <label 
+                  onClick={() => setPaddySupplierName(paddySupplierName === 'වැව ලග වී කඩේ' ? '' : 'වැව ලග වී කඩේ')}
+                  style={{ fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', userSelect: 'none' }}
+                  title="ක්ලික් කළ විට 'වැව ලග වී කඩේ' ලෙස යෙදේ"
+                >
                   👤 සැපයුම්කරුගේ නම <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>(අත්‍යවශ්‍ය නොවේ)</span>
                 </label>
                 <button
@@ -2181,14 +2185,14 @@ export default function Milling() {
                     gap: '4px',
                     transition: 'all 0.15s ease'
                   }}
-                  title="ක්ලික් කළ විට 'වැව ලග වී කඩේ' ලෙස ස්වයංක්‍රීයව ඇතුළත් වේ"
+                  title="ක්ලික් කළ විට 'වැව ලග වී කඩේ' ලෙස ඇතුළත් වේ"
                 >
                   ⚡ {paddySupplierName === 'වැව ලග වී කඩේ' ? '✓ වැව ලග වී කඩේ' : 'වැව ලග වී කඩේ'}
                 </button>
               </div>
               <input
                 type="text"
-                placeholder="උදා: වැව ලග වී කඩේ හෝ සැපයුම්කරුගේ නම"
+                placeholder="උදා: සුමනදාස මහතා (අත්‍යවශ්‍ය නොවේ)"
                 value={paddySupplierName}
                 onChange={(e) => setPaddySupplierName(e.target.value)}
                 className="search-input"
