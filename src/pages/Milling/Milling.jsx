@@ -70,11 +70,15 @@ function generatePaddyReceiptPDF(record) {
       padding: 4mm 3mm;
       color: #000;
       background: #fff;
-      font-size: 13px;
+      font-size: 13.5px;
       line-height: 1.35;
+      font-weight: 800;
       text-rendering: optimizeLegibility;
       font-feature-settings: "kern" 1, "liga" 1;
       -webkit-font-smoothing: antialiased;
+    }
+    strong, b {
+      font-weight: 900 !important;
     }
     .header {
       text-align: center;
@@ -89,8 +93,8 @@ function generatePaddyReceiptPDF(record) {
       color: #000;
     }
     .shop-info {
-      font-size: 12px;
-      font-weight: 700;
+      font-size: 13px;
+      font-weight: 800;
       color: #000;
       margin-top: 1px;
     }
@@ -98,21 +102,24 @@ function generatePaddyReceiptPDF(record) {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 13px;
-      font-weight: 700;
+      font-size: 13.5px;
+      font-weight: 800;
       margin: 4px 0;
       color: #000;
+    }
+    .row strong, .row span {
+      font-weight: 800;
     }
     .divider {
       border-top: 1.5px dashed #000;
       margin: 7px 0;
     }
     .section-title {
-      font-size: 13px;
+      font-size: 13.5px;
       font-weight: 900;
       margin: 6px 0 4px;
       padding-bottom: 2px;
-      border-bottom: 1px solid #000;
+      border-bottom: 1.5px solid #000;
       color: #000;
     }
     .item-block {
@@ -133,7 +140,7 @@ function generatePaddyReceiptPDF(record) {
       justify-content: space-between;
       align-items: center;
       font-size: 14px;
-      font-weight: 800;
+      font-weight: 900;
       margin: 4px 0;
       color: #000;
     }
@@ -149,8 +156,8 @@ function generatePaddyReceiptPDF(record) {
     }
     .footer {
       text-align: center;
-      font-size: 11px;
-      font-weight: 700;
+      font-size: 12px;
+      font-weight: 800;
       margin-top: 8px;
       border-top: 1.5px dashed #000;
       padding-top: 6px;
@@ -158,24 +165,25 @@ function generatePaddyReceiptPDF(record) {
     }
     @media print {
       @page { margin: 0; size: 80mm auto; }
-      body { width: 78mm; margin: 0; padding: 3mm 2mm; }
-      * { color: #000 !important; }
+      body { width: 78mm; margin: 0; padding: 3mm 2mm; font-weight: 800; }
+      * { color: #000 !important; font-weight: 800 !important; }
+      strong, b, .shop-name, .section-title, .total-row, .balance-box { font-weight: 900 !important; }
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <div class="shop-name">${shopInfo.name}</div>
-    <div class="shop-info">${shopInfo.address}</div>
-    <div class="shop-info">Tel: ${shopInfo.phone}</div>
+    <div class="shop-name"><strong>${shopInfo.name}</strong></div>
+    <div class="shop-info"><strong>${shopInfo.address}</strong></div>
+    <div class="shop-info"><strong>Tel: ${shopInfo.phone}</strong></div>
   </div>
 
-  <div class="row"><span>දිනය:</span><strong>${dateStr}</strong></div>
-  <div class="row"><span>Cashier:</span><span>${cashier}</span></div>
+  <div class="row"><strong>දිනය:</strong><strong>${dateStr}</strong></div>
+  <div class="row"><strong>Cashier:</strong><strong>${cashier}</strong></div>
   <div class="divider"></div>
 
   <div class="row" style="font-size:13.5px">
-    <span>සැපයුම්කරු:</span>
+    <strong>සැපයුම්කරු:</strong>
     <strong>${supplier}${farmerId ? ' (' + farmerId + ')' : ''}</strong>
   </div>
 
@@ -190,14 +198,14 @@ function generatePaddyReceiptPDF(record) {
         <strong>${it.type}</strong>
         <strong>Rs. ${parseFloat(it.total || 0).toFixed(2)}</strong>
       </div>
-      <div class="row" style="font-size:12px; opacity:0.85; margin-top:-1px">
-        <span>${parseFloat(it.kg || 0).toFixed(1)} Kg ${it.rate > 0 ? ' × Rs.' + parseFloat(it.rate).toFixed(2) : ''}${it.bags > 0 ? ' (' + it.bags + ' මලු)' : ''}</span>
+      <div class="row" style="font-size:12.5px; font-weight:800; color:#000; margin-top:-1px">
+        <strong>${parseFloat(it.kg || 0).toFixed(1)} Kg ${it.rate > 0 ? ' × Rs.' + parseFloat(it.rate).toFixed(2) : ''}${it.bags > 0 ? ' (' + it.bags + ' මලු)' : ''}</strong>
       </div>
     </div>
   `).join('')}
 
-  <div class="row" style="font-size:13px; font-weight:900; margin-top:4px; padding-top:3px; border-top:1px dotted #000">
-    <span>වී මුළු එකතුව:</span>
+  <div class="row" style="font-size:13.5px; font-weight:900; margin-top:4px; padding-top:3px; border-top:1.5px dotted #000">
+    <strong>වී මුළු එකතුව:</strong>
     <strong>Rs. ${weeTotal.toFixed(2)}</strong>
   </div>
 
@@ -209,21 +217,21 @@ function generatePaddyReceiptPDF(record) {
       <strong>කොප්පරා</strong>
       <strong>Rs. ${kopparaTotal.toFixed(2)}</strong>
     </div>
-    <div class="row" style="font-size:12px; opacity:0.85; margin-top:-1px">
-      <span>${kopparaKg.toFixed(1)} Kg ${record.kopparaRate > 0 ? ' × Rs.' + parseFloat(record.kopparaRate).toFixed(2) : ''}</span>
+    <div class="row" style="font-size:12.5px; font-weight:800; color:#000; margin-top:-1px">
+      <strong>${kopparaKg.toFixed(1)} Kg ${record.kopparaRate > 0 ? ' × Rs.' + parseFloat(record.kopparaRate).toFixed(2) : ''}</strong>
     </div>
   </div>
   ` : ''}
 
   <div class="divider"></div>
-  <div class="total-row"><span>මුළු වටිනාකම:</span><span>Rs. ${combined.toFixed(2)}</span></div>
-  <div class="paid-row"><span>ගෙවූ මුදල:</span><span>Rs. ${paid.toFixed(2)}</span></div>
+  <div class="total-row"><strong>මුළු වටිනාකම:</strong><strong>Rs. ${combined.toFixed(2)}</strong></div>
+  <div class="paid-row"><strong>ගෙවූ මුදල:</strong><strong>Rs. ${paid.toFixed(2)}</strong></div>
   <div class="balance-box">
-    ${balance > 0 ? `ණය ශේෂය: Rs. ${balance.toFixed(2)}` : `✅ සම්පූර්ණයෙන් ගෙවා ඇත`}
+    <strong>${balance > 0 ? `ණය ශේෂය: Rs. ${balance.toFixed(2)}` : `✅ සම්පූර්ණයෙන් ගෙවා ඇත`}</strong>
   </div>
 
   <div class="footer">
-    <div>ස්තුතියි! නැවත එන්න!</div>
+    <div><strong>ස්තුතියි! නැවත එන්න!</strong></div>
   </div>
 </body>
 </html>`;
@@ -841,7 +849,7 @@ export default function Milling() {
 
   const handleSavePaddyRecord = async (printAfterSave = false) => {
     if (!paddyDate) { alert('කරුණාකර දිනයක් තෝරන්න.'); return; }
-    if (!paddySupplierName.trim()) { alert('කරුණාකර සැපයුම්කරුගේ නම ඇතුළත් කරන්න.'); return; }
+    const finalSupplierName = paddySupplierName.trim() || 'වැව ලග වී කඩේ';
 
     // Compute each paddy item
     const computedItems = paddyItems.map(it => {
@@ -869,7 +877,7 @@ export default function Milling() {
     // Auto-generate or reuse Supplier ID
     let farmerId = editingPaddyId ? (paddyRecords.find(r => r.id === editingPaddyId)?.farmerId || null) : null;
     if (!farmerId) {
-      const existingSupplier = paddyRecords.find(r => r.supplierName && r.supplierName.trim().toLowerCase() === paddySupplierName.trim().toLowerCase() && r.farmerId);
+      const existingSupplier = paddyRecords.find(r => r.supplierName && r.supplierName.trim().toLowerCase() === finalSupplierName.toLowerCase() && r.farmerId);
       if (existingSupplier) {
         farmerId = existingSupplier.farmerId;
       } else {
@@ -888,7 +896,7 @@ export default function Milling() {
       dateStr: paddyDate,
       date: recordDate.toISOString(),
       timestamp: recordDate,
-      supplierName: paddySupplierName.trim(),
+      supplierName: finalSupplierName,
       farmerId,
       paddyType: firstItem.type,
       kg: weeKgAll,
@@ -2152,12 +2160,35 @@ export default function Milling() {
 
             {/* Supplier Name */}
             <div>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                👤 සැපයුම්කරුගේ නම *
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', flexWrap: 'wrap', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>
+                  👤 සැපයුම්කරුගේ නම <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>(අත්‍යවශ්‍ය නොවේ)</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setPaddySupplierName(paddySupplierName === 'වැව ලග වී කඩේ' ? '' : 'වැව ලග වී කඩේ')}
+                  style={{
+                    fontSize: '0.78rem',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    border: paddySupplierName === 'වැව ලග වී කඩේ' ? '1.5px solid #10b981' : '1px dashed #6366f1',
+                    background: paddySupplierName === 'වැව ලග වී කඩේ' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(99, 102, 241, 0.08)',
+                    color: paddySupplierName === 'වැව ලග වී කඩේ' ? '#10b981' : 'var(--primary)',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="ක්ලික් කළ විට 'වැව ලග වී කඩේ' ලෙස ස්වයංක්‍රීයව ඇතුළත් වේ"
+                >
+                  ⚡ {paddySupplierName === 'වැව ලග වී කඩේ' ? '✓ වැව ලග වී කඩේ' : 'වැව ලග වී කඩේ'}
+                </button>
+              </div>
               <input
                 type="text"
-                placeholder="උදා: සුමනදාස මහතා"
+                placeholder="උදා: වැව ලග වී කඩේ හෝ සැපයුම්කරුගේ නම"
                 value={paddySupplierName}
                 onChange={(e) => setPaddySupplierName(e.target.value)}
                 className="search-input"
