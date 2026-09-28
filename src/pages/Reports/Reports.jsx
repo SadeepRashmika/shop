@@ -74,6 +74,8 @@ export default function Reports() {
 
   // Shared invMap ref so onSnapshot listener can access it
   const [invMap, setInvMap] = useState({});
+  const [catDailyIncome, setCatDailyIncome] = useState([]);
+  const [catMonthlyIncome, setCatMonthlyIncome] = useState([]);
 
   useEffect(() => {
     // ---- Step 1: Fetch inventory once ----
@@ -117,6 +119,8 @@ export default function Reports() {
       const itemRevenue = {};
       const transactions = [];
       const dailySalesMap = {};
+      const catDailyMap = {};
+      const catMonthlyMap = {};
 
       txnSnapshot.forEach(doc => {
         const data = doc.data();
@@ -139,21 +143,31 @@ export default function Reports() {
         transactions.push(txnData);
 
         const txnDate = toDateObject(data.timestamp || data.date);
+        const isT = isToday(data.timestamp || data.date);
+        const isM = isThisMonth(data.timestamp || data.date);
 
-        if (isToday(data.timestamp || data.date)) {
+        if (isT) {
           todaySales += total;
           todayProfit += profit;
           todayCount++;
         }
-        if (isThisMonth(data.timestamp || data.date)) {
+        if (isM) {
           monthSales += total;
           monthProfit += profit;
           monthCount++;
         }
 
+        // Category-wise income aggregation
         data.items?.forEach(item => {
           itemFreq[item.name] = (itemFreq[item.name] || 0) + item.quantity;
-          itemRevenue[item.name] = (itemRevenue[item.name] || 0) + (Number(item.subtotal) || (Number(item.sellPrice) * Number(item.quantity)) || 0);
+          const rev = Number(item.subtotal) || (Number(item.sellPrice) * Number(item.quantity)) || 0;
+          itemRevenue[item.name] = (itemRevenue[item.name] || 0) + rev;
+
+          // Lookup category from inventory
+          const invItem = invMap[item.id] || invMap[item.name];
+          const cat = invItem?.category || invItem?.type || 'වෙනත්';
+          if (isT) catDailyMap[cat] = (catDailyMap[cat] || 0) + rev;
+          if (isM) catMonthlyMap[cat] = (catMonthlyMap[cat] || 0) + rev;
         });
 
         if (txnDate) {
@@ -161,6 +175,16 @@ export default function Reports() {
           dailySalesMap[dayKey] = (dailySalesMap[dayKey] || 0) + total;
         }
       });
+
+      // Build category chart data (union of daily & monthly categories)
+      const allCats = new Set([...Object.keys(catDailyMap), ...Object.keys(catMonthlyMap)]);
+      const catChartArr = Array.from(allCats).map(cat => ({
+        name: cat,
+        daily: Math.round((catDailyMap[cat] || 0) * 100) / 100,
+        monthly: Math.round((catMonthlyMap[cat] || 0) * 100) / 100,
+      })).sort((a, b) => b.monthly - a.monthly);
+      setCatDailyIncome(catChartArr);
+      setCatMonthlyIncome(catChartArr);
 
       // Chart data
       const sortedItems = Object.entries(itemFreq)
@@ -918,6 +942,62 @@ export default function Reports() {
                       ) : (
                         <div className="empty-chart" style={{ padding: '30px', fontSize: '13px' }}>
                           පසුගිය දිනයන් 7 ක් ගනුදෙනු නොමැත
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Category-wise Income Chart */}
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        🗂️ කාණ්ඩ අනුව ලැබුණු ආදායම (Category Income)
+                      </div>
+                      <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', fontSize: '12px', fontWeight: 600 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{ width: 12, height: 12, borderRadius: 3, background: '#10b981', display: 'inline-block' }}></span> අද දින (Daily)
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{ width: 12, height: 12, borderRadius: 3, background: '#3b82f6', display: 'inline-block' }}></span> මේ මාසය (Monthly)
+                        </span>
+                      </div>
+                      {catDailyIncome.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={Math.max(220, catDailyIncome.length * 42)}>
+                          <BarChart
+                            data={catDailyIncome}
+                            layout="vertical"
+                            margin={{ top: 0, right: 20, left: 10, bottom: 0 }}
+                            barCategoryGap="20%"
+                            barGap={4}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border-color)" />
+                            <XAxis
+                              type="number"
+                              stroke="var(--text-secondary)"
+                              fontSize={11}
+                              tickFormatter={v => `Rs.${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`}
+                            />
+                            <YAxis
+                              type="category"
+                              dataKey="name"
+                              stroke="var(--text-secondary)"
+                              fontSize={12}
+                              width={90}
+                              tick={{ fontWeight: 700 }}
+                            />
+                            <Tooltip
+                              contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px' }}
+                              formatter={(value, name) => [
+                                `Rs. ${Number(value).toFixed(2)}`,
+                                name === 'daily' ? '📅 අද දින ආදායම' : '📆 මේ මාස ආදායම'
+                              ]}
+                              labelStyle={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '13px', marginBottom: 4 }}
+                            />
+                            <Bar dataKey="daily" name="daily" fill="#10b981" radius={[0, 4, 4, 0]} />
+                            <Bar dataKey="monthly" name="monthly" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="empty-chart" style={{ padding: '30px', fontSize: '13px' }}>
+                          කාණ්ඩ ආදායම් දත්ත නොමැත
                         </div>
                       )}
                     </div>
