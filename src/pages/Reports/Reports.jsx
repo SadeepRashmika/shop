@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, onSnapshot, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
@@ -74,15 +74,162 @@ export default function Reports() {
 
   // Shared invMap ref so onSnapshot listener can access it
   const [invMap, setInvMap] = useState({});
-  const [sahalChartData, setSahalChartData] = useState([]);
-  const [sahalStats, setSahalStats] = useState({
-    todaySales: 0,
-    todayQty: 0,
-    monthSales: 0,
-    monthQty: 0,
-    varietiesCount: 0
-  });
+  const [sahalSelectedDate, setSahalSelectedDate] = useState(getTodayDateString());
   const [sahalViewMode, setSahalViewMode] = useState('revenue'); // 'revenue' or 'quantity'
+
+  const getYesterdayDateString = () => {
+    const d = getNow();
+    d.setDate(d.getDate() - 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  // Helper to determine if an item is strictly under the 'සහල්' category
+  const isRiceItem = (item, invItem) => {
+    const cat = (invItem?.category || item?.category || '').toString().trim();
+    return cat === 'සහල්';
+  };
+
+  // Helper to extract the weight multiplier in kilograms for rice packets (e.g. 5kg -> 5, 10kg -> 10, 25kg -> 25, 30kg -> 30) or loose rice (-> 1)
+  const getItemWeightInKg = (itemName, invItem) => {
+    const name = (itemName || invItem?.name || '').toString().toLowerCase();
+    
+    // 1. Check if name contains pattern like "5kg", "10 kg", "25kg", "30 kg", "50kg", "5 kg", etc.
+    const kgMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:kg|කිලෝ|කි\.ග්‍රෑ|කිග්‍රෑ)/i);
+    if (kgMatch) {
+      return parseFloat(kgMatch[1]);
+    }
+    
+    // 2. Check for grams like "500g", "250g"
+    const gMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:g|ග්‍රෑම්|ග්‍රෑ)/i);
+    if (gMatch && !name.includes('kg') && !name.includes('කිලෝ')) {
+      return parseFloat(gMatch[1]) / 1000;
+    }
+    
+    // 3. Check if invItem has explicit weight/packetWeight field
+    if (invItem?.packetWeight || invItem?.weight) {
+      const w = parseFloat(invItem.packetWeight || invItem.weight);
+      if (!isNaN(w) && w > 0) return w;
+    }
+
+    // 4. Default: loose rice sold by kg -> 1 unit = 1 kg
+    return 1;
+  };
+
+  // Compute dynamic rice stats and chart data based on sahalSelectedDate
+  const { sahalChartData, sahalStats } = useMemo(() => {
+    let dateSales = 0;
+    let dateQty = 0;
+    let monthSales = 0;
+    let monthQty = 0;
+    const sahalItemsMap = {};
+
+    const targetDateStr = sahalSelectedDate || getTodayDateString();
+    const targetMonthStr = targetDateStr.substring(0, 7);
+
+    // Pre-seed sahal map with ONLY the rice items configured under the 'සහල්' category
+    const seenRiceNames = new Set();
+    Object.values(invMap).forEach(invItem => {
+      if (invItem && invItem.name && isRiceItem(invItem, invItem)) {
+        if (!seenRiceNames.has(invItem.name)) {
+          seenRiceNames.add(invItem.name);
+          sahalItemsMap[invItem.name] = {
+            name: invItem.name,
+            itemNo: invItem.itemNo || invItem.itemno || '—',
+            unitKg: getItemWeightInKg(invItem.name, invItem),
+            dailyRev: 0,
+            dailyQty: 0,
+            dailyUnits: 0,
+            monthlyRev: 0,
+            monthlyQty: 0,
+            monthlyUnits: 0
+          };
+        }
+      }
+    });
+
+    allTxns.forEach(data => {
+      const txnDate = toDateObject(data.timestamp || data.date);
+      if (!txnDate) return;
+
+      const y = txnDate.getFullYear();
+      const m = String(txnDate.getMonth() + 1).padStart(2, '0');
+      const day = String(txnDate.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${day}`;
+      const monthStr = `${y}-${m}`;
+
+      const isTargetDay = (dateStr === targetDateStr);
+      const isTargetMonth = (monthStr === targetMonthStr);
+
+      if (!isTargetDay && !isTargetMonth) return;
+
+      data.items?.forEach(item => {
+        const invItem = invMap[item.id] || invMap[item.name];
+        if (isRiceItem(item, invItem)) {
+          const riceKey = invItem?.name || item.name;
+          const qty = Number(item.quantity) || 0;
+          const rev = Number(item.subtotal) || ((Number(item.sellPrice) || 0) * qty) || 0;
+          const unitKg = getItemWeightInKg(riceKey, invItem);
+          const totalWeightKg = qty * unitKg;
+
+          if (!sahalItemsMap[riceKey]) {
+            sahalItemsMap[riceKey] = {
+              name: riceKey,
+              itemNo: invItem?.itemNo || item.itemNo || invItem?.itemno || '—',
+              unitKg: unitKg,
+              dailyRev: 0,
+              dailyQty: 0,
+              dailyUnits: 0,
+              monthlyRev: 0,
+              monthlyQty: 0,
+              monthlyUnits: 0
+            };
+          }
+
+          if (isTargetDay) {
+            dateSales += rev;
+            dateQty += totalWeightKg;
+            sahalItemsMap[riceKey].dailyRev += rev;
+            sahalItemsMap[riceKey].dailyQty += totalWeightKg;
+            sahalItemsMap[riceKey].dailyUnits += qty;
+          }
+
+          if (isTargetMonth) {
+            monthSales += rev;
+            monthQty += totalWeightKg;
+            sahalItemsMap[riceKey].monthlyRev += rev;
+            sahalItemsMap[riceKey].monthlyQty += totalWeightKg;
+            sahalItemsMap[riceKey].monthlyUnits += qty;
+          }
+        }
+      });
+    });
+
+    const chartArr = Object.values(sahalItemsMap).map(item => ({
+      name: item.name,
+      itemNo: item.itemNo,
+      unitKg: item.unitKg || 1,
+      daily: Math.round(item.dailyRev * 100) / 100,
+      monthly: Math.round(item.monthlyRev * 100) / 100,
+      dailyQty: Math.round(item.dailyQty * 1000) / 1000,
+      monthlyQty: Math.round(item.monthlyQty * 1000) / 1000,
+      dailyUnits: item.dailyUnits || 0,
+      monthlyUnits: item.monthlyUnits || 0,
+    })).sort((a, b) => b.monthly - a.monthly || b.daily - a.daily);
+
+    return {
+      sahalChartData: chartArr,
+      sahalStats: {
+        todaySales: dateSales,
+        todayQty: dateQty,
+        monthSales: monthSales,
+        monthQty: monthQty,
+        varietiesCount: chartArr.length
+      }
+    };
+  }, [allTxns, invMap, sahalSelectedDate]);
 
   useEffect(() => {
     // ---- Step 1: Fetch inventory once ----
@@ -113,38 +260,6 @@ export default function Reports() {
   useEffect(() => {
     if (Object.keys(invMap).length === 0) return; // Wait for inventory
 
-    // Helper to determine if an item is strictly under the 'සහල්' category
-    const isRiceItem = (item, invItem) => {
-      const cat = (invItem?.category || item?.category || '').toString().trim();
-      return cat === 'සහල්';
-    };
-
-    // Helper to extract the weight multiplier in kilograms for rice packets (e.g. 5kg -> 5, 10kg -> 10, 25kg -> 25, 30kg -> 30) or loose rice (-> 1)
-    const getItemWeightInKg = (itemName, invItem) => {
-      const name = (itemName || invItem?.name || '').toString().toLowerCase();
-      
-      // 1. Check if name contains pattern like "5kg", "10 kg", "25kg", "30 kg", "50kg", "5 kg", etc.
-      const kgMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:kg|කිලෝ|කි\.ග්‍රෑ|කිග්‍රෑ)/i);
-      if (kgMatch) {
-        return parseFloat(kgMatch[1]);
-      }
-      
-      // 2. Check for grams like "500g", "250g"
-      const gMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:g|ග්‍රෑම්|ග්‍රෑ)/i);
-      if (gMatch && !name.includes('kg') && !name.includes('කිලෝ')) {
-        return parseFloat(gMatch[1]) / 1000;
-      }
-      
-      // 3. Check if invItem has explicit weight/packetWeight field
-      if (invItem?.packetWeight || invItem?.weight) {
-        const w = parseFloat(invItem.packetWeight || invItem.weight);
-        if (!isNaN(w) && w > 0) return w;
-      }
-
-      // 4. Default: loose rice sold by kg -> 1 unit = 1 kg
-      return 1;
-    };
-
     // ---- Step 2: Real-time listener for transactions ----
     // onSnapshot fires INSTANTLY whenever a transaction is added or deleted
     const processSnapshot = (txnSnapshot) => {
@@ -158,34 +273,6 @@ export default function Reports() {
       const itemRevenue = {};
       const transactions = [];
       const dailySalesMap = {};
-
-      // Rice (සහල්) specific tracking (weight in kg & income in Rs.)
-      let sahalTodaySales = 0;
-      let sahalTodayQty = 0;
-      let sahalMonthSales = 0;
-      let sahalMonthQty = 0;
-      const sahalItemsMap = {};
-
-      // Pre-seed sahal map with ONLY the rice items configured under the 'සහල්' category
-      const seenRiceNames = new Set();
-      Object.values(invMap).forEach(invItem => {
-        if (invItem && invItem.name && isRiceItem(invItem, invItem)) {
-          if (!seenRiceNames.has(invItem.name)) {
-            seenRiceNames.add(invItem.name);
-            sahalItemsMap[invItem.name] = {
-              name: invItem.name,
-              itemNo: invItem.itemNo || invItem.itemno || '—',
-              unitKg: getItemWeightInKg(invItem.name, invItem),
-              dailyRev: 0,
-              dailyQty: 0,
-              dailyUnits: 0,
-              monthlyRev: 0,
-              monthlyQty: 0,
-              monthlyUnits: 0
-            };
-          }
-        }
-      });
 
       txnSnapshot.forEach(doc => {
         const data = doc.data();
@@ -222,47 +309,12 @@ export default function Reports() {
           monthCount++;
         }
 
-        // Aggregate item sales and rice specific sales
+        // Aggregate item sales
         data.items?.forEach(item => {
           const qty = Number(item.quantity) || 0;
           const rev = Number(item.subtotal) || ((Number(item.sellPrice) || 0) * qty) || 0;
           itemFreq[item.name] = (itemFreq[item.name] || 0) + qty;
           itemRevenue[item.name] = (itemRevenue[item.name] || 0) + rev;
-
-          const invItem = invMap[item.id] || invMap[item.name];
-          if (isRiceItem(item, invItem)) {
-            const riceKey = invItem?.name || item.name;
-            const unitKg = getItemWeightInKg(riceKey, invItem);
-            const totalWeightKg = qty * unitKg;
-
-            if (!sahalItemsMap[riceKey]) {
-              sahalItemsMap[riceKey] = {
-                name: riceKey,
-                itemNo: invItem?.itemNo || item.itemNo || invItem?.itemno || '—',
-                unitKg: unitKg,
-                dailyRev: 0,
-                dailyQty: 0,
-                dailyUnits: 0,
-                monthlyRev: 0,
-                monthlyQty: 0,
-                monthlyUnits: 0
-              };
-            }
-            if (isT) {
-              sahalTodaySales += rev;
-              sahalTodayQty += totalWeightKg;
-              sahalItemsMap[riceKey].dailyRev += rev;
-              sahalItemsMap[riceKey].dailyQty += totalWeightKg;
-              sahalItemsMap[riceKey].dailyUnits += qty;
-            }
-            if (isM) {
-              sahalMonthSales += rev;
-              sahalMonthQty += totalWeightKg;
-              sahalItemsMap[riceKey].monthlyRev += rev;
-              sahalItemsMap[riceKey].monthlyQty += totalWeightKg;
-              sahalItemsMap[riceKey].monthlyUnits += qty;
-            }
-          }
         });
 
         if (txnDate) {
@@ -271,27 +323,47 @@ export default function Reports() {
         }
       });
 
-      // Build rice chart data array (sorted by monthly revenue descending)
-      const sahalChartArr = Object.values(sahalItemsMap).map(item => ({
-        name: item.name,
-        itemNo: item.itemNo,
-        unitKg: item.unitKg || 1,
-        daily: Math.round(item.dailyRev * 100) / 100,
-        monthly: Math.round(item.monthlyRev * 100) / 100,
-        dailyQty: Math.round(item.dailyQty * 1000) / 1000,
-        monthlyQty: Math.round(item.monthlyQty * 1000) / 1000,
-        dailyUnits: item.dailyUnits || 0,
-        monthlyUnits: item.monthlyUnits || 0,
-      })).sort((a, b) => b.monthly - a.monthly || b.daily - a.daily);
+      // Chart data - top items
+      const sortedItems = Object.entries(itemFreq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, qty]) => ({
+          name,
+          qty,
+          revenue: itemRevenue[name] || 0,
+          itemNo: invMap[name]?.itemNo || invMap[name]?.itemno || '—'
+        }));
+      setChartData(sortedItems);
 
-      setSahalChartData(sahalChartArr);
-      setSahalStats({
-        todaySales: sahalTodaySales,
-        todayQty: sahalTodayQty,
-        monthSales: sahalMonthSales,
-        monthQty: sahalMonthQty,
-        varietiesCount: sahalChartArr.length
+      const last7Days = [];
+      const now = getNow();
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        last7Days.push({ name: key, sales: dailySalesMap[key] || 0 });
+      }
+      setDailyChartData(last7Days);
+
+      transactions.sort((a, b) => {
+        const tB = toDateObject(b.timestamp || b.date)?.getTime() || 0;
+        const tA = toDateObject(a.timestamp || a.date)?.getTime() || 0;
+        return tB - tA;
       });
+      setAllTxns(transactions);
+      setRecentTxns(transactions.slice(0, 10));
+
+      setStats(prev => ({
+        ...prev,
+        todaySales,
+        todayProfit,
+        todayTxns: todayCount,
+        monthSales,
+        monthProfit,
+        monthTxns: monthCount
+      }));
+
+      setLoading(false);
+    };
 
       // Chart data - top items
       const sortedItems = Object.entries(itemFreq)
@@ -1053,7 +1125,7 @@ export default function Reports() {
                       )}
                     </div>
 
-                    {/* Dedicated Rice (සහල්) Sales Chart & Income Summary */}
+                    {/* Dedicated Rice (සහල්) Sales Chart & Calendar Date Selector */}
                     <div style={{
                       background: 'rgba(16, 185, 129, 0.03)',
                       border: '1.5px solid rgba(16, 185, 129, 0.25)',
@@ -1061,6 +1133,95 @@ export default function Reports() {
                       padding: '18px 20px',
                       boxShadow: '0 4px 20px rgba(0,0,0,0.03)'
                     }}>
+                      {/* Top Header with Calendar Date Picker */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                        paddingBottom: '14px',
+                        marginBottom: '16px',
+                        borderBottom: '1px solid rgba(16, 185, 129, 0.15)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: 38, height: 38, borderRadius: '10px', background: 'rgba(16, 185, 129, 0.18)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                            🌾
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              සහල් අලෙවි වාර්තාව හා ප්‍රස්ථාරය (Rice Report)
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                              ඕනෑම දිනයක් තෝරා දෛනික හා මාසික සහල් ආදායම් බලන්න
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Calendar Controls */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => setSahalSelectedDate(getTodayDateString())}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              border: '1px solid var(--border-color)',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              background: sahalSelectedDate === getTodayDateString() ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-card, #fff)',
+                              color: sahalSelectedDate === getTodayDateString() ? '#10b981' : 'var(--text-primary)',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            🌟 අද දින
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSahalSelectedDate(getYesterdayDateString())}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              border: '1px solid var(--border-color)',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              background: sahalSelectedDate === getYesterdayDateString() ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-card, #fff)',
+                              color: sahalSelectedDate === getYesterdayDateString() ? '#10b981' : 'var(--text-primary)',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            ⏪ ඊයේ
+                          </button>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            background: 'var(--bg-card, #fff)',
+                            border: '1.5px solid rgba(16, 185, 129, 0.4)',
+                            borderRadius: '8px',
+                            padding: '4px 10px',
+                            gap: '6px'
+                          }}>
+                            <FiCalendar style={{ color: '#10b981', fontSize: '15px' }} />
+                            <input
+                              type="date"
+                              value={sahalSelectedDate}
+                              onChange={(e) => setSahalSelectedDate(e.target.value)}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--text-primary)',
+                                outline: 'none',
+                                fontSize: '13px',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Top Rice Income Highlights */}
                       <div style={{
                         display: 'grid',
@@ -1072,10 +1233,12 @@ export default function Reports() {
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <div style={{ width: 40, height: 40, borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
-                            🌾
+                            📅
                           </div>
                           <div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>අද දින සහල් ආදායම (Today Rice)</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                              {sahalSelectedDate === getTodayDateString() ? 'අද දින' : sahalSelectedDate} සහල් ආදායම
+                            </div>
                             <div style={{ fontSize: '18px', fontWeight: 800, color: '#10b981' }}>Rs. {sahalStats.todaySales.toFixed(2)}</div>
                             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sahalStats.todayQty.toFixed(2)} kg අලෙවි විය</div>
                           </div>
@@ -1086,7 +1249,9 @@ export default function Reports() {
                             📆
                           </div>
                           <div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>මේ මාසයේ සහල් ආදායම (Month Rice)</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                              {sahalSelectedDate.substring(0, 7)} මාසයේ සහල් ආදායම
+                            </div>
                             <div style={{ fontSize: '18px', fontWeight: 800, color: '#3b82f6' }}>Rs. {sahalStats.monthSales.toFixed(2)}</div>
                             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sahalStats.monthQty.toFixed(2)} kg අලෙවි විය</div>
                           </div>
@@ -1112,10 +1277,10 @@ export default function Reports() {
                           </div>
                           <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '12px', fontWeight: 600 }}>
                             <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#10b981', display: 'inline-block' }}></span> අද දින (Daily)
+                              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#10b981', display: 'inline-block' }}></span> {sahalSelectedDate === getTodayDateString() ? 'අද දින' : sahalSelectedDate}
                             </span>
                             <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#3b82f6', display: 'inline-block' }}></span> මේ මාසය (Monthly)
+                              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#3b82f6', display: 'inline-block' }}></span> {sahalSelectedDate.substring(0, 7)} මාසය
                             </span>
                           </div>
                         </div>
@@ -1202,10 +1367,10 @@ export default function Reports() {
                                         </div>
                                       )}
                                       <div style={{ color: '#10b981', fontWeight: '600', fontSize: '13px', marginBottom: '3px' }}>
-                                        📅 අද දින: <strong>Rs. {d.daily.toFixed(2)}</strong> ({d.dailyQty} kg{isPacket && d.dailyUnits > 0 ? ` — පැකට් ${d.dailyUnits}` : ''})
+                                        📅 {sahalSelectedDate === getTodayDateString() ? 'අද දින' : sahalSelectedDate}: <strong>Rs. {d.daily.toFixed(2)}</strong> ({d.dailyQty} kg{isPacket && d.dailyUnits > 0 ? ` — පැකට් ${d.dailyUnits}` : ''})
                                       </div>
                                       <div style={{ color: '#3b82f6', fontWeight: '600', fontSize: '13px' }}>
-                                        📆 මේ මාසය: <strong>Rs. {d.monthly.toFixed(2)}</strong> ({d.monthlyQty} kg{isPacket && d.monthlyUnits > 0 ? ` — පැකට් ${d.monthlyUnits}` : ''})
+                                        📆 {sahalSelectedDate.substring(0, 7)} මාසය: <strong>Rs. {d.monthly.toFixed(2)}</strong> ({d.monthlyQty} kg{isPacket && d.monthlyUnits > 0 ? ` — පැකට් ${d.monthlyUnits}` : ''})
                                       </div>
                                     </div>
                                   );
