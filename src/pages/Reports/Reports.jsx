@@ -113,26 +113,10 @@ export default function Reports() {
   useEffect(() => {
     if (Object.keys(invMap).length === 0) return; // Wait for inventory
 
-    // Helper to determine if an item is a rice (සහල්) product
+    // Helper to determine if an item is strictly under the 'සහල්' category
     const isRiceItem = (item, invItem) => {
-      const cat = (invItem?.category || invItem?.type || '').toString().toLowerCase();
-      const name = (item?.name || invItem?.name || '').toString().toLowerCase();
-      return (
-        cat === 'සහල්' ||
-        cat.includes('සහල්') ||
-        cat.includes('rice') ||
-        cat.includes('sahal') ||
-        name.includes('සහල්') ||
-        name.includes('sahal') ||
-        name.includes('rice') ||
-        name.includes('කැකුළු') ||
-        name.includes('නාඩු') ||
-        name.includes('සම්බා') ||
-        name.includes('බාස්මතී') ||
-        name.includes('කීරි') ||
-        name.includes('සුවඳැල්') ||
-        name.includes('පොන්නි')
-      );
+      const cat = (invItem?.category || item?.category || '').toString().trim();
+      return cat === 'සහල්';
     };
 
     // ---- Step 2: Real-time listener for transactions ----
@@ -156,13 +140,14 @@ export default function Reports() {
       let sahalMonthQty = 0;
       const sahalItemsMap = {};
 
-      // Pre-seed sahal map with rice items configured in inventory
+      // Pre-seed sahal map with ONLY the rice items configured under the 'සහල්' category
+      const seenRiceNames = new Set();
       Object.values(invMap).forEach(invItem => {
         if (invItem && invItem.name && isRiceItem(invItem, invItem)) {
-          const riceKey = invItem.name;
-          if (!sahalItemsMap[riceKey]) {
-            sahalItemsMap[riceKey] = {
-              name: riceKey,
+          if (!seenRiceNames.has(invItem.name)) {
+            seenRiceNames.add(invItem.name);
+            sahalItemsMap[invItem.name] = {
+              name: invItem.name,
               itemNo: invItem.itemNo || invItem.itemno || '—',
               dailyRev: 0,
               dailyQty: 0,
@@ -217,11 +202,11 @@ export default function Reports() {
 
           const invItem = invMap[item.id] || invMap[item.name];
           if (isRiceItem(item, invItem)) {
-            const riceKey = item.name || invItem?.name || item.id;
+            const riceKey = invItem?.name || item.name;
             if (!sahalItemsMap[riceKey]) {
               sahalItemsMap[riceKey] = {
                 name: riceKey,
-                itemNo: item.itemNo || invItem?.itemNo || invItem?.itemno || '—',
+                itemNo: invItem?.itemNo || item.itemNo || invItem?.itemno || '—',
                 dailyRev: 0,
                 dailyQty: 0,
                 monthlyRev: 0,
