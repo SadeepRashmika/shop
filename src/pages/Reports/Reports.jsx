@@ -119,6 +119,32 @@ export default function Reports() {
       return cat === 'සහල්';
     };
 
+    // Helper to extract the weight multiplier in kilograms for rice packets (e.g. 5kg -> 5, 10kg -> 10, 25kg -> 25, 30kg -> 30) or loose rice (-> 1)
+    const getItemWeightInKg = (itemName, invItem) => {
+      const name = (itemName || invItem?.name || '').toString().toLowerCase();
+      
+      // 1. Check if name contains pattern like "5kg", "10 kg", "25kg", "30 kg", "50kg", "5 kg", etc.
+      const kgMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:kg|කිලෝ|කි\.ග්‍රෑ|කිග්‍රෑ)/i);
+      if (kgMatch) {
+        return parseFloat(kgMatch[1]);
+      }
+      
+      // 2. Check for grams like "500g", "250g"
+      const gMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:g|ග්‍රෑම්|ග්‍රෑ)/i);
+      if (gMatch && !name.includes('kg') && !name.includes('කිලෝ')) {
+        return parseFloat(gMatch[1]) / 1000;
+      }
+      
+      // 3. Check if invItem has explicit weight/packetWeight field
+      if (invItem?.packetWeight || invItem?.weight) {
+        const w = parseFloat(invItem.packetWeight || invItem.weight);
+        if (!isNaN(w) && w > 0) return w;
+      }
+
+      // 4. Default: loose rice sold by kg -> 1 unit = 1 kg
+      return 1;
+    };
+
     // ---- Step 2: Real-time listener for transactions ----
     // onSnapshot fires INSTANTLY whenever a transaction is added or deleted
     const processSnapshot = (txnSnapshot) => {
@@ -133,7 +159,7 @@ export default function Reports() {
       const transactions = [];
       const dailySalesMap = {};
 
-      // Rice (සහල්) specific tracking
+      // Rice (සහල්) specific tracking (weight in kg & income in Rs.)
       let sahalTodaySales = 0;
       let sahalTodayQty = 0;
       let sahalMonthSales = 0;
@@ -149,10 +175,13 @@ export default function Reports() {
             sahalItemsMap[invItem.name] = {
               name: invItem.name,
               itemNo: invItem.itemNo || invItem.itemno || '—',
+              unitKg: getItemWeightInKg(invItem.name, invItem),
               dailyRev: 0,
               dailyQty: 0,
+              dailyUnits: 0,
               monthlyRev: 0,
-              monthlyQty: 0
+              monthlyQty: 0,
+              monthlyUnits: 0
             };
           }
         }
@@ -203,27 +232,35 @@ export default function Reports() {
           const invItem = invMap[item.id] || invMap[item.name];
           if (isRiceItem(item, invItem)) {
             const riceKey = invItem?.name || item.name;
+            const unitKg = getItemWeightInKg(riceKey, invItem);
+            const totalWeightKg = qty * unitKg;
+
             if (!sahalItemsMap[riceKey]) {
               sahalItemsMap[riceKey] = {
                 name: riceKey,
                 itemNo: invItem?.itemNo || item.itemNo || invItem?.itemno || '—',
+                unitKg: unitKg,
                 dailyRev: 0,
                 dailyQty: 0,
+                dailyUnits: 0,
                 monthlyRev: 0,
-                monthlyQty: 0
+                monthlyQty: 0,
+                monthlyUnits: 0
               };
             }
             if (isT) {
               sahalTodaySales += rev;
-              sahalTodayQty += qty;
+              sahalTodayQty += totalWeightKg;
               sahalItemsMap[riceKey].dailyRev += rev;
-              sahalItemsMap[riceKey].dailyQty += qty;
+              sahalItemsMap[riceKey].dailyQty += totalWeightKg;
+              sahalItemsMap[riceKey].dailyUnits += qty;
             }
             if (isM) {
               sahalMonthSales += rev;
-              sahalMonthQty += qty;
+              sahalMonthQty += totalWeightKg;
               sahalItemsMap[riceKey].monthlyRev += rev;
-              sahalItemsMap[riceKey].monthlyQty += qty;
+              sahalItemsMap[riceKey].monthlyQty += totalWeightKg;
+              sahalItemsMap[riceKey].monthlyUnits += qty;
             }
           }
         });
@@ -238,10 +275,13 @@ export default function Reports() {
       const sahalChartArr = Object.values(sahalItemsMap).map(item => ({
         name: item.name,
         itemNo: item.itemNo,
+        unitKg: item.unitKg || 1,
         daily: Math.round(item.dailyRev * 100) / 100,
         monthly: Math.round(item.monthlyRev * 100) / 100,
         dailyQty: Math.round(item.dailyQty * 1000) / 1000,
         monthlyQty: Math.round(item.monthlyQty * 1000) / 1000,
+        dailyUnits: item.dailyUnits || 0,
+        monthlyUnits: item.monthlyUnits || 0,
       })).sort((a, b) => b.monthly - a.monthly || b.daily - a.daily);
 
       setSahalChartData(sahalChartArr);
@@ -1150,8 +1190,9 @@ export default function Reports() {
                               content={({ active, payload, label }) => {
                                 if (active && payload && payload.length) {
                                   const d = payload[0].payload;
+                                  const isPacket = d.unitKg && d.unitKg > 1;
                                   return (
-                                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px', minWidth: '190px' }}>
+                                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px', minWidth: '200px' }}>
                                       <div style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
                                         🌾 {label}
                                       </div>
@@ -1161,10 +1202,10 @@ export default function Reports() {
                                         </div>
                                       )}
                                       <div style={{ color: '#10b981', fontWeight: '600', fontSize: '13px', marginBottom: '3px' }}>
-                                        📅 අද දින: <strong>Rs. {d.daily.toFixed(2)}</strong> ({d.dailyQty} kg)
+                                        📅 අද දින: <strong>Rs. {d.daily.toFixed(2)}</strong> ({d.dailyQty} kg{isPacket && d.dailyUnits > 0 ? ` — පැකට් ${d.dailyUnits}` : ''})
                                       </div>
                                       <div style={{ color: '#3b82f6', fontWeight: '600', fontSize: '13px' }}>
-                                        📆 මේ මාසය: <strong>Rs. {d.monthly.toFixed(2)}</strong> ({d.monthlyQty} kg)
+                                        📆 මේ මාසය: <strong>Rs. {d.monthly.toFixed(2)}</strong> ({d.monthlyQty} kg{isPacket && d.monthlyUnits > 0 ? ` — පැකට් ${d.monthlyUnits}` : ''})
                                       </div>
                                     </div>
                                   );
