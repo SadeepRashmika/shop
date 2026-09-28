@@ -74,7 +74,9 @@ export default function Reports() {
 
   // Shared invMap ref so onSnapshot listener can access it
   const [invMap, setInvMap] = useState({});
+  const [sahalPeriodMode, setSahalPeriodMode] = useState('daily'); // 'daily' or 'monthly'
   const [sahalSelectedDate, setSahalSelectedDate] = useState(getTodayDateString());
+  const [sahalSelectedMonth, setSahalSelectedMonth] = useState(getCurrentMonthString());
   const [sahalViewMode, setSahalViewMode] = useState('revenue'); // 'revenue' or 'quantity'
 
   const getYesterdayDateString = () => {
@@ -84,6 +86,14 @@ export default function Reports() {
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+  };
+
+  const getLastMonthString = () => {
+    const d = getNow();
+    d.setMonth(d.getMonth() - 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
   };
 
   // Helper to determine if an item is strictly under the 'සහල්' category
@@ -118,16 +128,15 @@ export default function Reports() {
     return 1;
   };
 
-  // Compute dynamic rice stats and chart data based on sahalSelectedDate
+  // Compute dynamic rice stats and chart data based on sahalPeriodMode and selected date/month
   const { sahalChartData, sahalStats } = useMemo(() => {
-    let dateSales = 0;
-    let dateQty = 0;
-    let monthSales = 0;
-    let monthQty = 0;
+    let periodSales = 0;
+    let periodQty = 0;
+    let periodUnits = 0;
     const sahalItemsMap = {};
 
     const targetDateStr = sahalSelectedDate || getTodayDateString();
-    const targetMonthStr = targetDateStr.substring(0, 7);
+    const targetMonthStr = sahalSelectedMonth || getCurrentMonthString();
 
     // Pre-seed sahal map with ONLY the rice items configured under the 'සහල්' category
     const seenRiceNames = new Set();
@@ -139,12 +148,9 @@ export default function Reports() {
             name: invItem.name,
             itemNo: invItem.itemNo || invItem.itemno || '—',
             unitKg: getItemWeightInKg(invItem.name, invItem),
-            dailyRev: 0,
-            dailyQty: 0,
-            dailyUnits: 0,
-            monthlyRev: 0,
-            monthlyQty: 0,
-            monthlyUnits: 0
+            revenue: 0,
+            weightKg: 0,
+            units: 0
           };
         }
       }
@@ -160,10 +166,11 @@ export default function Reports() {
       const dateStr = `${y}-${m}-${day}`;
       const monthStr = `${y}-${m}`;
 
-      const isTargetDay = (dateStr === targetDateStr);
-      const isTargetMonth = (monthStr === targetMonthStr);
+      const isMatch = (sahalPeriodMode === 'daily') 
+        ? (dateStr === targetDateStr) 
+        : (monthStr === targetMonthStr);
 
-      if (!isTargetDay && !isTargetMonth) return;
+      if (!isMatch) return;
 
       data.items?.forEach(item => {
         const invItem = invMap[item.id] || invMap[item.name];
@@ -179,30 +186,19 @@ export default function Reports() {
               name: riceKey,
               itemNo: invItem?.itemNo || item.itemNo || invItem?.itemno || '—',
               unitKg: unitKg,
-              dailyRev: 0,
-              dailyQty: 0,
-              dailyUnits: 0,
-              monthlyRev: 0,
-              monthlyQty: 0,
-              monthlyUnits: 0
+              revenue: 0,
+              weightKg: 0,
+              units: 0
             };
           }
 
-          if (isTargetDay) {
-            dateSales += rev;
-            dateQty += totalWeightKg;
-            sahalItemsMap[riceKey].dailyRev += rev;
-            sahalItemsMap[riceKey].dailyQty += totalWeightKg;
-            sahalItemsMap[riceKey].dailyUnits += qty;
-          }
+          periodSales += rev;
+          periodQty += totalWeightKg;
+          periodUnits += qty;
 
-          if (isTargetMonth) {
-            monthSales += rev;
-            monthQty += totalWeightKg;
-            sahalItemsMap[riceKey].monthlyRev += rev;
-            sahalItemsMap[riceKey].monthlyQty += totalWeightKg;
-            sahalItemsMap[riceKey].monthlyUnits += qty;
-          }
+          sahalItemsMap[riceKey].revenue += rev;
+          sahalItemsMap[riceKey].weightKg += totalWeightKg;
+          sahalItemsMap[riceKey].units += qty;
         }
       });
     });
@@ -211,25 +207,21 @@ export default function Reports() {
       name: item.name,
       itemNo: item.itemNo,
       unitKg: item.unitKg || 1,
-      daily: Math.round(item.dailyRev * 100) / 100,
-      monthly: Math.round(item.monthlyRev * 100) / 100,
-      dailyQty: Math.round(item.dailyQty * 1000) / 1000,
-      monthlyQty: Math.round(item.monthlyQty * 1000) / 1000,
-      dailyUnits: item.dailyUnits || 0,
-      monthlyUnits: item.monthlyUnits || 0,
-    })).sort((a, b) => b.monthly - a.monthly || b.daily - a.daily);
+      revenue: Math.round(item.revenue * 100) / 100,
+      weightKg: Math.round(item.weightKg * 1000) / 1000,
+      units: item.units || 0,
+    })).sort((a, b) => (sahalViewMode === 'revenue' ? b.revenue - a.revenue : b.weightKg - a.weightKg));
 
     return {
       sahalChartData: chartArr,
       sahalStats: {
-        todaySales: dateSales,
-        todayQty: dateQty,
-        monthSales: monthSales,
-        monthQty: monthQty,
+        totalSales: periodSales,
+        totalQty: periodQty,
+        totalUnits: periodUnits,
         varietiesCount: chartArr.length
       }
     };
-  }, [allTxns, invMap, sahalSelectedDate]);
+  }, [allTxns, invMap, sahalPeriodMode, sahalSelectedDate, sahalSelectedMonth, sahalViewMode]);
 
   useEffect(() => {
     // ---- Step 1: Fetch inventory once ----
@@ -1125,62 +1117,215 @@ export default function Reports() {
                               padding: '6px 12px',
                               borderRadius: '8px',
                               border: '1px solid var(--border-color)',
-                              cursor: 'pointer',
-                              fontSize: '12px',
-                              fontWeight: 700,
-                              background: sahalSelectedDate === getTodayDateString() ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-card, #fff)',
-                              color: sahalSelectedDate === getTodayDateString() ? '#10b981' : 'var(--text-primary)',
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            🌟 අද දින
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSahalSelectedDate(getYesterdayDateString())}
-                            style={{
-                              padding: '6px 12px',
-                              borderRadius: '8px',
-                              border: '1px solid var(--border-color)',
-                              cursor: 'pointer',
-                              fontSize: '12px',
-                              fontWeight: 700,
-                              background: sahalSelectedDate === getYesterdayDateString() ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-card, #fff)',
-                              color: sahalSelectedDate === getYesterdayDateString() ? '#10b981' : 'var(--text-primary)',
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            ⏪ ඊයේ
-                          </button>
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            background: 'var(--bg-card, #fff)',
-                            border: '1.5px solid rgba(16, 185, 129, 0.4)',
-                            borderRadius: '8px',
-                            padding: '4px 10px',
-                            gap: '6px'
-                          }}>
-                            <FiCalendar style={{ color: '#10b981', fontSize: '15px' }} />
-                            <input
-                              type="date"
-                              value={sahalSelectedDate}
-                              onChange={(e) => setSahalSelectedDate(e.target.value)}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: 'var(--text-primary)',
-                                outline: 'none',
-                                fontSize: '13px',
-                                fontWeight: 700,
-                                cursor: 'pointer'
-                              }}
-                            />
+                    {/* Dedicated Rice (සහල්) Sales Section: Daily or Monthly View */}
+                    <div style={{
+                      background: 'rgba(16, 185, 129, 0.03)',
+                      border: '1.5px solid rgba(16, 185, 129, 0.25)',
+                      borderRadius: '16px',
+                      padding: '18px 20px',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.03)'
+                    }}>
+                      {/* Top Header with Mode Tabs and Date/Month Picker */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                        paddingBottom: '14px',
+                        marginBottom: '16px',
+                        borderBottom: '1px solid rgba(16, 185, 129, 0.15)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: 38, height: 38, borderRadius: '10px', background: sahalPeriodMode === 'daily' ? 'rgba(16, 185, 129, 0.18)' : 'rgba(59, 130, 246, 0.18)', color: sahalPeriodMode === 'daily' ? '#10b981' : '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                            🌾
                           </div>
+                          <div>
+                            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              සහල් අලෙවි වාර්තාව හා ප්‍රස්ථාරය (Rice Report)
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                              දිනපතා හෝ මාසිකව වෙන් වෙන්ව සහල් ආදායම් සහ ප්‍රස්ථාර බලන්න
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Mode Toggle & Selectors */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          {/* Mode Switcher: Daily vs Monthly */}
+                          <div style={{ display: 'flex', background: 'var(--bg-secondary, rgba(0,0,0,0.06))', padding: '3px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                            <button
+                              type="button"
+                              onClick={() => setSahalPeriodMode('daily')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                background: sahalPeriodMode === 'daily' ? '#10b981' : 'transparent',
+                                color: sahalPeriodMode === 'daily' ? '#fff' : 'var(--text-secondary)',
+                                transition: 'all 0.2s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                              }}
+                            >
+                              📅 දිනපතා (Daily)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSahalPeriodMode('monthly')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                background: sahalPeriodMode === 'monthly' ? '#3b82f6' : 'transparent',
+                                color: sahalPeriodMode === 'monthly' ? '#fff' : 'var(--text-secondary)',
+                                transition: 'all 0.2s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                              }}
+                            >
+                              📆 මාසිකව (Monthly)
+                            </button>
+                          </div>
+
+                          {/* Date or Month Picker */}
+                          {sahalPeriodMode === 'daily' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={() => setSahalSelectedDate(getTodayDateString())}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border-color)',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  background: sahalSelectedDate === getTodayDateString() ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-card, #fff)',
+                                  color: sahalSelectedDate === getTodayDateString() ? '#10b981' : 'var(--text-primary)',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                🌟 අද
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSahalSelectedDate(getYesterdayDateString())}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border-color)',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  background: sahalSelectedDate === getYesterdayDateString() ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-card, #fff)',
+                                  color: sahalSelectedDate === getYesterdayDateString() ? '#10b981' : 'var(--text-primary)',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                ⏪ ඊයේ
+                              </button>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                background: 'var(--bg-card, #fff)',
+                                border: '1.5px solid rgba(16, 185, 129, 0.4)',
+                                borderRadius: '8px',
+                                padding: '4px 10px',
+                                gap: '6px'
+                              }}>
+                                <FiCalendar style={{ color: '#10b981', fontSize: '15px' }} />
+                                <input
+                                  type="date"
+                                  value={sahalSelectedDate}
+                                  onChange={(e) => setSahalSelectedDate(e.target.value)}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none',
+                                    fontSize: '13px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={() => setSahalSelectedMonth(getCurrentMonthString())}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border-color)',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  background: sahalSelectedMonth === getCurrentMonthString() ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-card, #fff)',
+                                  color: sahalSelectedMonth === getCurrentMonthString() ? '#3b82f6' : 'var(--text-primary)',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                🌟 මේ මාසය
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSahalSelectedMonth(getLastMonthString())}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border-color)',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  background: sahalSelectedMonth === getLastMonthString() ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-card, #fff)',
+                                  color: sahalSelectedMonth === getLastMonthString() ? '#3b82f6' : 'var(--text-primary)',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                ⏪ පසුගිය මාසය
+                              </button>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                background: 'var(--bg-card, #fff)',
+                                border: '1.5px solid rgba(59, 130, 246, 0.4)',
+                                borderRadius: '8px',
+                                padding: '4px 10px',
+                                gap: '6px'
+                              }}>
+                                <FiCalendar style={{ color: '#3b82f6', fontSize: '15px' }} />
+                                <input
+                                  type="month"
+                                  value={sahalSelectedMonth}
+                                  onChange={(e) => setSahalSelectedMonth(e.target.value)}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none',
+                                    fontSize: '13px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      {/* Top Rice Income Highlights */}
+                      {/* Summary Stat Cards */}
                       <div style={{
                         display: 'grid',
                         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -1190,39 +1335,55 @@ export default function Reports() {
                         borderBottom: '1px solid rgba(16, 185, 129, 0.15)'
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={{ width: 40, height: 40, borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
-                            📅
+                          <div style={{ width: 44, height: 44, borderRadius: '12px', background: sahalPeriodMode === 'daily' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)', color: sahalPeriodMode === 'daily' ? '#10b981' : '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>
+                            💰
                           </div>
                           <div>
                             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                              {sahalSelectedDate === getTodayDateString() ? 'අද දින' : sahalSelectedDate} සහල් ආදායම
+                              {sahalPeriodMode === 'daily' 
+                                ? `${sahalSelectedDate === getTodayDateString() ? 'අද දින' : sahalSelectedDate} සහල් ආදායම` 
+                                : `${sahalSelectedMonth === getCurrentMonthString() ? 'මේ මාසයේ' : sahalSelectedMonth} සහල් ආදායම`}
                             </div>
-                            <div style={{ fontSize: '18px', fontWeight: 800, color: '#10b981' }}>Rs. {sahalStats.todaySales.toFixed(2)}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sahalStats.todayQty.toFixed(2)} kg අලෙවි විය</div>
+                            <div style={{ fontSize: '20px', fontWeight: 800, color: sahalPeriodMode === 'daily' ? '#10b981' : '#3b82f6' }}>
+                              Rs. {sahalStats.totalSales.toFixed(2)}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              {sahalPeriodMode === 'daily' ? 'දෛනික එකතුව' : 'මාසික එකතුව'}
+                            </div>
                           </div>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={{ width: 40, height: 40, borderRadius: '10px', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
-                            📆
+                          <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>
+                            ⚖️
                           </div>
                           <div>
                             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                              {sahalSelectedDate.substring(0, 7)} මාසයේ සහල් ආදායම
+                              අලෙවි වූ සහල් මුළු බර (Weight Sold)
                             </div>
-                            <div style={{ fontSize: '18px', fontWeight: 800, color: '#3b82f6' }}>Rs. {sahalStats.monthSales.toFixed(2)}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sahalStats.monthQty.toFixed(2)} kg අලෙවි විය</div>
+                            <div style={{ fontSize: '20px', fontWeight: 800, color: '#a855f7' }}>
+                              {sahalStats.totalQty.toFixed(2)} <span style={{ fontSize: '13px', fontWeight: 600 }}>kg</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              පැකට් හා තොග එකතුව
+                            </div>
                           </div>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={{ width: 40, height: 40, borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                          <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>
                             🏷️
                           </div>
                           <div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>සහල් වර්ග (Rice Varieties)</div>
-                            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)' }}>{sahalStats.varietiesCount} <span style={{ fontSize: '12px', fontWeight: 500 }}>වර්ග</span></div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>පද්ධතියේ ඇති සහල් වර්ග</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                              සහල් වර්ග (Rice Varieties)
+                            </div>
+                            <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              {sahalStats.varietiesCount} <span style={{ fontSize: '13px', fontWeight: 500 }}>වර්ග</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              පද්ධතියේ ඇති සහල් වර්ග
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1231,15 +1392,10 @@ export default function Reports() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
                         <div>
                           <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            🌾 සහල් වර්ග අනුව අලෙවි ප්‍රස්ථාරය (Rice Sales Graph)
+                            🌾 සහල් වර්ග අනුව අලෙවි ප්‍රස්ථාරය ({sahalPeriodMode === 'daily' ? (sahalSelectedDate === getTodayDateString() ? 'අද දින' : sahalSelectedDate) : (sahalSelectedMonth === getCurrentMonthString() ? 'මේ මාසය' : sahalSelectedMonth)})
                           </div>
-                          <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '12px', fontWeight: 600 }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#10b981', display: 'inline-block' }}></span> {sahalSelectedDate === getTodayDateString() ? 'අද දින' : sahalSelectedDate}
-                            </span>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <span style={{ width: 12, height: 12, borderRadius: 3, background: '#3b82f6', display: 'inline-block' }}></span> {sahalSelectedDate.substring(0, 7)} මාසය
-                            </span>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                            {sahalViewMode === 'revenue' ? 'මුදලින් (රුපියල්)' : 'බරින් (කිලෝග්‍රෑම්)'} අලෙවිය
                           </div>
                         </div>
 
@@ -1254,7 +1410,7 @@ export default function Reports() {
                               cursor: 'pointer',
                               fontSize: '12px',
                               fontWeight: 600,
-                              background: sahalViewMode === 'revenue' ? '#10b981' : 'transparent',
+                              background: sahalViewMode === 'revenue' ? (sahalPeriodMode === 'daily' ? '#10b981' : '#3b82f6') : 'transparent',
                               color: sahalViewMode === 'revenue' ? '#fff' : 'var(--text-secondary)',
                               transition: 'all 0.2s ease'
                             }}
@@ -1271,7 +1427,7 @@ export default function Reports() {
                               cursor: 'pointer',
                               fontSize: '12px',
                               fontWeight: 600,
-                              background: sahalViewMode === 'quantity' ? '#3b82f6' : 'transparent',
+                              background: sahalViewMode === 'quantity' ? (sahalPeriodMode === 'daily' ? '#10b981' : '#3b82f6') : 'transparent',
                               color: sahalViewMode === 'quantity' ? '#fff' : 'var(--text-secondary)',
                               transition: 'all 0.2s ease'
                             }}
@@ -1283,14 +1439,23 @@ export default function Reports() {
 
                       {/* Chart Area */}
                       {sahalChartData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height={Math.max(220, sahalChartData.length * 44)}>
+                        <ResponsiveContainer width="100%" height={Math.max(240, sahalChartData.length * 42)}>
                           <BarChart
                             data={sahalChartData}
                             layout="vertical"
                             margin={{ top: 0, right: 25, left: 10, bottom: 0 }}
-                            barCategoryGap="20%"
-                            barGap={4}
+                            barCategoryGap="25%"
                           >
+                            <defs>
+                              <linearGradient id="sahalDailyGrad" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stopColor="#10b981" stopOpacity={0.85}/>
+                                <stop offset="100%" stopColor="#34d399" stopOpacity={1}/>
+                              </linearGradient>
+                              <linearGradient id="sahalMonthlyGrad" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.85}/>
+                                <stop offset="100%" stopColor="#60a5fa" stopOpacity={1}/>
+                              </linearGradient>
+                            </defs>
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border-color)" />
                             <XAxis
                               type="number"
@@ -1305,7 +1470,7 @@ export default function Reports() {
                               dataKey="name"
                               stroke="var(--text-secondary)"
                               fontSize={12}
-                              width={110}
+                              width={120}
                               tick={{ fontWeight: 700 }}
                             />
                             <Tooltip
@@ -1324,11 +1489,11 @@ export default function Reports() {
                                           Item No: <span style={{ color: 'var(--primary-400)', fontWeight: '700' }}>#{d.itemNo}</span>
                                         </div>
                                       )}
-                                      <div style={{ color: '#10b981', fontWeight: '600', fontSize: '13px', marginBottom: '3px' }}>
-                                        📅 {sahalSelectedDate === getTodayDateString() ? 'අද දින' : sahalSelectedDate}: <strong>Rs. {d.daily.toFixed(2)}</strong> ({d.dailyQty} kg{isPacket && d.dailyUnits > 0 ? ` — පැකට් ${d.dailyUnits}` : ''})
+                                      <div style={{ color: sahalPeriodMode === 'daily' ? '#10b981' : '#3b82f6', fontWeight: '700', fontSize: '14px', marginBottom: '3px' }}>
+                                        💰 ආදායම: <strong>Rs. {d.revenue.toFixed(2)}</strong>
                                       </div>
-                                      <div style={{ color: '#3b82f6', fontWeight: '600', fontSize: '13px' }}>
-                                        📆 {sahalSelectedDate.substring(0, 7)} මාසය: <strong>Rs. {d.monthly.toFixed(2)}</strong> ({d.monthlyQty} kg{isPacket && d.monthlyUnits > 0 ? ` — පැකට් ${d.monthlyUnits}` : ''})
+                                      <div style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '13px' }}>
+                                        ⚖️ අලෙවි වූ බර: <strong>{d.weightKg} kg</strong> {isPacket && d.units > 0 ? `(${d.units} පැකට්)` : ''}
                                       </div>
                                     </div>
                                   );
@@ -1337,16 +1502,10 @@ export default function Reports() {
                               }}
                             />
                             <Bar
-                              dataKey={sahalViewMode === 'revenue' ? "daily" : "dailyQty"}
-                              name="daily"
-                              fill="#10b981"
-                              radius={[0, 4, 4, 0]}
-                            />
-                            <Bar
-                              dataKey={sahalViewMode === 'revenue' ? "monthly" : "monthlyQty"}
-                              name="monthly"
-                              fill="#3b82f6"
-                              radius={[0, 4, 4, 0]}
+                              dataKey={sahalViewMode === 'revenue' ? "revenue" : "weightKg"}
+                              name={sahalViewMode === 'revenue' ? "ආදායම" : "බර (kg)"}
+                              fill={sahalPeriodMode === 'daily' ? "url(#sahalDailyGrad)" : "url(#sahalMonthlyGrad)"}
+                              radius={[0, 6, 6, 0]}
                             />
                           </BarChart>
                         </ResponsiveContainer>
