@@ -128,6 +128,53 @@ export default function Reports() {
     return 1;
   };
 
+  // Coconut Oil (පොල්තෙල්) states
+  const [polthelPeriodMode, setPolthelPeriodMode] = useState('daily'); // 'daily' or 'monthly'
+  const [polthelSelectedDate, setPolthelSelectedDate] = useState(getTodayDateString());
+  const [polthelSelectedMonth, setPolthelSelectedMonth] = useState(getCurrentMonthString());
+  const [polthelViewMode, setPolthelViewMode] = useState('revenue'); // 'revenue' or 'quantity'
+
+  // Helper to determine if an item is under the 'පොල්තෙල්' category or is oil
+  const isOilItem = (item, invItem) => {
+    const cat = (invItem?.category || item?.category || '').toString().trim();
+    if (cat === 'පොල්තෙල්') return true;
+    const name = (invItem?.name || item?.name || '').toString().toLowerCase();
+    return name.includes('පොල්තෙල්') || name.includes('පොල් තෙල්') || name.includes('coconut oil') || name.includes('තෙල් බෝතල්') || name.includes('තෙල් බෝ');
+  };
+
+  // Helper to extract the volume in Liters (L) for coconut oil bottles/containers (e.g. 750ml, 500ml, 1L, 2L, 5L, or standard bottle)
+  const getItemVolumeInLiters = (itemName, invItem) => {
+    const name = (itemName || invItem?.name || '').toString().toLowerCase();
+
+    // 1. Check for liters "1l", "2l", "5l", "1.5l", "ලීටර් 5", "5 ලීටර්", "5 l"
+    const lMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:l|ltr|litre|liters|ලීටර්|ලී)/i);
+    if (lMatch && !name.includes('ml') && !name.includes('මිලී')) {
+      return parseFloat(lMatch[1]);
+    }
+
+    // 2. Check for ml "750ml", "500ml", "250ml", "100ml", "750 ml"
+    const mlMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:ml|මි\.ලී|මිලී)/i);
+    if (mlMatch) {
+      return parseFloat(mlMatch[1]) / 1000;
+    }
+
+    // 3. Check for bottle keywords (e.g. 750ml standard bottle if named බෝතල්)
+    if (name.includes('බෝතල්') || name.includes('bottle')) {
+      if (name.includes('බාග') || name.includes('half')) return 0.375;
+      if (name.includes('කාල') || name.includes('quarter')) return 0.1875;
+      return 0.75; // Standard Sri Lankan oil bottle is 750ml
+    }
+
+    // 4. Check explicit volume/packetWeight field if present
+    if (invItem?.volume || invItem?.packetWeight || invItem?.weight) {
+      const v = parseFloat(invItem.volume || invItem.packetWeight || invItem.weight);
+      if (!isNaN(v) && v > 0) return v;
+    }
+
+    // 5. Default: loose oil sold per liter -> 1 unit = 1 L
+    return 1;
+  };
+
   // Compute dynamic rice stats and chart data based on sahalPeriodMode and selected date/month
   const { sahalChartData, sahalStats } = useMemo(() => {
     let periodSales = 0;
@@ -222,6 +269,101 @@ export default function Reports() {
       }
     };
   }, [allTxns, invMap, sahalPeriodMode, sahalSelectedDate, sahalSelectedMonth, sahalViewMode]);
+
+  // Compute dynamic coconut oil (පොල්තෙල්) stats and chart data based on polthelPeriodMode and selected date/month
+  const { polthelChartData, polthelStats } = useMemo(() => {
+    let periodSales = 0;
+    let periodQty = 0;
+    let periodUnits = 0;
+    const polthelItemsMap = {};
+
+    const targetDateStr = polthelSelectedDate || getTodayDateString();
+    const targetMonthStr = polthelSelectedMonth || getCurrentMonthString();
+
+    // Pre-seed polthel map with oil items configured under 'පොල්තෙල්' category
+    const seenOilNames = new Set();
+    Object.values(invMap).forEach(invItem => {
+      if (invItem && invItem.name && isOilItem(invItem, invItem)) {
+        if (!seenOilNames.has(invItem.name)) {
+          seenOilNames.add(invItem.name);
+          polthelItemsMap[invItem.name] = {
+            name: invItem.name,
+            itemNo: invItem.itemNo || invItem.itemno || '—',
+            unitLiters: getItemVolumeInLiters(invItem.name, invItem),
+            revenue: 0,
+            volumeLiters: 0,
+            units: 0
+          };
+        }
+      }
+    });
+
+    allTxns.forEach(data => {
+      const txnDate = toDateObject(data.timestamp || data.date);
+      if (!txnDate) return;
+
+      const y = txnDate.getFullYear();
+      const m = String(txnDate.getMonth() + 1).padStart(2, '0');
+      const day = String(txnDate.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${day}`;
+      const monthStr = `${y}-${m}`;
+
+      const isMatch = (polthelPeriodMode === 'daily') 
+        ? (dateStr === targetDateStr) 
+        : (monthStr === targetMonthStr);
+
+      if (!isMatch) return;
+
+      data.items?.forEach(item => {
+        const invItem = invMap[item.id] || invMap[item.name];
+        if (isOilItem(item, invItem)) {
+          const oilKey = invItem?.name || item.name;
+          const qty = Number(item.quantity) || 0;
+          const rev = Number(item.subtotal) || ((Number(item.sellPrice) || 0) * qty) || 0;
+          const unitLiters = getItemVolumeInLiters(oilKey, invItem);
+          const totalVolumeLiters = qty * unitLiters;
+
+          if (!polthelItemsMap[oilKey]) {
+            polthelItemsMap[oilKey] = {
+              name: oilKey,
+              itemNo: invItem?.itemNo || item.itemNo || invItem?.itemno || '—',
+              unitLiters: unitLiters,
+              revenue: 0,
+              volumeLiters: 0,
+              units: 0
+            };
+          }
+
+          periodSales += rev;
+          periodQty += totalVolumeLiters;
+          periodUnits += qty;
+
+          polthelItemsMap[oilKey].revenue += rev;
+          polthelItemsMap[oilKey].volumeLiters += totalVolumeLiters;
+          polthelItemsMap[oilKey].units += qty;
+        }
+      });
+    });
+
+    const chartArr = Object.values(polthelItemsMap).map(item => ({
+      name: item.name,
+      itemNo: item.itemNo,
+      unitLiters: item.unitLiters || 1,
+      revenue: Math.round(item.revenue * 100) / 100,
+      volumeLiters: Math.round(item.volumeLiters * 1000) / 1000,
+      units: item.units || 0,
+    })).sort((a, b) => (polthelViewMode === 'revenue' ? b.revenue - a.revenue : b.volumeLiters - a.volumeLiters));
+
+    return {
+      polthelChartData: chartArr,
+      polthelStats: {
+        totalSales: periodSales,
+        totalQty: periodQty,
+        totalUnits: periodUnits,
+        varietiesCount: chartArr.length
+      }
+    };
+  }, [allTxns, invMap, polthelPeriodMode, polthelSelectedDate, polthelSelectedMonth, polthelViewMode]);
 
   useEffect(() => {
     // ---- Step 1: Fetch inventory once ----
@@ -1470,6 +1612,405 @@ export default function Reports() {
                       ) : (
                         <div className="empty-chart" style={{ padding: '30px', fontSize: '13px' }}>
                           🌾 සහල් අලෙවි දත්ත නොමැත
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dedicated Coconut Oil (පොල්තෙල්) Sales Section: Daily or Monthly View */}
+                    <div style={{
+                      background: 'rgba(245, 158, 11, 0.03)',
+                      border: '1.5px solid rgba(245, 158, 11, 0.25)',
+                      borderRadius: '16px',
+                      padding: '18px 20px',
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.03)'
+                    }}>
+                      {/* Top Header with Mode Tabs and Date/Month Picker */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                        paddingBottom: '14px',
+                        marginBottom: '16px',
+                        borderBottom: '1px solid rgba(245, 158, 11, 0.15)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: 38, height: 38, borderRadius: '10px', background: polthelPeriodMode === 'daily' ? 'rgba(245, 158, 11, 0.18)' : 'rgba(139, 92, 246, 0.18)', color: polthelPeriodMode === 'daily' ? '#f59e0b' : '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                            🥥
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              පොල්තෙල් අලෙවි වාර්තාව හා ප්‍රස්ථාරය (Coconut Oil Report)
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                              දිනපතා හෝ මාසිකව වෙන් වෙන්ව පොල්තෙල් ආදායම් සහ ප්‍රස්ථාර බලන්න
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Mode Toggle & Selectors */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          {/* Mode Switcher: Daily vs Monthly */}
+                          <div style={{ display: 'flex', background: 'var(--bg-secondary, rgba(0,0,0,0.06))', padding: '3px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                            <button
+                              type="button"
+                              onClick={() => setPolthelPeriodMode('daily')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                background: polthelPeriodMode === 'daily' ? '#f59e0b' : 'transparent',
+                                color: polthelPeriodMode === 'daily' ? '#fff' : 'var(--text-secondary)',
+                                transition: 'all 0.2s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                              }}
+                            >
+                              📅 දිනපතා (Daily)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPolthelPeriodMode('monthly')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                background: polthelPeriodMode === 'monthly' ? '#8b5cf6' : 'transparent',
+                                color: polthelPeriodMode === 'monthly' ? '#fff' : 'var(--text-secondary)',
+                                transition: 'all 0.2s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                              }}
+                            >
+                              📆 මාසිකව (Monthly)
+                            </button>
+                          </div>
+
+                          {/* Date or Month Picker */}
+                          {polthelPeriodMode === 'daily' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={() => setPolthelSelectedDate(getTodayDateString())}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border-color)',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  background: polthelSelectedDate === getTodayDateString() ? 'rgba(245, 158, 11, 0.2)' : 'var(--bg-card, #fff)',
+                                  color: polthelSelectedDate === getTodayDateString() ? '#f59e0b' : 'var(--text-primary)',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                🌟 අද
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPolthelSelectedDate(getYesterdayDateString())}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border-color)',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  background: polthelSelectedDate === getYesterdayDateString() ? 'rgba(245, 158, 11, 0.2)' : 'var(--bg-card, #fff)',
+                                  color: polthelSelectedDate === getYesterdayDateString() ? '#f59e0b' : 'var(--text-primary)',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                ⏪ ඊයේ
+                              </button>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                background: 'var(--bg-card, #fff)',
+                                border: '1.5px solid rgba(245, 158, 11, 0.4)',
+                                borderRadius: '8px',
+                                padding: '4px 10px',
+                                gap: '6px'
+                              }}>
+                                <FiCalendar style={{ color: '#f59e0b', fontSize: '15px' }} />
+                                <input
+                                  type="date"
+                                  value={polthelSelectedDate}
+                                  onChange={(e) => setPolthelSelectedDate(e.target.value)}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none',
+                                    fontSize: '13px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={() => setPolthelSelectedMonth(getCurrentMonthString())}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border-color)',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  background: polthelSelectedMonth === getCurrentMonthString() ? 'rgba(139, 92, 246, 0.2)' : 'var(--bg-card, #fff)',
+                                  color: polthelSelectedMonth === getCurrentMonthString() ? '#8b5cf6' : 'var(--text-primary)',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                🌟 මේ මාසය
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPolthelSelectedMonth(getLastMonthString())}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border-color)',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  background: polthelSelectedMonth === getLastMonthString() ? 'rgba(139, 92, 246, 0.2)' : 'var(--bg-card, #fff)',
+                                  color: polthelSelectedMonth === getLastMonthString() ? '#8b5cf6' : 'var(--text-primary)',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                ⏪ පසුගිය මාසය
+                              </button>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                background: 'var(--bg-card, #fff)',
+                                border: '1.5px solid rgba(139, 92, 246, 0.4)',
+                                borderRadius: '8px',
+                                padding: '4px 10px',
+                                gap: '6px'
+                              }}>
+                                <FiCalendar style={{ color: '#8b5cf6', fontSize: '15px' }} />
+                                <input
+                                  type="month"
+                                  value={polthelSelectedMonth}
+                                  onChange={(e) => setPolthelSelectedMonth(e.target.value)}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none',
+                                    fontSize: '13px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Summary Stat Cards */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                        gap: '12px',
+                        paddingBottom: '16px',
+                        marginBottom: '16px',
+                        borderBottom: '1px solid rgba(245, 158, 11, 0.15)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: 44, height: 44, borderRadius: '12px', background: polthelPeriodMode === 'daily' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(139, 92, 246, 0.15)', color: polthelPeriodMode === 'daily' ? '#f59e0b' : '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>
+                            💰
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                              {polthelPeriodMode === 'daily' 
+                                ? `${polthelSelectedDate === getTodayDateString() ? 'අද දින' : polthelSelectedDate} පොල්තෙල් ආදායම` 
+                                : `${polthelSelectedMonth === getCurrentMonthString() ? 'මේ මාසයේ' : polthelSelectedMonth} පොල්තෙල් ආදායම`}
+                            </div>
+                            <div style={{ fontSize: '20px', fontWeight: 800, color: polthelPeriodMode === 'daily' ? '#f59e0b' : '#8b5cf6' }}>
+                              Rs. {polthelStats.totalSales.toFixed(2)}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              {polthelPeriodMode === 'daily' ? 'දෛනික එකතුව' : 'මාසික එකතුව'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'rgba(234, 88, 12, 0.15)', color: '#ea580c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>
+                            🛢️
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                              අලෙවි වූ පොල්තෙල් මුළු පරිමාව (Volume Sold)
+                            </div>
+                            <div style={{ fontSize: '20px', fontWeight: 800, color: '#ea580c' }}>
+                              {polthelStats.totalQty.toFixed(2)} <span style={{ fontSize: '13px', fontWeight: 600 }}>L (ලීටර්)</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              බෝතල් හා තොග එකතුව
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>
+                            🏷️
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                              පොල්තෙල් වර්ග (Oil Varieties)
+                            </div>
+                            <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                              {polthelStats.varietiesCount} <span style={{ fontSize: '13px', fontWeight: 500 }}>වර්ග</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                              පද්ධතියේ ඇති තෙල් වර්ග
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Header and Toggle */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            🥥 පොල්තෙල් වර්ග අනුව අලෙවි ප්‍රස්ථාරය ({polthelPeriodMode === 'daily' ? (polthelSelectedDate === getTodayDateString() ? 'අද දින' : polthelSelectedDate) : (polthelSelectedMonth === getCurrentMonthString() ? 'මේ මාසය' : polthelSelectedMonth)})
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                            {polthelViewMode === 'revenue' ? 'මුදලින් (රුපියල්)' : 'පරිමාවෙන් (ලීටර්)'} අලෙවිය
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', background: 'var(--bg-card, rgba(0,0,0,0.05))', padding: '3px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                          <button
+                            type="button"
+                            onClick={() => setPolthelViewMode('revenue')}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              background: polthelViewMode === 'revenue' ? (polthelPeriodMode === 'daily' ? '#f59e0b' : '#8b5cf6') : 'transparent',
+                              color: polthelViewMode === 'revenue' ? '#fff' : 'var(--text-secondary)',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            මුදලින් (Rs.)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPolthelViewMode('quantity')}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              background: polthelViewMode === 'quantity' ? (polthelPeriodMode === 'daily' ? '#f59e0b' : '#8b5cf6') : 'transparent',
+                              color: polthelViewMode === 'quantity' ? '#fff' : 'var(--text-secondary)',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            ප්‍රමාණයෙන් (L)
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Chart Area */}
+                      {polthelChartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={Math.max(240, polthelChartData.length * 42)}>
+                          <BarChart
+                            data={polthelChartData}
+                            layout="vertical"
+                            margin={{ top: 0, right: 25, left: 10, bottom: 0 }}
+                            barCategoryGap="25%"
+                          >
+                            <defs>
+                              <linearGradient id="polthelDailyGrad" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.85}/>
+                                <stop offset="100%" stopColor="#fbbf24" stopOpacity={1}/>
+                              </linearGradient>
+                              <linearGradient id="polthelMonthlyGrad" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.85}/>
+                                <stop offset="100%" stopColor="#a78bfa" stopOpacity={1}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border-color)" />
+                            <XAxis
+                              type="number"
+                              stroke="var(--text-secondary)"
+                              fontSize={11}
+                              tickFormatter={v => polthelViewMode === 'revenue'
+                                ? `Rs.${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`
+                                : `${v}L`}
+                            />
+                            <YAxis
+                              type="category"
+                              dataKey="name"
+                              stroke="var(--text-secondary)"
+                              fontSize={12}
+                              width={120}
+                              tick={{ fontWeight: 700 }}
+                            />
+                            <Tooltip
+                              contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px' }}
+                              content={({ active, payload, label }) => {
+                                if (active && payload && payload.length) {
+                                  const d = payload[0].payload;
+                                  const isBottleOrPack = d.unitLiters && d.unitLiters !== 1;
+                                  return (
+                                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px', minWidth: '200px' }}>
+                                      <div style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
+                                        🥥 {label}
+                                      </div>
+                                      {d.itemNo && d.itemNo !== '—' && (
+                                        <div style={{ color: 'var(--text-secondary)', fontWeight: '600', fontSize: '12px', marginBottom: '4px' }}>
+                                          Item No: <span style={{ color: 'var(--primary-400)', fontWeight: '700' }}>#{d.itemNo}</span>
+                                        </div>
+                                      )}
+                                      <div style={{ color: polthelPeriodMode === 'daily' ? '#f59e0b' : '#8b5cf6', fontWeight: '700', fontSize: '14px', marginBottom: '3px' }}>
+                                        💰 ආදායම: <strong>Rs. {d.revenue.toFixed(2)}</strong>
+                                      </div>
+                                      <div style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '13px' }}>
+                                        🛢️ අලෙවි වූ පරිමාව: <strong>{d.volumeLiters} L</strong> {isBottleOrPack && d.units > 0 ? `(${d.units} බෝතල්/පැකට්)` : ''}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            <Bar
+                              dataKey={polthelViewMode === 'revenue' ? "revenue" : "volumeLiters"}
+                              name={polthelViewMode === 'revenue' ? "ආදායම" : "පරිමාව (L)"}
+                              fill={polthelPeriodMode === 'daily' ? "url(#polthelDailyGrad)" : "url(#polthelMonthlyGrad)"}
+                              radius={[0, 6, 6, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="empty-chart" style={{ padding: '30px', fontSize: '13px' }}>
+                          🥥 පොල්තෙල් අලෙවි දත්ත නොමැත
                         </div>
                       )}
                     </div>
