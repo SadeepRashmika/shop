@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
 import { 
@@ -72,149 +72,157 @@ export default function Reports() {
   const [genYear, setGenYear] = useState(getCurrentYearString());
   const [genLoading, setGenLoading] = useState(false);
 
+  // Shared invMap ref so onSnapshot listener can access it
+  const [invMap, setInvMap] = useState({});
+
   useEffect(() => {
-    const fetchReports = async () => {
+    // ---- Step 1: Fetch inventory once ----
+    const fetchInventory = async () => {
       setLoading(true);
       try {
-        // Fetch Inventory Stats FIRST to calculate profit accurately
         const itemSnapshot = await getDocs(collection(db, 'items'));
         let totalItems = 0;
         let lowStockCount = 0;
-        const invMap = {};
+        const map = {};
         itemSnapshot.forEach(doc => {
           totalItems++;
           const data = doc.data();
           if (data.stock <= 5) lowStockCount++;
-          invMap[doc.id] = data;
-          if (data.name) invMap[data.name] = data;
+          map[doc.id] = data;
+          if (data.name) map[data.name] = data;
         });
-        setInventoryItems(invMap);
-
-        // Fetch ALL Transactions
-        const txnSnapshot = await getDocs(collection(db, 'transactions'));
-        
-        let todaySales = 0;
-        let todayCount = 0;
-        let monthSales = 0;
-        let monthCount = 0;
-        let todayProfit = 0;
-        let monthProfit = 0;
-        const itemFreq = {};
-        const itemRevenue = {};
-        const transactions = [];
-        const dailySalesMap = {};
-
-        txnSnapshot.forEach(doc => {
-          const data = doc.data();
-          const total = data.total || 0;
-          
-          if (data.timestamp?.seconds) {
-            calibrateFromTimestamp(data.timestamp.seconds);
-          }
-
-          // Calculate Profit for this transaction
-          let txnCost = 0;
-          if (data.items) {
-            data.items.forEach(item => {
-              const invItem = invMap[item.id] || invMap[item.name];
-              const unitCost = invItem ? (Number(invItem.purchasePrice) || 0) : 0;
-              txnCost += (Number(item.quantity) || 0) * unitCost;
-            });
-          }
-          const profit = total - txnCost;
-          const txnData = { id: doc.id, profit: profit, ...data };
-          transactions.push(txnData);
-          
-          const txnDate = toDateObject(data.timestamp || data.date);
-
-          // Today's sales (calibrated real time check)
-          if (isToday(data.timestamp || data.date)) {
-            todaySales += total;
-            todayProfit += profit;
-            todayCount++;
-          }
-
-          // This month's sales (calibrated real time check)
-          if (isThisMonth(data.timestamp || data.date)) {
-            monthSales += total;
-            monthProfit += profit;
-            monthCount++;
-          }
-
-          // Count items for top selling
-          data.items?.forEach(item => {
-             itemFreq[item.name] = (itemFreq[item.name] || 0) + item.quantity;
-             itemRevenue[item.name] = (itemRevenue[item.name] || 0) + (Number(item.subtotal) || (Number(item.sellPrice) * Number(item.quantity)) || 0);
-          });
-
-          // Daily sales chart (last 7 days)
-          if (txnDate) {
-            const dayKey = txnDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            dailySalesMap[dayKey] = (dailySalesMap[dayKey] || 0) + total;
-          }
-        });
-
-        // Format chart data
-        const sortedItems = Object.entries(itemFreq)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([name, qty]) => ({
-            name,
-            qty,
-            revenue: itemRevenue[name] || 0,
-            itemNo: invMap[name]?.itemNo || invMap[name]?.itemno || '—'
-          }));
-        setChartData(sortedItems);
-
-        // Daily sales chart data (last 7 days based on synced real time)
-        const last7Days = [];
-        const now = getNow();
-        for (let i = 6; i >= 0; i--) {
-          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-          const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-          last7Days.push({ name: key, sales: dailySalesMap[key] || 0 });
-        }
-        setDailyChartData(last7Days);
-
-        // Sort transactions
-        transactions.sort((a, b) => {
-          const tB = toDateObject(b.timestamp || b.date)?.getTime() || 0;
-          const tA = toDateObject(a.timestamp || a.date)?.getTime() || 0;
-          return tB - tA;
-        });
-        setAllTxns(transactions);
-        setRecentTxns(transactions.slice(0, 10));
-
-        setStats({
-          todaySales,
-          todayProfit,
-          todayTxns: todayCount,
-          totalItems,
-          lowStock: lowStockCount,
-          monthSales,
-          monthProfit,
-          monthTxns: monthCount
-        });
-
+        setInventoryItems(map);
+        setInvMap(map);
+        setStats(prev => ({ ...prev, totalItems, lowStock: lowStockCount }));
       } catch (err) {
-        console.error("Report fetch error:", err);
-      } finally {
-        setLoading(false);
+        console.error('Inventory fetch error:', err);
       }
     };
+    fetchInventory();
+  }, []);
 
-    fetchReports();
+  useEffect(() => {
+    if (Object.keys(invMap).length === 0) return; // Wait for inventory
+
+    // ---- Step 2: Real-time listener for transactions ----
+    // onSnapshot fires INSTANTLY whenever a transaction is added or deleted
+    const processSnapshot = (txnSnapshot) => {
+      let todaySales = 0;
+      let todayCount = 0;
+      let monthSales = 0;
+      let monthCount = 0;
+      let todayProfit = 0;
+      let monthProfit = 0;
+      const itemFreq = {};
+      const itemRevenue = {};
+      const transactions = [];
+      const dailySalesMap = {};
+
+      txnSnapshot.forEach(doc => {
+        const data = doc.data();
+        const total = data.total || 0;
+
+        if (data.timestamp?.seconds) {
+          calibrateFromTimestamp(data.timestamp.seconds);
+        }
+
+        let txnCost = 0;
+        if (data.items) {
+          data.items.forEach(item => {
+            const invItem = invMap[item.id] || invMap[item.name];
+            const unitCost = invItem ? (Number(invItem.purchasePrice) || 0) : 0;
+            txnCost += (Number(item.quantity) || 0) * unitCost;
+          });
+        }
+        const profit = total - txnCost;
+        const txnData = { id: doc.id, profit, ...data };
+        transactions.push(txnData);
+
+        const txnDate = toDateObject(data.timestamp || data.date);
+
+        if (isToday(data.timestamp || data.date)) {
+          todaySales += total;
+          todayProfit += profit;
+          todayCount++;
+        }
+        if (isThisMonth(data.timestamp || data.date)) {
+          monthSales += total;
+          monthProfit += profit;
+          monthCount++;
+        }
+
+        data.items?.forEach(item => {
+          itemFreq[item.name] = (itemFreq[item.name] || 0) + item.quantity;
+          itemRevenue[item.name] = (itemRevenue[item.name] || 0) + (Number(item.subtotal) || (Number(item.sellPrice) * Number(item.quantity)) || 0);
+        });
+
+        if (txnDate) {
+          const dayKey = txnDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          dailySalesMap[dayKey] = (dailySalesMap[dayKey] || 0) + total;
+        }
+      });
+
+      // Chart data
+      const sortedItems = Object.entries(itemFreq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, qty]) => ({
+          name,
+          qty,
+          revenue: itemRevenue[name] || 0,
+          itemNo: invMap[name]?.itemNo || invMap[name]?.itemno || '—'
+        }));
+      setChartData(sortedItems);
+
+      const last7Days = [];
+      const now = getNow();
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        last7Days.push({ name: key, sales: dailySalesMap[key] || 0 });
+      }
+      setDailyChartData(last7Days);
+
+      transactions.sort((a, b) => {
+        const tB = toDateObject(b.timestamp || b.date)?.getTime() || 0;
+        const tA = toDateObject(a.timestamp || a.date)?.getTime() || 0;
+        return tB - tA;
+      });
+      setAllTxns(transactions);
+      setRecentTxns(transactions.slice(0, 10));
+
+      setStats(prev => ({
+        ...prev,
+        todaySales,
+        todayProfit,
+        todayTxns: todayCount,
+        monthSales,
+        monthProfit,
+        monthTxns: monthCount
+      }));
+
+      setLoading(false);
+    };
+
+    // Subscribe to real-time updates
+    const unsubTxn = onSnapshot(
+      collection(db, 'transactions'),
+      (snap) => processSnapshot(snap),
+      (err) => console.error('Transaction snapshot error:', err)
+    );
 
     // Re-calculate automatically as soon as time synchronizes
-    const unsubscribe = subscribeTimeSync(() => {
-      fetchReports();
+    const unsubTime = subscribeTimeSync(() => {
       setSelectedDailyDate(getTodayDateString());
       setSelectedMonthDate(getCurrentMonthString());
       setSelectedYear(getCurrentYearString());
     });
 
-    return unsubscribe;
-  }, []);
+    return () => {
+      unsubTxn();
+      unsubTime();
+    };
+  }, [invMap]);
 
   const COLORS = ['#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b'];
 

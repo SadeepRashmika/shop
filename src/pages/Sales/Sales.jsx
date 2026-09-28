@@ -732,6 +732,31 @@ export default function Sales() {
         }
       }
 
+      // If Milling Modal is open: handle Arrow keys to switch between 'wee' (වී කෙටීම) and 'pol' (පොල් කෙටීම), Escape to close
+      if (millingModal) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          handleSelectMillingType('wee');
+          return;
+        }
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          handleSelectMillingType('pol');
+          return;
+        }
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          handleSelectMillingType(millingType === 'wee' ? 'pol' : 'wee');
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setMillingModal(false);
+          setTimeout(() => barcodeInputRef.current?.focus(), 50);
+          return;
+        }
+      }
+
       // If Weight Modal is open: handle Escape key to close, Left/Right Arrow keys, and K / G shortcut keys
       if (weightModal) {
         if (e.key === 'Escape') {
@@ -844,7 +869,7 @@ export default function Sales() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightMode, weightUnit, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor, items, bagModal, bagPrice]);
+  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightMode, weightUnit, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor, items, bagModal, bagPrice, millingModal, millingType]);
 
   const handleCloseWeightModal = () => {
     setWeightModal(false);
@@ -3319,6 +3344,7 @@ export default function Sales() {
               <span style={{ fontSize: '1.5rem' }}>🌾</span>
               <span>වී කෙටීම</span>
               <span style={{ fontSize: '0.8rem', opacity: 0.85 }}>Rs. 7.00 / kg</span>
+              <span style={{ fontSize: '0.7rem', opacity: 0.75, fontWeight: 700, marginTop: '2px' }}>[ ◄ Left / Up ]</span>
             </button>
 
             <button
@@ -3343,6 +3369,7 @@ export default function Sales() {
               <span style={{ fontSize: '1.5rem' }}>🥥</span>
               <span>පොල් කෙටීම</span>
               <span style={{ fontSize: '0.8rem', opacity: 0.85 }}>Rs. 65.00 / kg</span>
+              <span style={{ fontSize: '0.7rem', opacity: 0.75, fontWeight: 700, marginTop: '2px' }}>[ Right / Down ► ]</span>
             </button>
           </div>
 
@@ -3361,6 +3388,18 @@ export default function Sales() {
                   placeholder="0.00"
                   value={millingKg}
                   onChange={(e) => setMillingKg(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowLeft') {
+                      e.preventDefault();
+                      handleSelectMillingType('wee');
+                    } else if (e.key === 'ArrowRight') {
+                      e.preventDefault();
+                      handleSelectMillingType('pol');
+                    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      handleSelectMillingType(millingType === 'wee' ? 'pol' : 'wee');
+                    }
+                  }}
                   style={{
                     width: '100%',
                     padding: '0.75rem 1rem',
