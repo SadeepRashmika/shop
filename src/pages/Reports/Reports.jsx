@@ -1075,48 +1075,6 @@ export default function Reports() {
                       )}
                     </div>
 
-                    {/* Dedicated Rice (සහල්) Sales Chart & Calendar Date Selector */}
-                    <div style={{
-                      background: 'rgba(16, 185, 129, 0.03)',
-                      border: '1.5px solid rgba(16, 185, 129, 0.25)',
-                      borderRadius: '16px',
-                      padding: '18px 20px',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.03)'
-                    }}>
-                      {/* Top Header with Calendar Date Picker */}
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: '12px',
-                        paddingBottom: '14px',
-                        marginBottom: '16px',
-                        borderBottom: '1px solid rgba(16, 185, 129, 0.15)'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ width: 38, height: 38, borderRadius: '10px', background: 'rgba(16, 185, 129, 0.18)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
-                            🌾
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
-                              සහල් අලෙවි වාර්තාව හා ප්‍රස්ථාරය (Rice Report)
-                            </div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                              ඕනෑම දිනයක් තෝරා දෛනික හා මාසික සහල් ආදායම් බලන්න
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Calendar Controls */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            onClick={() => setSahalSelectedDate(getTodayDateString())}
-                            style={{
-                              padding: '6px 12px',
-                              borderRadius: '8px',
-                              border: '1px solid var(--border-color)',
                     {/* Dedicated Rice (සහල්) Sales Section: Daily or Monthly View */}
                     <div style={{
                       background: 'rgba(16, 185, 129, 0.03)',
