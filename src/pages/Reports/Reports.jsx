@@ -1995,7 +1995,7 @@ export default function Reports() {
                                         💰 ආදායම: <strong>Rs. {d.revenue.toFixed(2)}</strong>
                                       </div>
                                       <div style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '13px' }}>
-                                        🛢️ අලෙවි වූ බෝතල් ගණන: <strong>{d.volumeBottles} බෝතල්</strong> {isCustomUnit && d.units > 0 ? `(${d.units} පැකට්/බෝතල්)` : ''}
+                                        🛢️ අලෙවි වූ බෝතල් ගණන: <strong>{d.volumeBottles} බෝතල්</strong> {isCustomUnit && d.units > 0 ? `(${d.units} ක්)` : ''}
                                       </div>
                                     </div>
                                   );
