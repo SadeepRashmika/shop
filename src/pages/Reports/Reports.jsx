@@ -833,43 +833,95 @@ export default function Reports() {
                       )}
                    </div>
                 ) : activeTab === 'overview' ? (
-                  chartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
-                        <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} />
-                        <YAxis stroke="var(--text-secondary)" fontSize={12} />
-                        <Tooltip 
-                          contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px' }}
-                          labelStyle={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}
-                          itemStyle={{ color: 'var(--primary-400)', fontWeight: '600', fontSize: '13px' }}
-                          content={({ active, payload, label }) => {
-                            if (active && payload && payload.length) {
-                              const d = payload[0].payload;
-                              const qty = d.qty;
-                              const qtyDisplay = typeof qty === 'number' ? (Number.isInteger(qty) ? qty : qty.toFixed(3)) : qty;
-                              return (
-                                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px', minWidth: '180px' }}>
-                                  <div style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>{label}</div>
-                                  {d.itemNo && d.itemNo !== '—' && <div style={{ color: 'var(--text-secondary)', fontWeight: '600', fontSize: '12px', marginBottom: '4px' }}>Item No: <span style={{ color: 'var(--primary-400)', fontWeight: '700' }}>#{d.itemNo}</span></div>}
-                                  <div style={{ color: 'var(--primary-400)', fontWeight: '600', fontSize: '13px', marginBottom: '4px' }}>ප්‍රමාණය : {qtyDisplay}</div>
-                                  {d.revenue > 0 && <div style={{ color: '#10b981', fontWeight: '700', fontSize: '13px' }}>ආදායම : Rs. {Number(d.revenue).toFixed(2)}</div>}
-                                </div>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                        <Bar dataKey="qty" radius={[4, 4, 0, 0]}>
-                          {chartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="empty-chart">{t('reports.noSalesData')}</div>
-                  )
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+                    {/* Top Selling Items Bar Chart */}
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        🏆 වැඩිම විකිණුනු භාණ්ඩ (Top Selling Items)
+                      </div>
+                      {chartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={240}>
+                          <BarChart data={chartData} barCategoryGap="30%">
+                            <defs>
+                              <linearGradient id="barGrad0" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.9}/><stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.5}/></linearGradient>
+                              <linearGradient id="barGrad1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ec4899" stopOpacity={0.9}/><stop offset="100%" stopColor="#ec4899" stopOpacity={0.5}/></linearGradient>
+                              <linearGradient id="barGrad2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity={0.9}/><stop offset="100%" stopColor="#3b82f6" stopOpacity={0.5}/></linearGradient>
+                              <linearGradient id="barGrad3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={0.9}/><stop offset="100%" stopColor="#10b981" stopOpacity={0.5}/></linearGradient>
+                              <linearGradient id="barGrad4" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f59e0b" stopOpacity={0.9}/><stop offset="100%" stopColor="#f59e0b" stopOpacity={0.5}/></linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
+                            <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={11} tick={{ fontWeight: 600 }} />
+                            <YAxis stroke="var(--text-secondary)" fontSize={11} />
+                            <Tooltip
+                              contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px' }}
+                              content={({ active, payload, label }) => {
+                                if (active && payload && payload.length) {
+                                  const d = payload[0].payload;
+                                  const qty = d.qty;
+                                  const qtyDisplay = typeof qty === 'number' ? (Number.isInteger(qty) ? qty : qty.toFixed(3)) : qty;
+                                  return (
+                                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px', minWidth: '180px' }}>
+                                      <div style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '14px', marginBottom: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>{label}</div>
+                                      {d.itemNo && d.itemNo !== '—' && <div style={{ color: 'var(--text-secondary)', fontWeight: '600', fontSize: '12px', marginBottom: '4px' }}>Item No: <span style={{ color: 'var(--primary-400)', fontWeight: '700' }}>#{d.itemNo}</span></div>}
+                                      <div style={{ color: 'var(--primary-400)', fontWeight: '600', fontSize: '13px', marginBottom: '4px' }}>ප්‍රමාණය : {qtyDisplay}</div>
+                                      {d.revenue > 0 && <div style={{ color: '#10b981', fontWeight: '700', fontSize: '13px' }}>ආදායම : Rs. {Number(d.revenue).toFixed(2)}</div>}
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            <Bar dataKey="qty" radius={[6, 6, 0, 0]}>
+                              {chartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={`url(#barGrad${index % 5})`} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="empty-chart">{t('reports.noSalesData')}</div>
+                      )}
+                    </div>
+
+                    {/* 7-Day Sales Trend Line Chart */}
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        📈 පසුගිය දිනයන් 7 ක් විකුණුම් (7-Day Sales Trend)
+                      </div>
+                      {dailyChartData.some(d => d.sales > 0) ? (
+                        <ResponsiveContainer width="100%" height={200}>
+                          <LineChart data={dailyChartData}>
+                            <defs>
+                              <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stopColor="#8b5cf6" />
+                                <stop offset="100%" stopColor="#3b82f6" />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" />
+                            <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={11} tick={{ fontWeight: 600 }} />
+                            <YAxis stroke="var(--text-secondary)" fontSize={11} tickFormatter={v => `Rs.${(v/1000).toFixed(0)}k`} />
+                            <Tooltip
+                              contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', padding: '10px 14px' }}
+                              formatter={(value) => [`Rs. ${Number(value).toFixed(2)}`, 'විකුණුම්']}
+                              labelStyle={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '13px' }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="sales"
+                              stroke="url(#lineGrad)"
+                              strokeWidth={3}
+                              dot={{ fill: '#8b5cf6', r: 5, strokeWidth: 2, stroke: '#fff' }}
+                              activeDot={{ r: 7, fill: '#3b82f6' }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="empty-chart" style={{ padding: '30px', fontSize: '13px' }}>
+                          පසුගිය දිනයන් 7 ක් ගනුදෙනු නොමැත
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ) : activeTab === 'daily' ? (
                   <div className="daily-report-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                      <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
