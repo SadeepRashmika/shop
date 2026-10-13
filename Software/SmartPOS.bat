@@ -45,10 +45,10 @@ if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" (
 
 :: Launch in native Standalone App Window mode
 if defined EDGE_EXE (
-    start "" "!EDGE_EXE!" --app="!FILE_URL!" --user-data-dir="!DATA_DIR!" --allow-file-access-from-files --start-maximized --disable-features=Translate
+    start "" "!EDGE_EXE!" --app="!FILE_URL!" --user-data-dir="!DATA_DIR!" --allow-file-access-from-files --start-maximized --disable-features=Translate --kiosk-printing
     exit /b 0
 ) else if defined CHROME_EXE (
-    start "" "!CHROME_EXE!" --app="!FILE_URL!" --user-data-dir="!DATA_DIR!" --allow-file-access-from-files --start-maximized --disable-features=Translate
+    start "" "!CHROME_EXE!" --app="!FILE_URL!" --user-data-dir="!DATA_DIR!" --allow-file-access-from-files --start-maximized --disable-features=Translate --kiosk-printing
     exit /b 0
 ) else (
     :: Fallback to default browser

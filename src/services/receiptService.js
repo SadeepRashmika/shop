@@ -99,6 +99,10 @@ export function generateBillPDF(billData) {
   const change = Math.max(0, tendered - billTotal);
   const creditOwed = Math.max(0, billTotal - tendered);
 
+  // Cash drawer should open IF cash was paid (Full cash OR partial cash on credit)
+  // Should NOT open on 100% unpaid credit or home use
+  const hasCashPayment = !isHomeUse && (isCash || tendered > 0 || Number(billData.tenderedAmount) > 0);
+
   const html = `
 <!DOCTYPE html>
 <html lang="si">
@@ -111,31 +115,13 @@ export function generateBillPDF(billData) {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 400;
-      src: local('Noto Sans Sinhala'), url('${origin}/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
-    }
-    @font-face {
-      font-family: 'Noto Sans Sinhala';
-      font-style: normal;
-      font-weight: 600;
-      src: local('Noto Sans Sinhala SemiBold'), url('${origin}/fonts/NotoSansSinhala-SemiBold.ttf') format('truetype');
+      src: local('Noto Sans Sinhala'), local('Nirmala UI'), url('${origin}/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
     }
     @font-face {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 700;
-      src: local('Noto Sans Sinhala Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
-    }
-    @font-face {
-      font-family: 'Noto Sans Sinhala';
-      font-style: normal;
-      font-weight: 800;
-      src: local('Noto Sans Sinhala ExtraBold'), local('Noto Sans Sinhala Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
-    }
-    @font-face {
-      font-family: 'Noto Sans Sinhala';
-      font-style: normal;
-      font-weight: 900;
-      src: local('Noto Sans Sinhala Black'), local('Noto Sans Sinhala Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+      src: local('Noto Sans Sinhala Bold'), local('Nirmala UI Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
     }
     * { 
       margin: 0; 
@@ -145,15 +131,13 @@ export function generateBillPDF(billData) {
       word-spacing: normal !important;
     }
     body {
-      font-family: 'Noto Sans Sinhala', 'Nirmala UI', 'Iskoola Pota', 'FMAbhaya', 'Segoe UI', Arial, sans-serif !important;
+      font-family: 'Nirmala UI', 'Noto Sans Sinhala', 'Iskoola Pota', Arial, sans-serif !important;
       width: 80mm;
       margin: 0 auto;
       padding: 4mm;
       color: #000;
       font-size: 13px;
       font-weight: 700;
-      text-rendering: optimizeLegibility;
-      font-feature-settings: "kern" 1, "liga" 1;
       -webkit-font-smoothing: antialiased;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
@@ -210,6 +194,7 @@ export function generateBillPDF(billData) {
   </style>
 </head>
 <body>
+  ${hasCashPayment ? `<div style="font-family: 'FontControl', 'Font Control', monospace; font-size: 10pt; line-height: 0; height: 0; color: #fff; margin: 0; padding: 0; overflow: hidden;">A</div>` : ''}
   <div class="header">
     <div class="shop-name">${shopInfo.name}</div>
     <div class="shop-info">${shopInfo.address}</div>
@@ -328,22 +313,8 @@ export function generateBillPDF(billData) {
     }
   };
 
-  try {
-    if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.status === 'loaded') {
-      setTimeout(triggerPrint, 10);
-    } else if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
-      iframe.contentWindow.document.fonts.ready.then(() => {
-        setTimeout(triggerPrint, 15);
-      }).catch(() => {
-        setTimeout(triggerPrint, 25);
-      });
-      setTimeout(triggerPrint, 80);
-    } else {
-      setTimeout(triggerPrint, 15);
-    }
-  } catch {
-    setTimeout(triggerPrint, 15);
-  }
+  // Instant print trigger
+  setTimeout(triggerPrint, 5);
 }
 
 // Generate Reload Receipt - supports Sinhala Unicode text cleanly on all browsers
@@ -353,6 +324,8 @@ export function generateReloadReceiptPDF(reloadRecord) {
   const shopInfo = getShopInfo();
   const billNum = reloadRecord.billNumber ? String(reloadRecord.billNumber).padStart(6, '0') : '000000';
   const dateStr = formatSriLankaDateTime(reloadRecord.date || reloadRecord.timestamp || getNow());
+
+  const isCashReload = (reloadRecord.paymentMethod || 'cash').toLowerCase() === 'cash';
 
   const html = `
 <!DOCTYPE html>
@@ -366,31 +339,13 @@ export function generateReloadReceiptPDF(reloadRecord) {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 400;
-      src: local('Noto Sans Sinhala'), url('${origin}/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
-    }
-    @font-face {
-      font-family: 'Noto Sans Sinhala';
-      font-style: normal;
-      font-weight: 600;
-      src: local('Noto Sans Sinhala SemiBold'), url('${origin}/fonts/NotoSansSinhala-SemiBold.ttf') format('truetype');
+      src: local('Noto Sans Sinhala'), local('Nirmala UI'), url('${origin}/fonts/NotoSansSinhala-Regular.ttf') format('truetype');
     }
     @font-face {
       font-family: 'Noto Sans Sinhala';
       font-style: normal;
       font-weight: 700;
-      src: local('Noto Sans Sinhala Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
-    }
-    @font-face {
-      font-family: 'Noto Sans Sinhala';
-      font-style: normal;
-      font-weight: 800;
-      src: local('Noto Sans Sinhala ExtraBold'), local('Noto Sans Sinhala Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
-    }
-    @font-face {
-      font-family: 'Noto Sans Sinhala';
-      font-style: normal;
-      font-weight: 900;
-      src: local('Noto Sans Sinhala Black'), local('Noto Sans Sinhala Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
+      src: local('Noto Sans Sinhala Bold'), local('Nirmala UI Bold'), url('${origin}/fonts/NotoSansSinhala-Bold.ttf') format('truetype');
     }
     * { 
       margin: 0; 
@@ -400,7 +355,7 @@ export function generateReloadReceiptPDF(reloadRecord) {
       word-spacing: normal !important;
     }
     body {
-      font-family: 'Noto Sans Sinhala', 'Nirmala UI', 'Iskoola Pota', 'FMAbhaya', 'Segoe UI', Arial, sans-serif !important;
+      font-family: 'Nirmala UI', 'Noto Sans Sinhala', 'Iskoola Pota', Arial, sans-serif !important;
       width: 80mm;
       margin: 0 auto;
       padding: 4mm;
@@ -408,8 +363,6 @@ export function generateReloadReceiptPDF(reloadRecord) {
       background: #fff;
       font-size: 13px;
       font-weight: 700;
-      text-rendering: optimizeLegibility;
-      font-feature-settings: "kern" 1, "liga" 1;
       -webkit-font-smoothing: antialiased;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
@@ -438,6 +391,7 @@ export function generateReloadReceiptPDF(reloadRecord) {
   </style>
 </head>
 <body>
+  ${isCashReload ? `<div style="font-family: 'FontControl', 'Font Control', monospace; font-size: 10pt; line-height: 0; height: 0; color: #fff; margin: 0; padding: 0; overflow: hidden;">A</div>` : ''}
   <div class="header">
     <div class="shop-name">${shopInfo.name}</div>
     <div class="shop-info">${shopInfo.address}</div>
@@ -513,20 +467,6 @@ export function generateReloadReceiptPDF(reloadRecord) {
     }
   };
 
-  try {
-    if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.status === 'loaded') {
-      setTimeout(triggerPrint, 10);
-    } else if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
-      iframe.contentWindow.document.fonts.ready.then(() => {
-        setTimeout(triggerPrint, 15);
-      }).catch(() => {
-        setTimeout(triggerPrint, 25);
-      });
-      setTimeout(triggerPrint, 80);
-    } else {
-      setTimeout(triggerPrint, 15);
-    }
-  } catch {
-    setTimeout(triggerPrint, 15);
-  }
+  // Instant print trigger
+  setTimeout(triggerPrint, 5);
 }

@@ -2621,7 +2621,7 @@ export default function Sales() {
                     <span></span>
                     <span></span>
                     <span></span>
-                    <span style={{ fontWeight: 700, color: 'var(--success-500)' }}>
+                    <span style={{ fontWeight: 800, color: '#16a34a' }}>
                       Rs. {Math.max(0, Number(selectedBill.tenderedAmount) - Number(selectedBill.total)).toFixed(2)}
                     </span>
                   </div>
