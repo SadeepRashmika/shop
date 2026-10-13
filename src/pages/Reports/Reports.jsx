@@ -423,7 +423,9 @@ export default function Reports() {
         if (data.items) {
           data.items.forEach(item => {
             const invItem = invMap[item.id] || invMap[item.name];
-            const unitCost = invItem ? (Number(invItem.purchasePrice) || 0) : 0;
+            const unitCost = (item.purchasePrice !== undefined && item.purchasePrice !== null && !isNaN(Number(item.purchasePrice)))
+              ? Number(item.purchasePrice)
+              : (invItem ? (Number(invItem.purchasePrice) || 0) : 0);
             txnCost += (Number(item.quantity) || 0) * unitCost;
           });
         }
@@ -572,7 +574,9 @@ export default function Reports() {
           if (data.items) {
             data.items.forEach(item => {
               const invItem = inventoryItems[item.id] || inventoryItems[item.name];
-              const unitCost = invItem ? (Number(invItem.purchasePrice) || 0) : 0;
+              const unitCost = (item.purchasePrice !== undefined && item.purchasePrice !== null && !isNaN(Number(item.purchasePrice)))
+                ? Number(item.purchasePrice)
+                : (invItem ? (Number(invItem.purchasePrice) || 0) : 0);
               const itemCost = (Number(item.quantity) || 0) * unitCost;
               txnCost += itemCost;
 

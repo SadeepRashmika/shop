@@ -1229,10 +1229,13 @@ export default function Sales() {
       const cartItems = cart.map(item => {
         const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
         const effectivePrice = (isCreditMode && mPrice > Number(item.sellPrice)) ? mPrice : Number(item.sellPrice);
+        const invCost = items.find(it => it.id === item.id)?.purchasePrice;
+        const purchasePrice = Number(item.purchasePrice !== undefined ? item.purchasePrice : (invCost || 0));
         return {
           id: item.id,
           itemNo: item.itemNo || null,
           name: item.name,
+          purchasePrice: isNaN(purchasePrice) ? 0 : purchasePrice,
           markedPrice: mPrice,
           sellPrice: effectivePrice,
           quantity: Number(item.quantity),
@@ -1542,10 +1545,13 @@ export default function Sales() {
       const updatedCartItems = cart.map(item => {
         const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
         const effectivePrice = (isCreditMode && mPrice > Number(item.sellPrice)) ? mPrice : Number(item.sellPrice);
+        const invCost = items.find(it => it.id === item.id)?.purchasePrice;
+        const purchasePrice = Number(item.purchasePrice !== undefined ? item.purchasePrice : (invCost || 0));
         return {
           id: item.id,
           itemNo: item.itemNo || null,
           name: item.name,
+          purchasePrice: isNaN(purchasePrice) ? 0 : purchasePrice,
           markedPrice: mPrice,
           sellPrice: effectivePrice,
           quantity: Number(item.quantity),

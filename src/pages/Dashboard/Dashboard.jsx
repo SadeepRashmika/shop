@@ -327,7 +327,9 @@ export default function Dashboard() {
               if (data.items && Array.isArray(data.items)) {
                 data.items.forEach(item => {
                   const invItem = itemsMap[item.id] || itemsMap[item.name];
-                  const unitCost = invItem ? (Number(invItem.purchasePrice) || 0) : 0;
+                  const unitCost = (item.purchasePrice !== undefined && item.purchasePrice !== null && !isNaN(Number(item.purchasePrice)))
+                    ? Number(item.purchasePrice)
+                    : (invItem ? (Number(invItem.purchasePrice) || 0) : 0);
                   txnCost += (Number(item.quantity) || 0) * unitCost;
                 });
               }
