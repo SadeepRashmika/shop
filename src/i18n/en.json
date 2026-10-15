@@ -66,6 +66,7 @@
     "recentSales": "Recent Sales",
     "quickActions": "Quick Actions",
     "todaySales": "Today's Sales",
+    "todayCreditSales": "Today's Credit Sales",
     "lowStockItems": "Low Stock Items",
     "printPdf": "Save PDF"
   },

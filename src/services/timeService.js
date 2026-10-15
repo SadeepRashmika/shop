@@ -291,11 +291,38 @@ export function getTodayDateString() {
 /**
  * Get 'YYYY-MM' string for Current Month in Sri Lanka
  */
+/**
+ * Get 'YYYY-MM' string for Current Month in Sri Lanka
+ */
 export function getCurrentMonthString() {
   const p = getSriLankaDateParts(getTrueUtcMs());
   const m = String(p.month + 1).padStart(2, '0');
   return `${p.year}-${m}`;
 }
+
+/**
+ * Format any timestamp into 'YYYY-MM-DD' in Sri Lanka time
+ */
+export function toSriLankaDateString(value) {
+  const sec = toUtcSeconds(value);
+  if (!sec) return '';
+  const p = getSriLankaDateParts(sec * 1000);
+  const m = String(p.month + 1).padStart(2, '0');
+  const d = String(p.date).padStart(2, '0');
+  return `${p.year}-${m}-${d}`;
+}
+
+/**
+ * Format any timestamp into 'YYYY-MM' in Sri Lanka time
+ */
+export function toSriLankaMonthString(value) {
+  const sec = toUtcSeconds(value);
+  if (!sec) return '';
+  const p = getSriLankaDateParts(sec * 1000);
+  const m = String(p.month + 1).padStart(2, '0');
+  return `${p.year}-${m}`;
+}
+
 
 /**
  * Get 'YYYY' string for Current Year in Sri Lanka

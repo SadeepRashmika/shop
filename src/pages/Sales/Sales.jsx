@@ -566,7 +566,9 @@ export default function Sales() {
         setItems(loadedItems);
 
         const debtorSnapshot = await getDocs(collection(db, 'debtors'));
-        setDebtors(debtorSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const loadedDebtors = debtorSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        loadedDebtors.sort((a, b) => (Number(a.debtorNo) || 9999) - (Number(b.debtorNo) || 9999));
+        setDebtors(loadedDebtors);
 
         try {
           const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
@@ -608,6 +610,24 @@ export default function Sales() {
     };
     fetchData();
   }, []);
+
+  // Helper: get default debtor (prefer #1, then debtor named 'වෙනත් ණය', then first debtor)
+  const getDefaultDebtor = (debtorList = debtors) => {
+    if (!debtorList || debtorList.length === 0) return null;
+    return debtorList.find(d => Number(d.debtorNo) === 1) ||
+           debtorList.find(d => d.name?.includes('වෙනත්') || d.name?.toLowerCase().includes('other')) ||
+           debtorList[0];
+  };
+
+  // Automatically pre-select default debtor (e.g. #1 වෙනත් ණය) when payment method is credit
+  useEffect(() => {
+    if (paymentMethod === 'credit' && !selectedDebtor && debtors.length > 0) {
+      const def = getDefaultDebtor(debtors);
+      if (def) {
+        setSelectedDebtor(def);
+      }
+    }
+  }, [paymentMethod, debtors, selectedDebtor]);
 
   // F1 keyboard shortcut, Arrow Key navigation + Enter OK for Bill Preview / Checkout Modal
   // AND + / - keys to change cart item quantity
@@ -1223,6 +1243,7 @@ export default function Sales() {
 
       const transactionId = `TXN${Date.now()}`;
       const isCreditMode = paymentMethod === 'credit';
+      const finalDebtor = isCreditMode ? (selectedDebtor || getDefaultDebtor(debtors)) : null;
       const upfrontPayment = isCreditMode ? (parseFloat(tenderedAmount) || 0) : 0;
       const creditAmount = isCreditMode ? Math.max(0, subtotal - upfrontPayment) : 0;
 
@@ -1251,9 +1272,9 @@ export default function Sales() {
         tenderedAmount: parseFloat(tenderedAmount) || (paymentMethod === 'cash' ? subtotal : 0),
         paidAmount: paymentMethod === 'cash' ? subtotal : upfrontPayment,
         creditAmount: isCreditMode ? creditAmount : 0,
-        debtorId: (isCreditMode && selectedDebtor) ? selectedDebtor.id : null,
-        debtorName: (isCreditMode && selectedDebtor) ? selectedDebtor.name : null,
-        debtorPhone: (isCreditMode && selectedDebtor) ? (selectedDebtor.phone || '') : null,
+        debtorId: (isCreditMode && finalDebtor) ? finalDebtor.id : null,
+        debtorName: (isCreditMode && finalDebtor) ? finalDebtor.name : null,
+        debtorPhone: (isCreditMode && finalDebtor) ? (finalDebtor.phone || '') : null,
         cashierId: userData?.uid || 'unknown',
         cashierName: userData?.name || 'Unknown',
         timestamp: serverTimestamp(),
@@ -1269,8 +1290,8 @@ export default function Sales() {
       batch.set(txnRef, transactionData);
 
       // 2. Debtor totalOwed update if credit
-      if (paymentMethod === 'credit' && selectedDebtor) {
-        const debtorRef = doc(db, 'debtors', selectedDebtor.id);
+      if (paymentMethod === 'credit' && finalDebtor) {
+        const debtorRef = doc(db, 'debtors', finalDebtor.id);
         batch.set(debtorRef, {
           totalOwed: increment(creditAmount)
         }, { merge: true });
@@ -1298,9 +1319,9 @@ export default function Sales() {
             date: getNow()
           };
 
-          if (paymentMethod === 'credit' && selectedDebtor) {
-            reloadRecord.debtorId = selectedDebtor.id;
-            reloadRecord.debtorName = selectedDebtor.name;
+          if (paymentMethod === 'credit' && finalDebtor) {
+            reloadRecord.debtorId = finalDebtor.id;
+            reloadRecord.debtorName = finalDebtor.name;
           }
 
           const rRef = doc(db, 'reloads', reloadId);
@@ -1380,10 +1401,18 @@ export default function Sales() {
         total: subtotal,
         paymentMethod,
         tenderedAmount: parseFloat(tenderedAmount) || (paymentMethod === 'cash' ? subtotal : 0),
+        paidAmount: paymentMethod === 'cash' ? subtotal : upfrontPayment,
+        creditAmount: isCreditMode ? creditAmount : 0,
         cashierName: userData?.name || 'Unknown',
-        debtorName: paymentMethod === 'credit' ? selectedDebtor?.name : null,
+        debtorName: paymentMethod === 'credit' ? finalDebtor?.name : null,
+        debtorId: paymentMethod === 'credit' ? finalDebtor?.id : null,
         date: getNow()
       };
+
+      // Instantly update in-memory debtor total debt
+      if (paymentMethod === 'credit' && finalDebtor) {
+        setDebtors(prev => prev.map(d => d.id === finalDebtor.id ? { ...d, totalOwed: (Number(d.totalOwed) || 0) + creditAmount } : d));
+      }
 
       setLastTransactionId(transactionId);
       setLastBillNumber(billNumber);
@@ -2629,6 +2658,28 @@ export default function Sales() {
                     <span></span>
                     <span style={{ fontWeight: 800, color: '#16a34a' }}>
                       Rs. {Math.max(0, Number(selectedBill.tenderedAmount) - Number(selectedBill.total)).toFixed(2)}
+                    </span>
+                  </div>
+                </>
+              )}
+              {selectedBill.paymentMethod === 'credit' && (
+                <>
+                  <div className="bill-table-total" style={{ borderTop: '1px dashed var(--border-color)', marginTop: '4px', paddingTop: '4px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                    <span>මුදලින් දුන් ගණන (Paid Upfront)</span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span style={{ fontWeight: 700, color: '#10b981' }}>
+                      Rs. {Number(selectedBill.paidAmount !== undefined ? selectedBill.paidAmount : (selectedBill.tenderedAmount || 0)).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="bill-table-total" style={{ borderTop: 'none', paddingTop: '2px', fontSize: '0.95rem', color: '#dc2626' }}>
+                    <span>ණය මුදල (Credit Owed)</span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span style={{ fontWeight: 900, color: '#dc2626' }}>
+                      Rs. {Number(selectedBill.creditAmount !== undefined ? selectedBill.creditAmount : Math.max(0, Number(selectedBill.total) - Number(selectedBill.paidAmount || selectedBill.tenderedAmount || 0))).toFixed(2)}
                     </span>
                   </div>
                 </>

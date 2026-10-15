@@ -97,7 +97,9 @@ export function generateBillPDF(billData) {
     : (isCash ? billTotal : 0);
 
   const change = Math.max(0, tendered - billTotal);
-  const creditOwed = Math.max(0, billTotal - tendered);
+  const creditOwed = billData.creditAmount !== undefined && billData.creditAmount !== null
+    ? Number(billData.creditAmount)
+    : Math.max(0, billTotal - tendered);
 
   // Cash drawer should open IF cash was paid (Full cash OR partial cash on credit)
   // Should NOT open on 100% unpaid credit or home use
