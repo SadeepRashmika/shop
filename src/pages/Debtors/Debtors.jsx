@@ -7,7 +7,11 @@ import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
-import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiUser, FiPhone, FiCreditCard, FiDownload, FiDollarSign, FiList, FiUsers, FiAlertTriangle, FiX, FiClock } from 'react-icons/fi';
+import { 
+  FiPlus, FiSearch, FiEdit2, FiTrash2, FiUser, FiPhone, FiCreditCard, 
+  FiDownload, FiDollarSign, FiList, FiUsers, FiAlertTriangle, FiX, FiClock,
+  FiArrowUpRight, FiArrowDownLeft, FiShoppingBag, FiSmartphone, FiCheckCircle, FiFileText
+} from 'react-icons/fi';
 import JsBarcode from 'jsbarcode';
 import * as XLSX from 'xlsx';
 import './Debtors.css';
@@ -906,76 +910,47 @@ export default function Debtors() {
 
       {/* Overdue Debtors Alert Banner */}
       {overdueDebtors.length > 0 && !overdueAlertDismissed && (
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(234, 88, 12, 0.10) 100%)',
-          border: '1px solid rgba(239, 68, 68, 0.35)',
-          borderRadius: '16px',
-          padding: '16px 20px',
-          marginBottom: '1.25rem',
-          position: 'relative',
-          animation: 'fadeIn 0.4s ease'
-        }}>
-          {/* Dismiss button */}
+        <div className="debtors-overdue-banner">
           <button
             onClick={() => setOverdueAlertDismissed(true)}
-            style={{ position: 'absolute', top: '10px', right: '12px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', color: '#ef4444', cursor: 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center' }}
+            className="overdue-dismiss-btn"
             title="වසන්න"
           >
             <FiX style={{ fontSize: '14px' }} />
           </button>
 
-          {/* Alert Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-            <div style={{ background: 'rgba(239, 68, 68, 0.2)', borderRadius: '10px', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="overdue-header">
+            <div className="overdue-icon-wrap">
               <FiAlertTriangle style={{ fontSize: '20px', color: '#ef4444' }} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#ef4444' }}>
+              <h3 className="overdue-title">
                 ⚠️ දින {OVERDUE_DAYS}+ ගෙවීමක් නොකළ ණයගැතියන් ({overdueDebtors.length} දෙනෙක්)
               </h3>
-              <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+              <p className="overdue-subtitle">
                 පහත පාරිභෝගිකයින් බොහෝ කලයක් ණය ගෙවීමක් කර නැත. කරුණාකර ඔවුන් හා සම්බන්ධ වන්න.
               </p>
             </div>
           </div>
 
-          {/* Overdue Debtors List */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          <div className="overdue-cards-grid">
             {overdueDebtors.map(od => (
               <div
                 key={od.id}
                 onClick={() => handleOpenLedger(od)}
-                style={{
-                  background: 'rgba(239, 68, 68, 0.08)',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
-                  borderRadius: '12px',
-                  padding: '10px 14px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  minWidth: '200px',
-                  flex: '1 1 220px',
-                  maxWidth: '320px'
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.18)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                className="overdue-card"
                 title={`${od.name} - Ledger බලන්න`}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <span style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-primary)' }}>
-                    #{od.debtorNo} {od.name}
-                  </span>
-                  <span style={{ fontWeight: 800, fontSize: '14px', color: '#ef4444' }}>
-                    Rs. {Number(od.totalOwed).toFixed(2)}
-                  </span>
+                <div className="overdue-card-top">
+                  <span className="overdue-card-name">#{od.debtorNo} {od.name}</span>
+                  <span className="overdue-card-amount">Rs. {Number(od.totalOwed).toFixed(2)}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <FiClock style={{ fontSize: '12px', color: '#f59e0b' }} />
-                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#f59e0b' }}>
-                    {od.daysSincePayment >= 999 ? 'කිසිදා ගෙවීමක් කර නැත' : `දින ${od.daysSincePayment}ක් ගෙවීමක් නැත`}
-                  </span>
+                <div className="overdue-card-days">
+                  <FiClock style={{ fontSize: '12px' }} />
+                  <span>{od.daysSincePayment >= 999 ? 'කිසිදා ගෙවීමක් කර නැත' : `දින ${od.daysSincePayment}ක් ගෙවීමක් නැත`}</span>
                 </div>
                 {od.lastPaymentDate && (
-                  <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '3px', fontWeight: 600 }}>
+                  <div className="overdue-card-lastpay">
                     අවසන් ගෙවීම: {od.lastPaymentDate.toLocaleDateString('si-LK', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </div>
                 )}
@@ -986,75 +961,48 @@ export default function Debtors() {
       )}
 
       {/* Debt Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+      <div className="debtors-kpi-grid">
         
         {/* Total Debt Card */}
         <div 
-          className="glass-card cursor-pointer" 
+          className="debtors-kpi-card kpi-debt"
           onClick={() => { setFilterType('with_debt'); setSortBy('debt_desc'); }}
           title="ණය ඇති අය වැඩිම ණය සිට පිළිවෙළට පෙරන්න"
-          style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #ef4444', transition: 'transform 0.2s ease', cursor: 'pointer' }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              📝 මුළු ණය එකතුව (Total Debt)
-            </span>
-            <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '6px', borderRadius: '10px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <FiDollarSign />
-            </span>
+          <div className="kpi-header">
+            <span className="kpi-label" style={{ color: '#ef4444' }}>📝 මුළු ණය එකතුව</span>
+            <span className="kpi-icon icon-debt"><FiDollarSign /></span>
           </div>
-          <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#ef4444', margin: '10px 0 4px 0' }}>
-            Rs. {totalDebt.toFixed(2)}
-          </h2>
-          <div style={{ fontSize: '0.8rem', opacity: 0.85, fontWeight: 600, color: 'var(--text-muted)' }}>
-            පාරිභෝගිකයින්ගෙන් අයවීමට ඇති මුළු ශේෂය
-          </div>
+          <h2 className="kpi-value val-debt">Rs. {totalDebt.toFixed(2)}</h2>
+          <div className="kpi-desc">පාරිභෝගිකයින්ගෙන් අයවීමට ඇති මුළු ශේෂය</div>
         </div>
 
         {/* Total Debtors Count */}
         <div 
-          className="glass-card cursor-pointer" 
+          className="debtors-kpi-card kpi-total"
           onClick={() => { setFilterType('all'); }}
           title="සියලු ණයගැතියන් පෙන්වන්න"
-          style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #3b82f6', cursor: 'pointer' }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              👥 ලියාපදිංචි ණයගැතියන්
-            </span>
-            <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '6px', borderRadius: '10px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <FiUsers />
-            </span>
+          <div className="kpi-header">
+            <span className="kpi-label" style={{ color: 'var(--primary-400)' }}>👥 ලියාපදිංචි ණයගැතියන්</span>
+            <span className="kpi-icon icon-total"><FiUsers /></span>
           </div>
-          <h2 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary, #0f172a)', margin: '10px 0 4px 0' }}>
-            {debtors.length}
-          </h2>
-          <div style={{ fontSize: '0.8rem', opacity: 0.85, fontWeight: 600, color: 'var(--text-muted)' }}>
-            මුළු ලියාපදිංචි පාරිභෝගිකයින් ගණන
-          </div>
+          <h2 className="kpi-value val-total">{debtors.length}</h2>
+          <div className="kpi-desc">මුළු ලියාපදිංචි පාරිභෝගිකයින් ගණන</div>
         </div>
 
         {/* Active Debtors (With Debt > 0) */}
         <div 
-          className="glass-card cursor-pointer" 
+          className="debtors-kpi-card kpi-active"
           onClick={() => { setFilterType('with_debt'); setSortBy('debt_desc'); }}
           title="ණය ගෙවීමට ඇති අය පමණක් වැඩිම ණය සිට පෙරන්න"
-          style={{ padding: '1.25rem', borderRadius: '16px', borderLeft: '5px solid #f59e0b', cursor: 'pointer' }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              ⚠️ ණය ගෙවීමට ඇති අය
-            </span>
-            <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '6px', borderRadius: '10px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <FiCreditCard />
-            </span>
+          <div className="kpi-header">
+            <span className="kpi-label" style={{ color: '#f59e0b' }}>⚠️ ණය ගෙවීමට ඇති අය</span>
+            <span className="kpi-icon icon-active"><FiCreditCard /></span>
           </div>
-          <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#f59e0b', margin: '10px 0 4px 0' }}>
-            {activeDebtorsCount}
-          </h2>
-          <div style={{ fontSize: '0.8rem', opacity: 0.85, fontWeight: 600, color: 'var(--text-muted)' }}>
-            දැනට ණය ශේෂයක් ඇති පාරිභෝගිකයින්
-          </div>
+          <h2 className="kpi-value val-active">{activeDebtorsCount}</h2>
+          <div className="kpi-desc">දැනට ණය ශේෂයක් ඇති පාරිභෝගිකයින්</div>
         </div>
 
       </div>
@@ -1073,38 +1021,18 @@ export default function Debtors() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           {/* Quick Filter Buttons */}
-          <div style={{ display: 'flex', background: 'var(--bg-glass, rgba(255,255,255,0.05))', borderRadius: '10px', padding: '3px', border: '1px solid var(--border-color)' }}>
+          <div className="debtors-filter-group">
             <button
               type="button"
               onClick={() => setFilterType('all')}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: 'none',
-                background: filterType === 'all' ? 'var(--primary-500, #3b82f6)' : 'transparent',
-                color: filterType === 'all' ? '#fff' : 'var(--text-secondary)',
-                fontWeight: 700,
-                fontSize: '13px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
+              className={`debtors-filter-btn ${filterType === 'all' ? 'active-all' : ''}`}
             >
               සියල්ල ({debtors.length})
             </button>
             <button
               type="button"
               onClick={() => setFilterType('with_debt')}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: 'none',
-                background: filterType === 'with_debt' ? '#f59e0b' : 'transparent',
-                color: filterType === 'with_debt' ? '#fff' : 'var(--text-secondary)',
-                fontWeight: 700,
-                fontSize: '13px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
+              className={`debtors-filter-btn ${filterType === 'with_debt' ? 'active-debt' : ''}`}
             >
               ⚠️ ණය ඇති අය ({activeDebtorsCount})
             </button>
@@ -1116,23 +1044,13 @@ export default function Debtors() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="search-input"
-              style={{
-                padding: '6px 12px',
-                fontSize: '13px',
-                fontWeight: 700,
-                borderRadius: '10px',
-                border: '1px solid var(--border-color)',
-                background: 'var(--bg-glass, rgba(255, 255, 255, 0.05))',
-                color: 'var(--text-primary)',
-                cursor: 'pointer'
-              }}
+              className="debtors-sort-select"
             >
-              <option value="debt_desc" style={{ background: '#1e293b', color: '#fff' }}>📉 ණය වැඩිම සිට අඩුම (Highest Debt First)</option>
-              <option value="debt_asc" style={{ background: '#1e293b', color: '#fff' }}>📈 ණය අඩුම සිට වැඩිම (Lowest Debt First)</option>
-              <option value="no_asc" style={{ background: '#1e293b', color: '#fff' }}>🔢 අංකය (1, 2, 3...)</option>
-              <option value="no_desc" style={{ background: '#1e293b', color: '#fff' }}>🔢 අංකය (අවසානය මුලට)</option>
-              <option value="name_asc" style={{ background: '#1e293b', color: '#fff' }}>🔤 නම (A - Z)</option>
+              <option value="debt_desc">📉 ණය වැඩිම සිට අඩුම</option>
+              <option value="debt_asc">📈 ණය අඩුම සිට වැඩිම</option>
+              <option value="no_asc">🔢 අංකය (1, 2, 3...)</option>
+              <option value="no_desc">🔢 අංකය (අවසානය මුලට)</option>
+              <option value="name_asc">🔤 නම (A - Z)</option>
             </select>
           </div>
         </div>
@@ -1166,20 +1084,35 @@ export default function Debtors() {
             </thead>
             <tbody>
               {filteredDebtors.length > 0 ? (
-                filteredDebtors.map(debtor => (
+                filteredDebtors.map(debtor => {
+                  const owed = Number(debtor.totalOwed) || 0;
+                  return (
                   <tr key={debtor.id} className="cursor-pointer" onClick={() => handleOpenLedger(debtor)}>
-                    <td className="font-bold text-secondary">#{debtor.debtorNo || '-'}</td>
+                    <td><span className="debtor-no-badge">#{debtor.debtorNo || '-'}</span></td>
                     <td>
                         <div className="debtor-name-cell">
                           <div className="debtor-avatar">{debtor.name.charAt(0).toUpperCase()}</div>
                           <div>
-                            <span className="font-medium d-block">{debtor.name}</span>
+                            <span className="font-medium d-block" style={{ fontWeight: 700 }}>{debtor.name}</span>
                             <span className="text-secondary text-sm">{debtor.address}</span>
                           </div>
                         </div>
                     </td>
-                    <td>{debtor.phone}</td>
-                    <td className="font-bold text-error">Rs. {Number(debtor.totalOwed).toFixed(2)}</td>
+                    <td>
+                      {debtor.phone ? (
+                        <span className="debtor-phone-badge">
+                          <FiPhone style={{ fontSize: '12px' }} />
+                          {debtor.phone}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>—</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`debt-amount ${owed > 0 ? 'has-debt' : 'no-debt'}`}>
+                        Rs. {owed.toFixed(2)}
+                      </span>
+                    </td>
                     <td>
                         <div className="barcode-cell" onClick={(e) => { e.stopPropagation(); downloadBarcode(debtor.barcode, debtor.name); }}>
                           <span className="barcode-text">{debtor.barcode}</span>
@@ -1188,13 +1121,13 @@ export default function Debtors() {
                     </td>
                     <td>
                       <div className="action-buttons">
-                        <button className="icon-btn action-btn bg-success-dim text-success" onClick={(e) => { e.stopPropagation(); handleOpenTransaction(debtor, 'payment'); }} title="Add Payment">
+                        <button className="icon-btn action-btn btn-pay" onClick={(e) => { e.stopPropagation(); handleOpenTransaction(debtor, 'payment'); }} title="Add Payment">
                           <FiDollarSign /> Pay
                         </button>
-                        <button className="icon-btn action-btn" style={{background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444'}} onClick={(e) => { e.stopPropagation(); handleOpenTransaction(debtor, 'loan'); }} title="Add Loan">
+                        <button className="icon-btn action-btn btn-loan" onClick={(e) => { e.stopPropagation(); handleOpenTransaction(debtor, 'loan'); }} title="Add Loan">
                           <FiPlus /> Loan
                         </button>
-                        <button className="icon-btn action-btn bg-primary-dim text-primary" onClick={(e) => { e.stopPropagation(); handleOpenLedger(debtor); }} title="View Ledger">
+                        <button className="icon-btn action-btn btn-ledger" onClick={(e) => { e.stopPropagation(); handleOpenLedger(debtor); }} title="View Ledger">
                           <FiList /> Hx
                         </button>
                         <button className="icon-btn edit-btn" onClick={(e) => { e.stopPropagation(); handleOpenEdit(debtor); }} title={t('common.edit')}>
@@ -1206,7 +1139,8 @@ export default function Debtors() {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan="6" className="empty-state">No debtors found.</td>
@@ -1318,35 +1252,84 @@ export default function Debtors() {
       <Modal 
         isOpen={isLedgerOpen} 
         onClose={() => setIsLedgerOpen(false)}
-        title={`Debtor Profile`}
+        title="Debtor Profile & Transaction Ledger"
+        size="lg"
       >
         <div className="ledger-container">
-           <div className="flex flex-wrap justify-between items-start mb-6" style={{ background: 'rgba(0,0,0,0.04)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.08)' }}>
-               <div>
-                 <h2 className="text-xl font-bold mb-2" style={{ color: '#0f172a', fontWeight: 800 }}>
-                   {ledgerDebtor?.name} <span style={{ fontSize: '12px', color: '#475569', background: 'rgba(0,0,0,0.06)', padding: '2px 8px', borderRadius: '6px', marginLeft: '6px', fontWeight: 700 }}>#{ledgerDebtor?.debtorNo || '-'}</span>
-                 </h2>
-                 <p className="text-sm mb-1" style={{ color: '#334155', fontWeight: 600 }}><FiPhone className="inline mr-2"/>{ledgerDebtor?.phone}</p>
-                 <p className="text-sm mb-1" style={{ color: '#334155', fontWeight: 600 }}><FiUser className="inline mr-2"/>{ledgerDebtor?.address || 'No Address Provided'}</p>
-                 <p className="text-sm" style={{ color: '#334155', fontWeight: 600 }}><FiCreditCard className="inline mr-2"/>{ledgerDebtor?.barcode}</p>
+           {/* Profile Header Card */}
+           <div className="ledger-profile-card">
+             <div className="ledger-profile-header">
+               <div className="ledger-profile-identity">
+                 <div className="ledger-avatar">
+                   {(ledgerDebtor?.name || 'D').charAt(0).toUpperCase()}
+                 </div>
+                 <div className="ledger-profile-info">
+                   <div className="ledger-title-row">
+                     <h2>{ledgerDebtor?.name || 'නම සඳහන් කර නැත'}</h2>
+                     <span className="ledger-no-badge">#{ledgerDebtor?.debtorNo || '-'}</span>
+                   </div>
+                   <div className="ledger-meta-badges">
+                     {ledgerDebtor?.phone ? (
+                       <span className="ledger-meta-pill">
+                         <FiPhone /> {ledgerDebtor.phone}
+                       </span>
+                     ) : null}
+                     <span className="ledger-meta-pill">
+                       <FiUser /> {ledgerDebtor?.address || 'ලිපිනයක් නැත'}
+                     </span>
+                     {ledgerDebtor?.barcode ? (
+                       <span className="ledger-meta-pill barcode">
+                         <FiCreditCard /> {ledgerDebtor.barcode}
+                       </span>
+                     ) : null}
+                   </div>
+                 </div>
                </div>
-               <div className="text-right">
-                 <p className="text-sm mb-1" style={{ color: '#475569', fontWeight: 700 }}>Total Outstanding Debt</p>
-                 <h3 className="text-error font-bold text-3xl" style={{ color: '#dc2626', fontWeight: 800 }}>Rs. {Number(ledgerDebtor?.totalOwed || 0).toFixed(2)}</h3>
+
+               {/* Outstanding Debt Stat Box */}
+               <div className={`ledger-debt-card ${Number(ledgerDebtor?.totalOwed || 0) > 0 ? 'has-debt' : 'zero-debt'}`}>
+                 <div className="ledger-debt-label">
+                   {Number(ledgerDebtor?.totalOwed || 0) > 0 ? 'හිඟ ණය ශේෂය (Outstanding Debt)' : 'ණය ශේෂය (Debt Balance)'}
+                 </div>
+                 <div className="ledger-debt-value">
+                   Rs. {Number(ledgerDebtor?.totalOwed || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                 </div>
+                 <div className="ledger-debt-status">
+                   {Number(ledgerDebtor?.totalOwed || 0) > 0 ? (
+                     <span className="status-badge debt-pending">● ගෙවීමට ඉතිරිව ඇත</span>
+                   ) : (
+                     <span className="status-badge debt-cleared">✓ සියලු ණය පියවා ඇත</span>
+                   )}
+                 </div>
                </div>
+             </div>
            </div>
            
-           <div className="flex justify-between items-center mb-2">
-             <h3 className="font-bold text-lg" style={{ color: '#0f172a', fontWeight: 800 }}>Transaction Ledger</h3>
-             <Button onClick={downloadSingleLedger} variant="secondary" icon={<FiDownload />} size="sm">
-               Export Excel
-             </Button>
+           {/* Ledger Table Toolbar */}
+           <div className="ledger-table-header">
+             <div className="ledger-table-title">
+               <FiList className="title-icon" />
+               <h3>ගනුදෙනු ලෙජරය (Transaction Ledger)</h3>
+               <span className="ledger-count-pill">{ledgerHistory?.length || 0} Records</span>
+             </div>
+             <button 
+               type="button" 
+               onClick={downloadSingleLedger} 
+               className="ledger-export-btn"
+               title="Export transaction history to Excel"
+             >
+               <FiDownload size={14} />
+               <span>Export Excel</span>
+             </button>
            </div>
            
            {ledgerLoading ? (
-             <div className="text-center p-4" style={{ color: '#475569', fontWeight: 600 }}>Loading history...</div>
+             <div className="ledger-loading-state">
+               <div className="ledger-spinner"></div>
+               <p>ගනුදෙනු විස්තර ලබා ගනිමින් පවතී...</p>
+             </div>
            ) : (
-             <div className="ledger-list mt-4" style={{ maxHeight: '380px', overflowY: 'auto', padding: '6px', background: 'rgba(0,0,0,0.03)', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.08)' }}>
+             <div className="ledger-list">
                  {(() => {
                    const getTimestampMs = (ts) => {
                      if (!ts) return 0;
@@ -1394,26 +1377,31 @@ export default function Debtors() {
                      const date = tsMs ? new Date(tsMs).toLocaleString() : (isOpening ? 'At Registration' : 'Just now');
 
                      let label = '';
-                     let color = '#dc2626';
                      let prefix = '+';
                      let subDetails = '';
+                     let itemIcon = <FiFileText />;
+                     let itemClass = 'type-credit';
 
                      if (isPayment) {
                        label = 'ණය ගෙවීම (Payment Received)';
-                       color = '#16a34a';
                        prefix = '–';
+                       itemIcon = <FiArrowDownLeft />;
+                       itemClass = 'type-payment';
                      } else if (isOpening) {
                        label = (h.note && h.note.trim()) ? h.note.trim() : 'ආරම්භක ණය (Opening Balance)';
-                       color = '#d97706';
                        prefix = '+';
+                       itemIcon = <FiPlus />;
+                       itemClass = 'type-opening';
                      } else if (isReload) {
                        label = `Reload ණය — #${h.phone || ''} (${h.network || ''})`;
-                       color = '#dc2626';
                        prefix = '+';
+                       itemIcon = <FiSmartphone />;
+                       itemClass = 'type-reload';
                      } else if (isLoan) {
                        label = (h.note && h.note.trim()) ? h.note.trim() : 'අතින් එකතු කළ ණය (Manual Loan)';
-                       color = '#dc2626';
                        prefix = '+';
+                       itemIcon = <FiPlus />;
+                       itemClass = 'type-loan';
                      } else {
                        if (h.billNumber) {
                          label = `ණයට බිල්පත — Bill #${String(h.billNumber).padStart(6,'0')}`;
@@ -1422,35 +1410,40 @@ export default function Debtors() {
                        } else {
                          label = 'ණයට බිල්පත (Credit Sale)';
                        }
-                       color = '#dc2626';
                        prefix = '+';
+                       itemIcon = <FiShoppingBag />;
+                       itemClass = 'type-bill';
                        if (upfront > 0 && billTot > 0) {
                          subDetails = ` • Bill: Rs. ${billTot.toFixed(2)} | මුදලින් ගෙවූ: Rs. ${upfront.toFixed(2)}`;
                        }
                      }
 
                      return (
-                       <div key={h.id} className="ledger-item flex items-center justify-between p-3" style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.08)', padding: '12px 8px' }}>
-                         <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <p className="font-bold text-sm" style={{ margin: 0, color: '#0f172a', fontWeight: 800, fontSize: '14px' }}>{label}</p>
+                       <div key={h.id} className={`ledger-item ${itemClass}`}>
+                         <div className="ledger-item-icon-col">
+                           <div className={`ledger-type-icon ${itemClass}`}>
+                             {itemIcon}
+                           </div>
+                         </div>
+                         <div className="ledger-item-content">
+                            <div className="ledger-item-headline">
+                              <span className="ledger-item-label">{label}</span>
                               {h.note && !isOpening && (
-                                <span style={{ fontSize: '11px', background: 'rgba(15, 23, 42, 0.08)', padding: '2px 8px', borderRadius: '6px', color: '#0f172a', fontWeight: 700, border: '1px solid rgba(15, 23, 42, 0.12)' }}>
-                                  {h.note}
-                                </span>
+                                <span className="ledger-note-tag">{h.note}</span>
                               )}
                             </div>
-                            <p className="text-xs" style={{ margin: '4px 0 0 0', color: '#334155', fontWeight: 600, fontSize: '12px' }}>
-                              {date} • By: {h.cashierName || 'Cashier'}{subDetails}
-                            </p>
+                            <div className="ledger-item-date">
+                              <FiClock size={11} style={{ marginRight: '4px' }} />
+                              {date} • By: <span className="ledger-cashier-name">{h.cashierName || 'Cashier'}</span>{subDetails}
+                            </div>
                          </div>
-                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                           <div style={{ textAlign: 'right' }}>
-                             <div className="font-bold" style={{ fontSize: '1.05rem', whiteSpace: 'nowrap', color, fontWeight: 800 }}>
-                                {prefix} Rs. {Number(amt).toFixed(2)}
+                         <div className="ledger-item-actions-col">
+                           <div className="ledger-item-numbers">
+                             <div className={`ledger-item-amount ${isPayment ? 'payment' : 'credit'}`}>
+                                {prefix} Rs. {Number(amt).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                              </div>
-                             <div style={{ fontSize: '12px', color: '#0f172a', fontWeight: 700, marginTop: '2px' }}>
-                               ශේෂය: Rs. {Number(h.runningBalance).toFixed(2)}
+                             <div className="ledger-item-balance">
+                               <span>ශේෂය:</span> Rs. {Number(h.runningBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                              </div>
                            </div>
                            <button
@@ -1459,34 +1452,26 @@ export default function Debtors() {
                                e.stopPropagation();
                                handleRequestDeleteTransaction(h, amt, label);
                              }}
-                             className="icon-btn"
+                             className="ledger-delete-btn"
                              title="ගනුදෙනුව මකන්න (Owner Only)"
-                             style={{
-                               padding: '6px 8px',
-                               borderRadius: '8px',
-                               background: 'rgba(239, 68, 68, 0.12)',
-                               color: '#ef4444',
-                               border: '1px solid rgba(239, 68, 68, 0.25)',
-                               cursor: 'pointer',
-                               display: 'inline-flex',
-                               alignItems: 'center',
-                               justifyContent: 'center',
-                               transition: 'all 0.2s ease'
-                             }}
                            >
-                             <FiTrash2 size={14} />
+                             <FiTrash2 size={13} />
                            </button>
                          </div>
                        </div>
                      );
                    }) : (
-                     <p className="text-center p-4" style={{ color: '#475569', fontWeight: 600 }}>No transaction history found.</p>
+                     <div className="ledger-empty-state">
+                       <FiFileText size={36} />
+                       <p>ගනුදෙනු ඉතිහාසයක් හමු නොවීය</p>
+                       <span>No transaction history found for this debtor.</span>
+                     </div>
                    );
                  })()}
              </div>
           )}
-          <div className="modal-actions mt-6">
-            <Button type="button" variant="secondary" onClick={() => setIsLedgerOpen(false)}>Close</Button>
+          <div className="modal-actions mt-5 flex justify-end">
+            <Button type="button" variant="secondary" onClick={() => setIsLedgerOpen(false)}>වසන්න (Close)</Button>
           </div>
        </div>
      </Modal>
