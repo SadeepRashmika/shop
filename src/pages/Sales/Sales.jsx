@@ -119,8 +119,11 @@ export default function Sales() {
   // Edit Bill
   const [editBillModal, setEditBillModal] = useState(false);
   const [editBillItems, setEditBillItems] = useState([]);
-  const [editBillLoading, setEditBillLoading] = useState(false);
   const [editingBill, setEditingBill] = useState(null);
+  const editingBillRef = useRef(null);
+  useEffect(() => {
+    editingBillRef.current = editingBill;
+  }, [editingBill]);
 
   // Barcode input focus
   const barcodeInputRef = useRef(null);
@@ -619,15 +622,15 @@ export default function Sales() {
            debtorList[0];
   };
 
-  // Automatically pre-select default debtor (e.g. #1 වෙනත් ණය) when payment method is credit
+  // Automatically pre-select default debtor (e.g. #1 වෙනත් ණය) when payment method is credit (only for new sales)
   useEffect(() => {
-    if (paymentMethod === 'credit' && !selectedDebtor && debtors.length > 0) {
+    if (paymentMethod === 'credit' && !selectedDebtor && debtors.length > 0 && !editingBill) {
       const def = getDefaultDebtor(debtors);
       if (def) {
         setSelectedDebtor(def);
       }
     }
-  }, [paymentMethod, debtors, selectedDebtor]);
+  }, [paymentMethod, debtors, selectedDebtor, editingBill]);
 
   // F1 keyboard shortcut, Arrow Key navigation + Enter OK for Bill Preview / Checkout Modal
   // AND + / - keys to change cart item quantity
@@ -866,12 +869,17 @@ export default function Sales() {
             }, 100);
             return;
           }
-          // If in checkout modal: execute checkout (unless searching for debtor)
+          // If in checkout modal: execute checkout or update bill
           if (checkoutModal) {
             const isSearchingDebtor = document.activeElement?.placeholder?.includes('Search by name');
             if (!isSearchingDebtor) {
               e.preventDefault();
-              handleCheckout();
+              const activeEdit = editingBillRef.current || editingBill;
+              if (activeEdit) {
+                handleUpdateBill(true, activeEdit);
+              } else {
+                handleCheckout();
+              }
               return;
             }
           }
@@ -889,7 +897,7 @@ export default function Sales() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightMode, weightUnit, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor, items, bagModal, bagPrice, millingModal, millingType]);
+  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightMode, weightUnit, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor, items, bagModal, bagPrice, millingModal, millingType, editingBill]);
 
   const handleCloseWeightModal = () => {
     setWeightModal(false);
@@ -1222,8 +1230,9 @@ export default function Sales() {
 
 
   const handleCheckout = async () => {
-    if (editingBill) {
-      return handleUpdateBill(true);
+    const activeEdit = editingBillRef.current || editingBill;
+    if (activeEdit) {
+      return handleUpdateBill(true, activeEdit);
     }
     if (cart.length === 0) return;
 
@@ -1534,17 +1543,30 @@ export default function Sales() {
       };
     });
 
+    const matchingDebtor = (bill.debtorId && debtors.find(d => d.id === bill.debtorId)) ||
+                          (bill.debtorName && debtors.find(d => (d.name || '').trim().toLowerCase() === (bill.debtorName || '').trim().toLowerCase())) ||
+                          null;
+
     setCart(cartItems);
-    setEditingBill({
+    setSelectedDebtor(matchingDebtor);
+    const editObj = {
       id: bill.id,
       billNumber: bill.billNumber,
       originalItems: bill.items || [],
-      originalTotal: bill.total || 0,
-      paymentMethod: bill.paymentMethod || 'cash',
+      originalTotal: Number(bill.total) || 0,
+      originalPaymentMethod: bill.paymentMethod || 'cash',
+      originalTenderedAmount: Number(bill.tenderedAmount) || 0,
+      originalCreditAmount: bill.creditAmount !== undefined ? Number(bill.creditAmount) : (bill.paymentMethod === 'credit' ? Math.max(0, (Number(bill.total) || 0) - (Number(bill.tenderedAmount) || 0)) : 0),
       cashierName: bill.cashierName || 'Cashier',
-      debtorId: bill.debtorId || null,
-      debtorName: bill.debtorName || null
-    });
+      debtorId: bill.debtorId || matchingDebtor?.id || null,
+      debtorName: bill.debtorName || matchingDebtor?.name || null,
+      debtorPhone: bill.debtorPhone || matchingDebtor?.phone || null
+    };
+
+    setCart(cartItems);
+    setSelectedDebtor(matchingDebtor);
+    editingBillRef.current = editObj;
+    setEditingBill(editObj);
     setPaymentMethod(bill.paymentMethod || 'cash');
 
     // Close all search & detail modals so user lands on main screen with items in Cart
@@ -1555,12 +1577,17 @@ export default function Sales() {
   };
 
   const handleCancelEditBill = () => {
+    editingBillRef.current = null;
     setEditingBill(null);
+    setSelectedDebtor(null);
     setCart([]);
+    setPaymentMethod('cash');
+    setTenderedAmount('');
   };
 
-  const handleUpdateBill = async (printAfter = true) => {
-    if (!editingBill) return;
+  const handleUpdateBill = async (printAfter = true, billToUpdate = null) => {
+    const targetBill = billToUpdate || editingBillRef.current || editingBill;
+    if (!targetBill) return;
     if (cart.length === 0) {
       alert('Bill එකේ අවම වශයෙන් item 1ක් තිබිය යුතුය.');
       return;
@@ -1568,8 +1595,11 @@ export default function Sales() {
 
     setActionLoading(true);
     try {
-      const originalItems = editingBill.originalItems || [];
+      const originalItems = targetBill.originalItems || [];
       const isCreditMode = paymentMethod === 'credit';
+      const finalDebtor = isCreditMode ? (selectedDebtor || (targetBill.debtorId ? debtors.find(d => d.id === targetBill.debtorId) : null) || getDefaultDebtor(debtors)) : null;
+
+      const upfrontPayment = isCreditMode ? (parseFloat(tenderedAmount) || 0) : 0;
 
       const updatedCartItems = cart.map(item => {
         const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
@@ -1589,14 +1619,23 @@ export default function Sales() {
       });
 
       const newTotal = updatedCartItems.reduce((sum, item) => sum + item.subtotal, 0);
-      const oldTotal = editingBill.originalTotal || 0;
+      const oldTotal = Number(targetBill.originalTotal) || 0;
       const totalDiff = newTotal - oldTotal;
+
+      const newCreditAmount = isCreditMode ? Math.max(0, newTotal - upfrontPayment) : 0;
+      const oldCreditAmount = targetBill.originalPaymentMethod === 'credit'
+        ? (targetBill.originalCreditAmount !== undefined ? Number(targetBill.originalCreditAmount) : Math.max(0, oldTotal - (Number(targetBill.originalTenderedAmount) || 0)))
+        : 0;
+      const oldDebtorId = targetBill.debtorId;
 
       const batch = writeBatch(db);
 
-      // 1. Stock Adjustments in batch
+      // 1. Stock Adjustments in batch (only for real inventory items that exist)
       for (const origItem of originalItems) {
         if (!origItem.id || origItem.isCustom || origItem.isReload) continue;
+        if (String(origItem.id).startsWith('custom_') || String(origItem.id).startsWith('EDIT_ITEM_')) continue;
+        if (!items.some(it => it.id === origItem.id)) continue;
+
         const currentItem = updatedCartItems.find(ci => ci.id === origItem.id);
         const origQty = parseFloat(origItem.quantity) || 0;
         const newQty = currentItem ? (parseFloat(currentItem.quantity) || 0) : 0;
@@ -1611,6 +1650,9 @@ export default function Sales() {
       // Handle brand new items added to cart during edit
       for (const newItem of updatedCartItems) {
         if (!newItem.id || newItem.isCustom || newItem.isReload) continue;
+        if (String(newItem.id).startsWith('custom_') || String(newItem.id).startsWith('EDIT_ITEM_')) continue;
+        if (!items.some(it => it.id === newItem.id)) continue;
+
         const wasInOrig = originalItems.find(oi => oi.id === newItem.id);
         if (!wasInOrig) {
           const itemRef = doc(db, 'items', newItem.id);
@@ -1618,20 +1660,52 @@ export default function Sales() {
         }
       }
 
-      // 2. Update Transaction document in batch
-      const txnRef = doc(db, 'transactions', editingBill.id);
+      // 2. Debtor balance adjustments in Firestore
+      if (oldCreditAmount > 0 && oldDebtorId) {
+        if (!isCreditMode || (finalDebtor && finalDebtor.id !== oldDebtorId)) {
+          // Bill was credit, but now switched away from credit OR assigned to a different debtor:
+          // Remove old credit amount from old debtor
+          const oldDebtorRef = doc(db, 'debtors', oldDebtorId);
+          batch.set(oldDebtorRef, { totalOwed: increment(-oldCreditAmount) }, { merge: true });
+        }
+      }
+
+      if (isCreditMode && finalDebtor) {
+        if (oldDebtorId && finalDebtor.id === oldDebtorId) {
+          // Same debtor, adjust difference
+          const creditDiff = newCreditAmount - oldCreditAmount;
+          if (Math.abs(creditDiff) > 0.001) {
+            const debtorRef = doc(db, 'debtors', finalDebtor.id);
+            batch.set(debtorRef, { totalOwed: increment(creditDiff) }, { merge: true });
+          }
+        } else {
+          // Different debtor (or previously not credit): add new credit amount
+          if (newCreditAmount > 0) {
+            const debtorRef = doc(db, 'debtors', finalDebtor.id);
+            batch.set(debtorRef, { totalOwed: increment(newCreditAmount) }, { merge: true });
+          }
+        }
+      }
+
+      // 3. Update Transaction document in batch (strictly preserving targetBill.id & targetBill.billNumber)
+      const txnRef = doc(db, 'transactions', targetBill.id);
       batch.update(txnRef, {
         items: updatedCartItems,
         total: newTotal,
         paymentMethod,
-        tenderedAmount: parseFloat(tenderedAmount) || (paymentMethod === 'cash' ? newTotal : 0),
+        tenderedAmount: parseFloat(tenderedAmount) || (paymentMethod === 'cash' ? newTotal : upfrontPayment),
+        paidAmount: paymentMethod === 'cash' ? newTotal : upfrontPayment,
+        creditAmount: isCreditMode ? newCreditAmount : 0,
+        debtorId: (isCreditMode && finalDebtor) ? finalDebtor.id : null,
+        debtorName: (isCreditMode && finalDebtor) ? finalDebtor.name : null,
+        debtorPhone: (isCreditMode && finalDebtor) ? (finalDebtor.phone || null) : null,
         editedAt: serverTimestamp()
       });
 
       // Commit batch
       await safeCommit(batch.commit());
 
-      // 3. Cash Session Adjustment in background
+      // 4. Cash Session Adjustment in background
       if (paymentMethod === 'cash' && Math.abs(totalDiff) > 0.001) {
         (async () => {
           try {
@@ -1640,14 +1714,14 @@ export default function Sales() {
             if (!sessionSnap.empty) {
               const openDoc = sessionSnap.docs[0];
               const existingEntries = openDoc.data().entries || [];
-              const billNoFormatted = String(editingBill.billNumber).padStart(6, '0');
+              const billNoFormatted = String(targetBill.billNumber).padStart(6, '0');
               const adjustEntry = {
                 type: totalDiff > 0 ? 'in' : 'out',
                 isSale: true,
                 isAdjustment: true,
                 amount: Math.abs(totalDiff),
                 note: `Bill #${billNoFormatted} Edit Adjustment`,
-                billNumber: editingBill.billNumber,
+                billNumber: targetBill.billNumber,
                 time: getNow().toISOString()
               };
               await updateDoc(doc(db, 'cashSessions', openDoc.id), {
@@ -1661,19 +1735,23 @@ export default function Sales() {
       }
 
       const billData = {
-        billNumber: editingBill.billNumber,
+        billNumber: targetBill.billNumber,
         items: updatedCartItems,
         total: newTotal,
         paymentMethod,
-        tenderedAmount: parseFloat(tenderedAmount) || newTotal,
-        cashierName: editingBill.cashierName || userData?.name || 'Cashier',
-        debtorName: paymentMethod === 'credit' ? (selectedDebtor?.name || editingBill.debtorName) : null,
+        tenderedAmount: parseFloat(tenderedAmount) || (paymentMethod === 'cash' ? newTotal : upfrontPayment),
+        paidAmount: paymentMethod === 'cash' ? newTotal : upfrontPayment,
+        creditAmount: isCreditMode ? newCreditAmount : 0,
+        cashierName: targetBill.cashierName || userData?.name || 'Cashier',
+        debtorName: isCreditMode ? finalDebtor?.name : null,
         date: getNow()
       };
 
-      generateBillPDF(billData);
+      if (printAfter) {
+        generateBillPDF(billData);
+      }
 
-      alert(`Bill #${String(editingBill.billNumber).padStart(6, '0')} සාර්ථකව Update කර Print කරන ලදී!`);
+      alert(`Bill #${String(targetBill.billNumber).padStart(6, '0')} සාර්ථකව Update කර Print කරන ලදී!`);
 
       // Update in-memory stock
       setItems(prevItems => prevItems.map(it => {
@@ -1688,7 +1766,24 @@ export default function Sales() {
         return it;
       }));
 
+      // Update in-memory debtor totals
+      setDebtors(prev => prev.map(d => {
+        let currentOwed = Number(d.totalOwed) || 0;
+        if (oldDebtorId && d.id === oldDebtorId) {
+          if (!isCreditMode || (finalDebtor && finalDebtor.id !== oldDebtorId)) {
+            currentOwed -= oldCreditAmount;
+          } else {
+            currentOwed += (newCreditAmount - oldCreditAmount);
+          }
+        } else if (isCreditMode && finalDebtor && d.id === finalDebtor.id) {
+          currentOwed += newCreditAmount;
+        }
+        return { ...d, totalOwed: Math.max(0, currentOwed) };
+      }));
+
+      editingBillRef.current = null;
       setEditingBill(null);
+      setSelectedDebtor(null);
       setCart([]);
       setCheckoutModal(false);
       setPreviewModal(false);
@@ -1890,32 +1985,67 @@ export default function Sales() {
               padding: '10px 14px',
               margin: '0.75rem 1rem 0.25rem 1rem',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              flexDirection: 'column',
+              gap: '6px',
               color: '#92400e',
-              fontWeight: '600',
-              fontSize: '0.875rem',
               boxShadow: '0 4px 12px rgba(245,158,11,0.2)'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <FiEdit3 style={{ fontSize: '1.2rem', color: '#d97706' }} />
-                <span>Editing Bill #{String(editingBill.billNumber).padStart(6, '0')}</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '0.9rem' }}>
+                  <FiEdit3 style={{ fontSize: '1.2rem', color: '#d97706' }} />
+                  <span>Editing Bill #{String(editingBill.billNumber).padStart(6, '0')}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancelEditBill}
+                  style={{
+                    background: '#ef4444',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '4px 10px',
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel Edit
+                </button>
               </div>
-              <button
-                onClick={handleCancelEditBill}
-                style={{
-                  background: '#ef4444',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '4px 10px',
-                  fontSize: '0.75rem',
-                  fontWeight: '700',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel Edit
-              </button>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'rgba(255, 255, 255, 0.75)',
+                padding: '6px 10px',
+                borderRadius: '8px',
+                fontSize: '0.82rem',
+                border: '1px solid #fcd34d'
+              }}>
+                <div>
+                  <span style={{ fontWeight: '700', color: '#78350f' }}>ගෙවීම්: </span>
+                  <span style={{ fontWeight: '800', color: paymentMethod === 'credit' ? '#d97706' : (paymentMethod === 'cash' ? '#16a34a' : '#0891b2') }}>
+                    {paymentMethod === 'credit' ? `💳 ණය: ${selectedDebtor ? `#${selectedDebtor.debtorNo || '-'} ${selectedDebtor.name}` : '(තෝරා නැත)'}` : (paymentMethod === 'cash' ? '💵 මුදලින් (Cash)' : '🏠 නිවසේ පරිභෝජනය')}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCheckoutModal(true)}
+                  style={{
+                    background: '#d97706',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '4px 8px',
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  මාරු කරන්න (Change)
+                </button>
+              </div>
             </div>
           )}
 
@@ -2094,16 +2224,28 @@ export default function Sales() {
                 {t('sales.preview')}
               </Button>
               {editingBill ? (
-                <Button
-                  onClick={() => handleUpdateBill(true)}
-                  disabled={cart.length === 0}
-                  loading={actionLoading}
-                  style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff', fontWeight: 'bold' }}
-                  icon={<FiPrinter />}
-                  fullWidth
-                >
-                  UPDATE &amp; PRINT
-                </Button>
+                <div style={{ display: 'flex', gap: '0.4rem', width: '100%' }}>
+                  <Button
+                    onClick={() => handleUpdateBill(true)}
+                    disabled={cart.length === 0}
+                    loading={actionLoading}
+                    style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', fontWeight: 'bold', flex: 1, padding: '0.6rem 0.4rem', fontSize: '0.85rem' }}
+                    icon={<FiPrinter />}
+                    title="Direct Update & Print"
+                  >
+                    UPDATE NOW
+                  </Button>
+                  <Button
+                    onClick={() => setCheckoutModal(true)}
+                    disabled={cart.length === 0}
+                    loading={actionLoading}
+                    style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff', fontWeight: 'bold', flex: 1.2, padding: '0.6rem 0.4rem', fontSize: '0.85rem' }}
+                    icon={<FiCheckCircle />}
+                    title="Open checkout to change debtor or payment method"
+                  >
+                    ණයගැතියා / ගෙවීම්
+                  </Button>
+                </div>
               ) : (
                 <Button
                   onClick={() => setCheckoutModal(true)}
@@ -2305,7 +2447,7 @@ export default function Sales() {
       <Modal
         isOpen={checkoutModal}
         onClose={() => setCheckoutModal(false)}
-        title={t('sales.checkout')}
+        title={editingBill ? `Edit Bill #${String(editingBill.billNumber).padStart(6, '0')} - Payment & Debtor` : t('sales.checkout')}
       >
         <div className="checkout-form">
           <div className="total-banner">
@@ -2408,12 +2550,20 @@ export default function Sales() {
           <div className="modal-actions mt-6">
             <Button variant="secondary" onClick={() => setCheckoutModal(false)}>{t('common.cancel')}</Button>
             <Button
-              onClick={handleCheckout}
+              onClick={() => {
+                const activeEdit = editingBillRef.current || editingBill;
+                if (activeEdit) {
+                  handleUpdateBill(true, activeEdit);
+                } else {
+                  handleCheckout();
+                }
+              }}
               loading={actionLoading}
               disabled={paymentMethod === 'cash' && (!tenderedAmount || Math.round((parseFloat(tenderedAmount) || 0) * 100) < Math.round(subtotal * 100))}
               icon={<FiCheckCircle />}
+              style={editingBill ? { background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff', fontWeight: 'bold' } : undefined}
             >
-              {t('sales.confirmSale')}
+              {editingBill ? 'UPDATE & PRINT (බිල Update කර Print කරන්න)' : t('sales.confirmSale')}
             </Button>
           </div>
         </div>
@@ -2708,47 +2858,72 @@ export default function Sales() {
                       return;
                     }
                     try {
+                      setActionLoading(true);
                       const batch = writeBatch(db);
 
-                      // 1. Re-add items back to stock
+                      // 1. Re-add items back to stock (safely only for real inventory items that exist)
                       if (selectedBill.items && Array.isArray(selectedBill.items)) {
                         for (const item of selectedBill.items) {
-                          if (item.id && !item.isCustom && !item.isReload && !item.isMilling) {
-                            const itemRef = doc(db, 'items', item.id);
-                            const qtyToRestore = parseFloat(item.quantity) || 0;
-                            if (qtyToRestore > 0) {
-                              batch.update(itemRef, {
-                                stock: increment(qtyToRestore)
-                              });
-                            }
+                          const itemId = item.id;
+                          if (!itemId || item.isCustom || item.isReload || item.isMilling) continue;
+                          if (String(itemId).startsWith('custom_') || String(itemId).startsWith('EDIT_ITEM_')) continue;
+
+                          const itemExists = items.some(it => it.id === itemId);
+                          if (!itemExists) continue;
+
+                          const qtyToRestore = parseFloat(item.quantity) || 0;
+                          if (qtyToRestore > 0) {
+                            const itemRef = doc(db, 'items', itemId);
+                            batch.update(itemRef, {
+                              stock: increment(qtyToRestore)
+                            });
                           }
                         }
                       }
 
-                      // 2. Delete transaction document
+                      // 2. Debtor credit deduction if credit bill
+                      const isCreditBill = selectedBill.paymentMethod === 'credit';
+                      const creditToDeduct = selectedBill.creditAmount !== undefined
+                        ? Number(selectedBill.creditAmount)
+                        : (isCreditBill ? Math.max(0, Number(selectedBill.total || 0) - Number(selectedBill.paidAmount || selectedBill.tenderedAmount || 0)) : 0);
+                      if (isCreditBill && selectedBill.debtorId && creditToDeduct > 0) {
+                        const debtorRef = doc(db, 'debtors', selectedBill.debtorId);
+                        batch.set(debtorRef, { totalOwed: increment(-creditToDeduct) }, { merge: true });
+                      }
+
+                      // 3. Delete transaction document
                       batch.delete(doc(db, 'transactions', selectedBill.id));
                       await safeCommit(batch.commit());
 
-                      // 3. Also delete associated millingRecords
-                      if (selectedBill.billNumber) {
-                        const qMilling = query(collection(db, 'millingRecords'), where('billNumber', '==', selectedBill.billNumber));
-                        const mSnap = await getDocs(qMilling);
-                        for (const mDoc of mSnap.docs) {
-                          await deleteDoc(doc(db, 'millingRecords', mDoc.id));
-                        }
+                      // Also update in-memory debtor list
+                      if (isCreditBill && selectedBill.debtorId && creditToDeduct > 0) {
+                        setDebtors(prev => prev.map(d => d.id === selectedBill.debtorId ? { ...d, totalOwed: Math.max(0, (Number(d.totalOwed) || 0) - creditToDeduct) } : d));
+                      }
 
-                        const qReload = query(collection(db, 'reloads'), where('billNumber', '==', selectedBill.billNumber));
-                        const rSnap = await getDocs(qReload);
-                        for (const rDoc of rSnap.docs) {
-                          await deleteDoc(doc(db, 'reloads', rDoc.id));
+                      // 4. Also delete associated millingRecords and reloads
+                      if (selectedBill.billNumber) {
+                        try {
+                          const qMilling = query(collection(db, 'millingRecords'), where('billNumber', '==', selectedBill.billNumber));
+                          const mSnap = await getDocs(qMilling);
+                          for (const mDoc of mSnap.docs) {
+                            await deleteDoc(doc(db, 'millingRecords', mDoc.id));
+                          }
+
+                          const qReload = query(collection(db, 'reloads'), where('billNumber', '==', selectedBill.billNumber));
+                          const rSnap = await getDocs(qReload);
+                          for (const rDoc of rSnap.docs) {
+                            await deleteDoc(doc(db, 'reloads', rDoc.id));
+                          }
+                        } catch (cleanErr) {
+                          console.warn('Sub-records cleanup warning:', cleanErr);
                         }
                       }
 
-                      // 4. Update in-memory stock state immediately
+                      // 5. Update in-memory stock state immediately
                       if (selectedBill.items && Array.isArray(selectedBill.items)) {
                         setItems(prevItems => prevItems.map(it => {
                           const billItem = selectedBill.items.find(bi => bi.id === it.id);
-                          if (billItem && !billItem.isCustom && !billItem.isReload && !billItem.isMilling) {
+                          if (billItem && !billItem.isCustom && !billItem.isReload && !billItem.isMilling && !String(billItem.id).startsWith('custom_') && !String(billItem.id).startsWith('EDIT_ITEM_')) {
                             const qty = parseFloat(billItem.quantity) || 0;
                             return { ...it, stock: (parseFloat(it.stock) || 0) + qty };
                           }
@@ -2757,12 +2932,23 @@ export default function Sales() {
                       }
 
                       setBillDetailModal(false);
-                      setBillSearchResults(billSearchResults.filter(b => b.id !== selectedBill.id));
+                      setBillSearchResults(prev => prev.filter(b => b.id !== selectedBill.id));
                       setSelectedBill(null);
                       alert('බිල්පත සාර්ථකව මකා දැමූ අතර භාණ්ඩ නැවත Stock එකට එකතු විය (Bill deleted & stock restored).');
                     } catch (err) {
-                      console.error(err);
-                      alert('Failed to delete bill: ' + err.message);
+                      console.error('Batch delete error:', err);
+                      // Fallback: If stock update failed due to non-existent document, delete transaction directly!
+                      try {
+                        await deleteDoc(doc(db, 'transactions', selectedBill.id));
+                        setBillDetailModal(false);
+                        setBillSearchResults(prev => prev.filter(b => b.id !== selectedBill.id));
+                        setSelectedBill(null);
+                        alert('බිල්පත සාර්ථකව මකා දමන ලදී (Bill deleted successfully).');
+                      } catch (fbErr) {
+                        alert('Failed to delete bill: ' + fbErr.message);
+                      }
+                    } finally {
+                      setActionLoading(false);
                     }
                   }}
                   icon={<FiTrash2 />}
