@@ -214,7 +214,9 @@ export default function Reload() {
 
         // Update Debtor Balance
         await safeCommit(updateDoc(doc(db, 'debtors', selectedDebtor.id), {
-          totalOwed: increment(numAmount)
+          totalOwed: increment(numAmount),
+          lastCreditDate: serverTimestamp(),
+          updatedAt: serverTimestamp()
         }));
       }
 

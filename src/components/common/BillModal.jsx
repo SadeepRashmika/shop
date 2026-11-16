@@ -78,9 +78,15 @@ export default function BillModal({ isOpen, onClose, billData }) {
               {billData.paymentMethod || 'CASH'}
             </span>
           </div>
-          {billData.debtorName && (
+          {(billData.customerName || billData.debtorName) && (
             <div className="receipt-meta-row">
-              <span>👤 ණයගැතියා (Customer):</span>
+              <span>👤 පාරිභෝගිකයා (Customer):</span>
+              <strong>{billData.customerName || billData.debtorName}</strong>
+            </div>
+          )}
+          {billData.debtorName && billData.customerName && billData.debtorName !== billData.customerName && (
+            <div className="receipt-meta-row">
+              <span>👤 ණයගැතියා (Debtor):</span>
               <strong>{billData.debtorName}</strong>
             </div>
           )}

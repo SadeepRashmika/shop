@@ -97,15 +97,13 @@ export default function Debtors() {
         return;
       }
 
-      // Target only payment records and credit transactions instead of downloading the whole database
+      // Fetch payment and loan records
       let payDocs = [];
       try {
-        const qPay = query(collection(db, 'debtor_payments'), where('type', '==', 'payment'));
-        const paySnapshot = await getDocs(qPay);
-        payDocs = paySnapshot.docs;
-      } catch (e) {
         const paySnapshot = await getDocs(collection(db, 'debtor_payments'));
         payDocs = paySnapshot.docs;
+      } catch (e) {
+        console.error('Error fetching debtor payments:', e);
       }
 
       let txnDocs = [];
@@ -126,30 +124,49 @@ export default function Debtors() {
         return new Date(ts).getTime();
       };
 
-      // Build map of debtorId -> last payment timestamp (ms)
+      // Build map of debtorId & debtorName -> last payment timestamp (ms)
       const lastPaymentMap = {};
+      // Build map of debtorId & debtorName -> last credit activity timestamp (ms)
+      const lastActivityMap = {};
 
       payDocs.forEach(docSnap => {
         const d = docSnap.data();
-        if (d.type !== 'payment') return; // Only count actual payments, not loans/opening
         const debtorId = d.debtorId;
-        if (!debtorId) return;
-        const tsMs = getTimestampMs(d.timestamp || d.date);
-        if (tsMs > (lastPaymentMap[debtorId] || 0)) {
-          lastPaymentMap[debtorId] = tsMs;
+        const debtorName = (d.debtorName || '').trim().toLowerCase();
+        const tsMs = getTimestampMs(d.timestamp || d.date || d.createdAt || d.paymentDate);
+        if (!tsMs) return;
+
+        if (d.type === 'payment') {
+          if (debtorId && tsMs > (lastPaymentMap[debtorId] || 0)) {
+            lastPaymentMap[debtorId] = tsMs;
+          }
+          if (debtorName && tsMs > (lastPaymentMap[debtorName] || 0)) {
+            lastPaymentMap[debtorName] = tsMs;
+          }
+        } else if (d.type === 'loan' || d.type === 'opening') {
+          if (debtorId && tsMs > (lastActivityMap[debtorId] || 0)) {
+            lastActivityMap[debtorId] = tsMs;
+          }
+          if (debtorName && tsMs > (lastActivityMap[debtorName] || 0)) {
+            lastActivityMap[debtorName] = tsMs;
+          }
         }
       });
 
       // Also check credit transactions for last activity
-      const lastActivityMap = {};
       txnDocs.forEach(docSnap => {
         const d = docSnap.data();
         if (d.paymentMethod !== 'credit') return;
         const debtorId = d.debtorId;
-        if (!debtorId) return;
-        const tsMs = getTimestampMs(d.timestamp || d.date);
-        if (tsMs > (lastActivityMap[debtorId] || 0)) {
+        const debtorName = (d.debtorName || '').trim().toLowerCase();
+        const tsMs = getTimestampMs(d.timestamp || d.date || d.createdAt);
+        if (!tsMs) return;
+
+        if (debtorId && tsMs > (lastActivityMap[debtorId] || 0)) {
           lastActivityMap[debtorId] = tsMs;
+        }
+        if (debtorName && tsMs > (lastActivityMap[debtorName] || 0)) {
+          lastActivityMap[debtorName] = tsMs;
         }
       });
 
@@ -157,20 +174,55 @@ export default function Debtors() {
       const thresholdMs = OVERDUE_DAYS * 24 * 60 * 60 * 1000;
 
       const overdue = activeDebtors.map(debtor => {
-        const lastPay = lastPaymentMap[debtor.id] || 0;
-        const lastAct = lastActivityMap[debtor.id] || 0;
+        const debtorNameClean = (debtor.name || '').trim().toLowerCase();
+        const lastPay = Math.max(
+          lastPaymentMap[debtor.id] || 0,
+          debtorNameClean ? (lastPaymentMap[debtorNameClean] || 0) : 0,
+          getTimestampMs(debtor.lastPaymentDate) || 0
+        );
+        const lastAct = Math.max(
+          lastActivityMap[debtor.id] || 0,
+          debtorNameClean ? (lastActivityMap[debtorNameClean] || 0) : 0,
+          getTimestampMs(debtor.lastCreditDate) || 0
+        );
         const createdMs = getTimestampMs(debtor.createdAt) || 0;
-        // Use last payment if exists, otherwise use creation date
-        const referenceDate = lastPay > 0 ? lastPay : (createdMs > 0 ? createdMs : 0);
+
+        // If debtor has a timestamp encoded in their docId (e.g. debtor_1731789...)
+        let idCreatedMs = 0;
+        const idMatch = debtor.id?.match(/^debtor_(\d{10,13})/);
+        if (idMatch) {
+          idCreatedMs = Number(idMatch[1]);
+        }
+        const effectiveCreatedMs = createdMs > 0 ? createdMs : idCreatedMs;
+
+        // Determine reference date:
+        // 1. If debtor has made a payment:
+        //    - If they took NEW credit AFTER the payment (lastAct > lastPay), the debt was renewed on lastAct.
+        //    - Otherwise, count from last payment date (lastPay).
+        // 2. If debtor has never made a payment (lastPay === 0):
+        //    - Count from when they incurred credit (lastAct), or when account was created (effectiveCreatedMs).
+        let referenceDate = 0;
+        if (lastPay > 0) {
+          referenceDate = lastAct > lastPay ? lastAct : lastPay;
+        } else if (lastAct > 0) {
+          referenceDate = lastAct;
+        } else {
+          referenceDate = effectiveCreatedMs;
+        }
         
         if (referenceDate === 0) {
-          // No date info at all, consider overdue
+          // No date info at all (legacy debtor without timestamps), consider overdue
           return { ...debtor, daysSincePayment: 999, lastPaymentDate: null, lastActivityDate: lastAct > 0 ? new Date(lastAct) : null };
         }
 
         const daysSince = Math.floor((now - referenceDate) / (24 * 60 * 60 * 1000));
         if (daysSince >= OVERDUE_DAYS) {
-          return { ...debtor, daysSincePayment: daysSince, lastPaymentDate: lastPay > 0 ? new Date(lastPay) : null, lastActivityDate: lastAct > 0 ? new Date(lastAct) : null };
+          return {
+            ...debtor,
+            daysSincePayment: daysSince,
+            lastPaymentDate: lastPay > 0 ? new Date(lastPay) : null,
+            lastActivityDate: lastAct > 0 ? new Date(lastAct) : null
+          };
         }
         return null;
       }).filter(Boolean).sort((a, b) => b.daysSincePayment - a.daysSincePayment);
@@ -247,7 +299,9 @@ export default function Debtors() {
       // 2. Reduce or Increase debtor total Owed
       const amountChange = transactionType === 'payment' ? -Number(paymentAmount) : Number(paymentAmount);
       await safeCommit(updateDoc(doc(db, 'debtors', paymentDebtor.id), {
-        totalOwed: increment(amountChange)
+        totalOwed: increment(amountChange),
+        ...(transactionType === 'payment' ? { lastPaymentDate: serverTimestamp() } : { lastCreditDate: serverTimestamp() }),
+        updatedAt: serverTimestamp()
       }));
 
       setIsPaymentModalOpen(false);
@@ -827,10 +881,13 @@ export default function Debtors() {
       } else {
         const docId = `debtor_${Date.now()}`;
         debtorData.createdAt = serverTimestamp();
+        const initialOwed = Number(formData.totalOwed) || 0;
+        if (initialOwed > 0) {
+          debtorData.lastCreditDate = serverTimestamp();
+        }
         await setDoc(doc(db, 'debtors', docId), debtorData);
 
         // If initial debt is set, save an opening balance record so it appears in transaction history
-        const initialOwed = Number(formData.totalOwed) || 0;
         if (initialOwed > 0) {
           const openingRef = doc(collection(db, 'debtor_payments'));
           await setDoc(openingRef, {

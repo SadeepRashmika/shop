@@ -13,7 +13,7 @@ import Modal from '../../components/ui/Modal';
 import {
   FiSearch, FiShoppingCart, FiPlus, FiMinus, FiTrash2,
   FiCreditCard, FiDollarSign, FiUser, FiMaximize, FiPrinter, FiCheckCircle,
-  FiFileText, FiHash, FiHome, FiStar, FiEye, FiZap, FiPhoneCall, FiCopy, FiCheck, FiEdit3, FiSettings
+  FiFileText, FiHash, FiHome, FiStar, FiEye, FiZap, FiPhoneCall, FiCopy, FiCheck, FiEdit3, FiSettings, FiX
 } from 'react-icons/fi';
 
 import './Sales.css';
@@ -69,6 +69,9 @@ export default function Sales() {
     } catch { return []; }
   });
   const [activeCartId, setActiveCartId] = useState(null);
+  const [customerName, setCustomerName] = useState(location.state?.customerName || '');
+  const [customerModal, setCustomerModal] = useState(false);
+  const customerInputRef = useRef(null);
   const [currentOrderId, setCurrentOrderId] = useState(location.state?.orderId || null);
 
   const toggleFavorite = async (item) => {
@@ -159,6 +162,15 @@ export default function Sales() {
       }, 50);
     }
   }, [weightModal, weightMode, weightUnit]);
+
+  useEffect(() => {
+    if (customerModal) {
+      setTimeout(() => {
+        customerInputRef.current?.focus();
+        customerInputRef.current?.select();
+      }, 50);
+    }
+  }, [customerModal]);
 
   // Custom Item Modal (නොමැති භාණ්ඩ)
   const [customItemModal, setCustomItemModal] = useState(false);
@@ -590,6 +602,9 @@ export default function Sales() {
           if (location.state.orderId) {
             setCurrentOrderId(location.state.orderId);
           }
+          if (location.state.customerName) {
+            setCustomerName(location.state.customerName);
+          }
           const initialCart = location.state.orderItems.map(orderItem => {
             const matchedItem = loadedItems.find(i => i.id === orderItem.id);
             return {
@@ -636,7 +651,7 @@ export default function Sales() {
   // AND + / - keys to change cart item quantity
   useEffect(() => {
     const handleKeyDown = (e) => {
-      const isAnyModalOpen = previewModal || checkoutModal || weightModal || customItemModal || editCartItemModal || billSearchModal || billDetailModal || editBillModal || reloadModal || millingModal || bagModal;
+      const isAnyModalOpen = previewModal || checkoutModal || customerModal || weightModal || customItemModal || editCartItemModal || billSearchModal || billDetailModal || editBillModal || reloadModal || millingModal || bagModal;
 
       // 1. If NO modal is open: handle + and - keys for active cart item quantity
       if (!isAnyModalOpen) {
@@ -737,6 +752,20 @@ export default function Sales() {
           return false;
         });
         return;
+      }
+
+      // If Customer Name Modal is open: handle Enter to save, Escape to close
+      if (customerModal) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          setCustomerModal(false);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setCustomerModal(false);
+          return;
+        }
       }
 
       // If Bag Modal is open: handle Enter to confirm, Escape to close
@@ -872,7 +901,8 @@ export default function Sales() {
           // If in checkout modal: execute checkout or update bill
           if (checkoutModal) {
             const isSearchingDebtor = document.activeElement?.placeholder?.includes('Search by name');
-            if (!isSearchingDebtor) {
+            const isCustomerInputFocused = document.activeElement?.className?.includes('cart-customer-input') || document.activeElement?.placeholder?.includes('පාරිභෝගික');
+            if (!isSearchingDebtor && !isCustomerInputFocused) {
               e.preventDefault();
               const activeEdit = editingBillRef.current || editingBill;
               if (activeEdit) {
@@ -897,7 +927,7 @@ export default function Sales() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, activeCartId, search, previewModal, checkoutModal, weightModal, weightItem, weightMode, weightUnit, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor, items, bagModal, bagPrice, millingModal, millingType, editingBill]);
+  }, [cart, activeCartId, search, customerName, customerModal, previewModal, checkoutModal, weightModal, weightItem, weightMode, weightUnit, weightValue, customItemModal, editCartItemModal, billSearchModal, billDetailModal, editBillModal, reloadModal, paymentMethod, tenderedAmount, selectedDebtor, items, bagModal, bagPrice, millingModal, millingType, editingBill]);
 
   const handleCloseWeightModal = () => {
     setWeightModal(false);
@@ -1273,6 +1303,8 @@ export default function Sales() {
         };
       });
 
+      const effectiveCustomerName = customerName.trim() || ((isCreditMode && finalDebtor) ? finalDebtor.name : null);
+
       const transactionData = {
         billNumber,
         items: cartItems,
@@ -1281,6 +1313,7 @@ export default function Sales() {
         tenderedAmount: parseFloat(tenderedAmount) || (paymentMethod === 'cash' ? subtotal : 0),
         paidAmount: paymentMethod === 'cash' ? subtotal : upfrontPayment,
         creditAmount: isCreditMode ? creditAmount : 0,
+        customerName: effectiveCustomerName,
         debtorId: (isCreditMode && finalDebtor) ? finalDebtor.id : null,
         debtorName: (isCreditMode && finalDebtor) ? finalDebtor.name : null,
         debtorPhone: (isCreditMode && finalDebtor) ? (finalDebtor.phone || '') : null,
@@ -1302,7 +1335,9 @@ export default function Sales() {
       if (paymentMethod === 'credit' && finalDebtor) {
         const debtorRef = doc(db, 'debtors', finalDebtor.id);
         batch.set(debtorRef, {
-          totalOwed: increment(creditAmount)
+          totalOwed: increment(creditAmount),
+          lastCreditDate: serverTimestamp(),
+          updatedAt: serverTimestamp()
         }, { merge: true });
       }
 
@@ -1413,6 +1448,7 @@ export default function Sales() {
         paidAmount: paymentMethod === 'cash' ? subtotal : upfrontPayment,
         creditAmount: isCreditMode ? creditAmount : 0,
         cashierName: userData?.name || 'Unknown',
+        customerName: effectiveCustomerName,
         debtorName: paymentMethod === 'credit' ? finalDebtor?.name : null,
         debtorId: paymentMethod === 'credit' ? finalDebtor?.id : null,
         date: getNow()
@@ -1433,6 +1469,7 @@ export default function Sales() {
       setPaymentMethod('cash');
       setDebtorSearch('');
       setTenderedAmount('');
+      setCustomerName('');
 
       // Auto-print receipt immediately
       generateBillPDF(billData);
@@ -1509,6 +1546,7 @@ export default function Sales() {
             if (!isNaN(searchNum) && txn.billNumber && txn.billNumber === searchNum) return true;
             if (txn.billNumber && String(txn.billNumber).padStart(6, '0').includes(cleanQuery)) return true;
             if (txn.debtorName && txn.debtorName.toLowerCase().includes(cleanQuery)) return true;
+            if (txn.customerName && txn.customerName.toLowerCase().includes(cleanQuery)) return true;
             return false;
           });
         }
@@ -1525,6 +1563,7 @@ export default function Sales() {
 
   const handleOpenEditBill = (bill) => {
     setSelectedBill(bill);
+    setCustomerName(bill.customerName || bill.debtorName || '');
     setTenderedAmount(bill.tenderedAmount !== undefined && bill.tenderedAmount !== null ? String(bill.tenderedAmount) : '');
     // Map bill items to cart format so they load directly into the main Cart UI
     const cartItems = (bill.items || []).map((bItem, idx) => {
@@ -1581,6 +1620,7 @@ export default function Sales() {
     setEditingBill(null);
     setSelectedDebtor(null);
     setCart([]);
+    setCustomerName('');
     setPaymentMethod('cash');
     setTenderedAmount('');
   };
@@ -1676,16 +1716,26 @@ export default function Sales() {
           const creditDiff = newCreditAmount - oldCreditAmount;
           if (Math.abs(creditDiff) > 0.001) {
             const debtorRef = doc(db, 'debtors', finalDebtor.id);
-            batch.set(debtorRef, { totalOwed: increment(creditDiff) }, { merge: true });
+            batch.set(debtorRef, { 
+              totalOwed: increment(creditDiff),
+              lastCreditDate: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            }, { merge: true });
           }
         } else {
           // Different debtor (or previously not credit): add new credit amount
           if (newCreditAmount > 0) {
             const debtorRef = doc(db, 'debtors', finalDebtor.id);
-            batch.set(debtorRef, { totalOwed: increment(newCreditAmount) }, { merge: true });
+            batch.set(debtorRef, { 
+              totalOwed: increment(newCreditAmount),
+              lastCreditDate: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            }, { merge: true });
           }
         }
       }
+
+      const effectiveCustomerName = customerName.trim() || ((isCreditMode && finalDebtor) ? finalDebtor.name : null);
 
       // 3. Update Transaction document in batch (strictly preserving targetBill.id & targetBill.billNumber)
       const txnRef = doc(db, 'transactions', targetBill.id);
@@ -1696,6 +1746,7 @@ export default function Sales() {
         tenderedAmount: parseFloat(tenderedAmount) || (paymentMethod === 'cash' ? newTotal : upfrontPayment),
         paidAmount: paymentMethod === 'cash' ? newTotal : upfrontPayment,
         creditAmount: isCreditMode ? newCreditAmount : 0,
+        customerName: effectiveCustomerName,
         debtorId: (isCreditMode && finalDebtor) ? finalDebtor.id : null,
         debtorName: (isCreditMode && finalDebtor) ? finalDebtor.name : null,
         debtorPhone: (isCreditMode && finalDebtor) ? (finalDebtor.phone || null) : null,
@@ -1743,6 +1794,7 @@ export default function Sales() {
         paidAmount: paymentMethod === 'cash' ? newTotal : upfrontPayment,
         creditAmount: isCreditMode ? newCreditAmount : 0,
         cashierName: targetBill.cashierName || userData?.name || 'Cashier',
+        customerName: effectiveCustomerName,
         debtorName: isCreditMode ? finalDebtor?.name : null,
         date: getNow()
       };
@@ -1816,6 +1868,7 @@ export default function Sales() {
       paymentMethod: bill.paymentMethod || 'cash',
       tenderedAmount: tendered,
       cashierName: bill.cashierName || 'N/A',
+      customerName: bill.customerName || null,
       debtorName: bill.debtorName || null,
       date: toDateObject(bill.timestamp || bill.date) || getNow()
     };
@@ -2054,6 +2107,55 @@ export default function Sales() {
             <div className="cart-header-right" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <button
                 type="button"
+                className="cart-customer-quick-btn"
+                onClick={() => setCustomerModal(true)}
+                title={customerName ? `පාරිභෝගිකයා: ${customerName} (වෙනස් කිරීමට ක්ලික් කරන්න)` : 'පාරිභෝගිකයාගේ නම ඇතුලත් කරන්න (අවශ්‍ය නම් පමණක්)'}
+                style={{
+                  background: customerName ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
+                  border: customerName ? '1.5px solid #3b82f6' : '1px solid rgba(59, 130, 246, 0.35)',
+                  color: customerName ? '#1d4ed8' : '#2563eb',
+                  borderRadius: '8px',
+                  padding: '4px 9px',
+                  fontSize: '0.8rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s ease',
+                  maxWidth: '150px'
+                }}
+              >
+                <FiUser style={{ fontSize: '0.9rem', flexShrink: 0 }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {customerName ? customerName : 'නම'}
+                </span>
+                {customerName && (
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCustomerName('');
+                    }}
+                    title="නම ඉවත් කරන්න"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginLeft: '2px',
+                      padding: '1px 3px',
+                      borderRadius: '50%',
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      color: '#ef4444',
+                      fontSize: '0.75rem',
+                      lineHeight: 1
+                    }}
+                  >
+                    ✕
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
                 className="add-custom-quick-btn"
                 onClick={handleOpenQuickCustomItem}
                 title="නොමැති භාණ්ඩයක් එකතු කරන්න (.)"
@@ -2076,7 +2178,7 @@ export default function Sales() {
                 <span>වෙනත් [.]</span>
               </button>
               {cart.length > 0 && (
-                <button className="clear-cart-btn" onClick={() => { if (window.confirm('Clear entire cart?')) { setCart([]); setActiveCartId(null); } }} title="Clear Cart">
+                <button className="clear-cart-btn" onClick={() => { if (window.confirm('Clear entire cart?')) { setCart([]); setActiveCartId(null); setCustomerName(''); } }} title="Clear Cart">
                   <FiTrash2 /> Clear
                 </button>
               )}
@@ -2205,6 +2307,42 @@ export default function Sales() {
           </div>
 
           <div className="cart-footer">
+            {customerName && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '4px 10px',
+                marginBottom: '8px',
+                background: 'rgba(59, 130, 246, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.25)',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                color: '#2563eb',
+                fontWeight: 600
+              }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <FiUser style={{ fontSize: '0.85rem' }} /> පාරිභෝගිකයා: <strong>{customerName}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCustomerName('')}
+                  title="නම ඉවත් කරන්න"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#ef4444',
+                    cursor: 'pointer',
+                    padding: '0 4px',
+                    fontSize: '0.85rem',
+                    lineHeight: 1
+                  }}
+                >
+                  <FiX />
+                </button>
+              </div>
+            )}
+
             <div className="cart-total-row">
               <span>{t('sales.subtotal')}</span>
               <span>Rs. {subtotal.toFixed(2)}</span>
@@ -2293,6 +2431,13 @@ export default function Sales() {
               <span>Date: {formatSriLankaDate(getNow())}</span>
               <span>Time: {formatSriLankaTime(getNow())}</span>
             </div>
+
+            {(customerName.trim() || (paymentMethod === 'credit' && selectedDebtor)) && (
+              <div style={{ fontSize: '0.8rem', color: '#1e293b', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #cbd5e1', paddingBottom: '0.4rem' }}>
+                <span style={{ color: '#64748b' }}>Customer:</span>
+                <span style={{ fontWeight: '700' }}>{customerName.trim() || selectedDebtor?.name}</span>
+              </div>
+            )}
 
             <table style={{ width: '100%', fontSize: '0.825rem', borderCollapse: 'collapse', marginBottom: '0.75rem' }}>
               <thead>
@@ -2422,6 +2567,8 @@ export default function Sales() {
                   }),
                   total: subtotal,
                   paymentMethod: paymentMethod,
+                  customerName: customerName.trim() || ((isCredit && selectedDebtor) ? selectedDebtor.name : null),
+                  debtorName: (isCredit && selectedDebtor) ? selectedDebtor.name : null,
                   cashierName: userData?.name || 'Cashier',
                   date: getNow()
                 };
@@ -2438,6 +2585,56 @@ export default function Sales() {
               icon={<FiCheckCircle />}
             >
               {t('sales.checkout')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Customer Name Modal */}
+      <Modal
+        isOpen={customerModal}
+        onClose={() => setCustomerModal(false)}
+        title="👤 පාරිභෝගිකයාගේ නම (Customer Name)"
+        maxWidth="420px"
+      >
+        <div style={{ padding: '0.5rem 0' }}>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px', lineHeight: '1.4' }}>
+            මෙම බිල්පත සඳහා පාරිභෝගිකයාගේ නම සටහන් කිරීමට අවශ්‍ය නම් මෙහි ඇතුලත් කරන්න:
+          </p>
+          <div className="search-box glass" style={{ padding: '0.6rem 1rem', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center' }}>
+            <FiUser className="search-icon" style={{ marginRight: '8px', color: '#3b82f6', fontSize: '1.1rem' }} />
+            <input
+              ref={customerInputRef}
+              type="text"
+              placeholder="උදා: සුනිල්, කමල්, Mr. Perera..."
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  setCustomerModal(false);
+                }
+              }}
+              className="search-input"
+              style={{ fontSize: '1.1rem', fontWeight: 600, backgroundColor: 'transparent', outline: 'none', border: 'none', color: 'var(--text-primary)', width: '100%' }}
+            />
+            {customerName && (
+              <button
+                type="button"
+                onClick={() => setCustomerName('')}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px', fontSize: '1rem' }}
+                title="Clear"
+              >
+                <FiX />
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '1.25rem' }}>
+            <Button variant="secondary" onClick={() => setCustomerModal(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={() => setCustomerModal(false)} icon={<FiCheck />}>
+              හරි (Done)
             </Button>
           </div>
         </div>
@@ -2474,6 +2671,40 @@ export default function Sales() {
             >
               <FiHome /> {t('sales.homeUse')}
             </button>
+          </div>
+
+          <div className="checkout-customer-section mt-4 mb-2">
+            <label className="input-label mb-2 d-block" style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <FiUser style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+              පාරිභෝගික නම (අවශ්‍ය නම් පමණක් / Customer Name)
+            </label>
+            <div className="search-box glass" style={{ padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="පාරිභෝගිකයාගේ නම ඇතුලත් කරන්න (අවශ්‍ය නම් පමණක්)..."
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    tenderedInputRef.current?.focus();
+                    tenderedInputRef.current?.select();
+                  }
+                }}
+                className="search-input"
+                style={{ fontSize: '1rem', fontWeight: 600, backgroundColor: 'transparent', outline: 'none', border: 'none', color: 'var(--text-primary)', width: '100%' }}
+              />
+              {customerName && (
+                <button
+                  type="button"
+                  onClick={() => setCustomerName('')}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px 4px', fontSize: '1rem' }}
+                  title="Clear"
+                >
+                  <FiX />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="tendered-amount-section mt-4 mb-4">
@@ -2697,10 +2928,10 @@ export default function Sales() {
                       <span className="bill-info-label">{t('reports.amount')}:</span>
                       <span className="bill-total-amount">Rs. {bill.total?.toFixed(2)}</span>
                     </div>
-                    {bill.debtorName && (
+                    {(bill.customerName || bill.debtorName) && (
                       <div className="bill-info-row">
                         <span className="bill-info-label">Customer:</span>
-                        <span>{bill.debtorName}</span>
+                        <span>{bill.customerName || bill.debtorName}</span>
                       </div>
                     )}
                   </div>
@@ -2760,10 +2991,10 @@ export default function Sales() {
                   {selectedBill.paymentMethod === 'cash' ? '💵 Cash' : '💳 Credit'}
                 </span>
               </div>
-              {selectedBill.debtorName && (
+              {(selectedBill.customerName || selectedBill.debtorName) && (
                 <div className="bill-meta-item">
                   <span className="meta-label">Customer</span>
-                  <span className="meta-value">{selectedBill.debtorName}</span>
+                  <span className="meta-value">{selectedBill.customerName || selectedBill.debtorName}</span>
                 </div>
               )}
             </div>

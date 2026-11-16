@@ -535,6 +535,30 @@
   border-top: 1px solid var(--border-color);
 }
 
+.cart-customer-quick-btn {
+  transition: all 0.2s ease;
+}
+
+.cart-customer-quick-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+[data-theme="light"] .cart-customer-quick-btn {
+  background: rgba(37, 99, 235, 0.08) !important;
+  border-color: rgba(37, 99, 235, 0.3) !important;
+  color: #2563eb !important;
+}
+
+[data-theme="light"] .cart-customer-quick-btn:hover {
+  background: rgba(37, 99, 235, 0.15) !important;
+  border-color: #2563eb !important;
+}
+
+.checkout-customer-section {
+  width: 100%;
+}
+
 .cart-total-row {
   display: flex;
   justify-content: space-between;

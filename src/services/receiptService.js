@@ -212,7 +212,11 @@ export function generateBillPDF(billData) {
     <span>Date: ${dateStr}</span>
     <span>Cashier: ${billData.cashierName || 'Cashier'}</span>
   </div>
-  ${billData.debtorName ? `<div class="meta-row"><span>Customer: ${billData.debtorName}</span></div>` : ''}
+  ${(billData.customerName || billData.debtorName) ? `
+  <div class="meta-row">
+    <span>Customer: <strong>${billData.customerName || billData.debtorName}</strong></span>
+    ${billData.debtorName && billData.customerName && billData.debtorName !== billData.customerName ? `<span>(Debtor: ${billData.debtorName})</span>` : ''}
+  </div>` : ''}
 
   <div class="divider"></div>
 
