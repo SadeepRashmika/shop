@@ -319,11 +319,11 @@ export default function Debtors() {
     const billTot = Number(h.total) || 0;
     const upfront = Number(h.paidAmount !== undefined ? h.paidAmount : (h.tenderedAmount || 0));
     if (h.creditAmount !== undefined && h.creditAmount !== null) {
-      return Number(h.creditAmount);
+      return Math.floor(Number(h.creditAmount));
     } else if (h.paymentMethod === 'credit') {
-      return upfront > 0 ? Math.max(0, billTot - upfront) : (billTot || Number(h.amount) || 0);
+      return upfront > 0 ? Math.floor(Math.max(0, billTot - upfront)) : Math.floor(billTot || Number(h.amount) || 0);
     } else {
-      return Number(h.amount || h.total || 0);
+      return Math.floor(Number(h.amount || h.total || 0));
     }
   };
 
@@ -872,7 +872,7 @@ export default function Debtors() {
         phone: formData.phone,
         address: formData.address,
         barcode: formData.barcode,
-        totalOwed: Number(formData.totalOwed) || 0,
+        totalOwed: Math.floor(Number(formData.totalOwed) || 0),
         updatedAt: serverTimestamp()
       };
 
@@ -881,7 +881,7 @@ export default function Debtors() {
       } else {
         const docId = `debtor_${Date.now()}`;
         debtorData.createdAt = serverTimestamp();
-        const initialOwed = Number(formData.totalOwed) || 0;
+        const initialOwed = Math.floor(Number(formData.totalOwed) || 0);
         if (initialOwed > 0) {
           debtorData.lastCreditDate = serverTimestamp();
         }

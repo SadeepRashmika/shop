@@ -25,8 +25,8 @@ export default function BillModal({ isOpen, onClose, billData }) {
 
   const change = Math.max(0, tendered - billTotal);
   const creditOwed = billData.creditAmount !== undefined && billData.creditAmount !== null
-    ? Number(billData.creditAmount)
-    : Math.max(0, billTotal - tendered);
+    ? Math.floor(Number(billData.creditAmount))
+    : (isCredit ? Math.floor(Math.max(0, billTotal - tendered)) : 0);
 
   const totalSavings = isCredit ? 0 : items.reduce((sum, item) => {
     const mPrice = Number(item.markedPrice) || Number(item.sellPrice || item.price || 0);

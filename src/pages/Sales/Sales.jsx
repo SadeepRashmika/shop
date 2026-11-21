@@ -1135,7 +1135,8 @@ export default function Sales() {
   const subtotal = useMemo(() => {
     return cart.reduce((acc, item) => {
       const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
-      const effectivePrice = (isCreditMode && mPrice > Number(item.sellPrice)) ? mPrice : Number(item.sellPrice);
+      const cPrice = item.cashPrice !== undefined ? Number(item.cashPrice) : Number(item.sellPrice);
+      const effectivePrice = (isCreditMode && mPrice > cPrice) ? mPrice : cPrice;
       return acc + (effectivePrice * (Number(item.quantity) || 0));
     }, 0);
   }, [cart, isCreditMode]);
@@ -1284,11 +1285,14 @@ export default function Sales() {
       const isCreditMode = paymentMethod === 'credit';
       const finalDebtor = isCreditMode ? (selectedDebtor || getDefaultDebtor(debtors)) : null;
       const upfrontPayment = isCreditMode ? (parseFloat(tenderedAmount) || 0) : 0;
-      const creditAmount = isCreditMode ? Math.max(0, subtotal - upfrontPayment) : 0;
+      const rawCreditAmount = Math.max(0, subtotal - upfrontPayment);
+      // Remove cents from credit amount (ශත ඉවත් කර කෙලින් රුපියල් මුදල පමණක් ණය ලෙස එකතු කිරීම)
+      const creditAmount = isCreditMode ? Math.floor(rawCreditAmount) : 0;
 
       const cartItems = cart.map(item => {
         const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
-        const effectivePrice = (isCreditMode && mPrice > Number(item.sellPrice)) ? mPrice : Number(item.sellPrice);
+        const cPrice = item.cashPrice !== undefined ? Number(item.cashPrice) : Number(item.sellPrice);
+        const effectivePrice = (isCreditMode && mPrice > cPrice) ? mPrice : cPrice;
         const invCost = items.find(it => it.id === item.id)?.purchasePrice;
         const purchasePrice = Number(item.purchasePrice !== undefined ? item.purchasePrice : (invCost || 0));
         return {
@@ -1297,6 +1301,7 @@ export default function Sales() {
           name: item.name,
           purchasePrice: isNaN(purchasePrice) ? 0 : purchasePrice,
           markedPrice: mPrice,
+          cashPrice: cPrice,
           sellPrice: effectivePrice,
           quantity: Number(item.quantity),
           subtotal: effectivePrice * Number(item.quantity)
@@ -1566,19 +1571,60 @@ export default function Sales() {
     setCustomerName(bill.customerName || bill.debtorName || '');
     setTenderedAmount(bill.tenderedAmount !== undefined && bill.tenderedAmount !== null ? String(bill.tenderedAmount) : '');
     // Map bill items to cart format so they load directly into the main Cart UI
+    const isCreditBill = bill.paymentMethod === 'credit';
     const cartItems = (bill.items || []).map((bItem, idx) => {
-      const matched = items.find(i => i.id === bItem.id || i.name === bItem.name || (i.itemNo && i.itemNo === bItem.itemNo));
+      const matched = items.find(i => 
+        (bItem.id && i.id === bItem.id) || 
+        (bItem.itemNo && i.itemNo && i.itemNo === bItem.itemNo) ||
+        (bItem.name && i.name && i.name.trim().toLowerCase() === bItem.name.trim().toLowerCase())
+      );
+
+      let cashPrice = bItem.cashPrice !== undefined && bItem.cashPrice !== null ? Number(bItem.cashPrice) : null;
+      let markedPrice = bItem.markedPrice !== undefined && bItem.markedPrice !== null ? Number(bItem.markedPrice) : null;
+
+      if (matched) {
+        if (markedPrice === null || isNaN(markedPrice) || markedPrice <= 0) {
+          markedPrice = Number(matched.markedPrice || matched.sellPrice || 0);
+        }
+        if (cashPrice === null || isNaN(cashPrice)) {
+          // If the bill was credit, bItem.sellPrice was stored as credit/marked price.
+          // matched.sellPrice from inventory holds the true discounted cash price!
+          cashPrice = Number(matched.sellPrice || 0);
+        }
+      }
+
+      // If still not determined, fallback to bItem.sellPrice
+      if (cashPrice === null || isNaN(cashPrice)) {
+        cashPrice = Number(bItem.sellPrice) || 0;
+      }
+      if (markedPrice === null || isNaN(markedPrice) || markedPrice <= 0) {
+        markedPrice = Number(bItem.markedPrice || matched?.markedPrice || bItem.sellPrice) || cashPrice;
+      }
+
+      // If this was a credit bill and inventory has a lower cash sellPrice than the bill's credit sellPrice:
+      // use the inventory cash price for cash mode
+      if (isCreditBill && matched && Number(matched.sellPrice) > 0 && Number(matched.sellPrice) < Number(bItem.sellPrice)) {
+        cashPrice = Number(matched.sellPrice);
+        markedPrice = Math.max(markedPrice, Number(bItem.sellPrice));
+      }
+
+      const baseSellPrice = cashPrice;
+
       return {
         id: bItem.id || matched?.id || `EDIT_ITEM_${idx}_${Date.now()}`,
         cartId: `edit_${idx}_${Date.now()}`,
         name: bItem.name,
-        markedPrice: bItem.markedPrice ? Number(bItem.markedPrice) : Number(bItem.sellPrice),
-        sellPrice: Number(bItem.sellPrice) || 0,
+        markedPrice: markedPrice,
+        cashPrice: baseSellPrice,
+        sellPrice: baseSellPrice,
         quantity: Number(bItem.quantity) || 1,
         stock: matched ? matched.stock : 999,
         itemNo: bItem.itemNo || matched?.itemNo || null,
+        itemType: matched?.itemType || bItem.itemType || 'non-weighed',
+        unitRate: bItem.unitRate || matched?.unitRate || null,
         isCustom: bItem.isCustom || false,
-        isReload: bItem.isReload || false
+        isReload: bItem.isReload || false,
+        isMilling: bItem.isMilling || false
       };
     });
 
@@ -1595,7 +1641,7 @@ export default function Sales() {
       originalTotal: Number(bill.total) || 0,
       originalPaymentMethod: bill.paymentMethod || 'cash',
       originalTenderedAmount: Number(bill.tenderedAmount) || 0,
-      originalCreditAmount: bill.creditAmount !== undefined ? Number(bill.creditAmount) : (bill.paymentMethod === 'credit' ? Math.max(0, (Number(bill.total) || 0) - (Number(bill.tenderedAmount) || 0)) : 0),
+      originalCreditAmount: bill.creditAmount !== undefined ? Math.floor(Number(bill.creditAmount)) : (bill.paymentMethod === 'credit' ? Math.floor(Math.max(0, (Number(bill.total) || 0) - (Number(bill.tenderedAmount) || 0))) : 0),
       cashierName: bill.cashierName || 'Cashier',
       debtorId: bill.debtorId || matchingDebtor?.id || null,
       debtorName: bill.debtorName || matchingDebtor?.name || null,
@@ -1643,7 +1689,8 @@ export default function Sales() {
 
       const updatedCartItems = cart.map(item => {
         const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
-        const effectivePrice = (isCreditMode && mPrice > Number(item.sellPrice)) ? mPrice : Number(item.sellPrice);
+        const cPrice = item.cashPrice !== undefined ? Number(item.cashPrice) : Number(item.sellPrice);
+        const effectivePrice = (isCreditMode && mPrice > cPrice) ? mPrice : cPrice;
         const invCost = items.find(it => it.id === item.id)?.purchasePrice;
         const purchasePrice = Number(item.purchasePrice !== undefined ? item.purchasePrice : (invCost || 0));
         return {
@@ -1652,6 +1699,7 @@ export default function Sales() {
           name: item.name,
           purchasePrice: isNaN(purchasePrice) ? 0 : purchasePrice,
           markedPrice: mPrice,
+          cashPrice: cPrice,
           sellPrice: effectivePrice,
           quantity: Number(item.quantity),
           subtotal: effectivePrice * Number(item.quantity)
@@ -1662,9 +1710,10 @@ export default function Sales() {
       const oldTotal = Number(targetBill.originalTotal) || 0;
       const totalDiff = newTotal - oldTotal;
 
-      const newCreditAmount = isCreditMode ? Math.max(0, newTotal - upfrontPayment) : 0;
+      const rawNewCredit = Math.max(0, newTotal - upfrontPayment);
+      const newCreditAmount = isCreditMode ? Math.floor(rawNewCredit) : 0;
       const oldCreditAmount = targetBill.originalPaymentMethod === 'credit'
-        ? (targetBill.originalCreditAmount !== undefined ? Number(targetBill.originalCreditAmount) : Math.max(0, oldTotal - (Number(targetBill.originalTenderedAmount) || 0)))
+        ? (targetBill.originalCreditAmount !== undefined ? Math.floor(Number(targetBill.originalCreditAmount)) : Math.floor(Math.max(0, oldTotal - (Number(targetBill.originalTenderedAmount) || 0))))
         : 0;
       const oldDebtorId = targetBill.debtorId;
 
@@ -2070,23 +2119,78 @@ export default function Sales() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                background: 'rgba(255, 255, 255, 0.75)',
+                background: 'rgba(255, 255, 255, 0.85)',
                 padding: '6px 10px',
                 borderRadius: '8px',
                 fontSize: '0.82rem',
-                border: '1px solid #fcd34d'
+                border: '1px solid #fcd34d',
+                gap: '8px',
+                flexWrap: 'wrap'
               }}>
-                <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: '700', color: '#78350f' }}>ගෙවීම්: </span>
-                  <span style={{ fontWeight: '800', color: paymentMethod === 'credit' ? '#d97706' : (paymentMethod === 'cash' ? '#16a34a' : '#0891b2') }}>
-                    {paymentMethod === 'credit' ? `💳 ණය: ${selectedDebtor ? `#${selectedDebtor.debtorNo || '-'} ${selectedDebtor.name}` : '(තෝරා නැත)'}` : (paymentMethod === 'cash' ? '💵 මුදලින් (Cash)' : '🏠 නිවසේ පරිභෝජනය')}
-                  </span>
+                  <div style={{ display: 'inline-flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid #d1d5db' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod('cash');
+                        if (!tenderedAmount || parseFloat(tenderedAmount) <= 0) {
+                          setTenderedAmount(String(subtotal));
+                        }
+                      }}
+                      style={{
+                        background: paymentMethod === 'cash' ? '#16a34a' : '#fff',
+                        color: paymentMethod === 'cash' ? '#fff' : '#374151',
+                        border: 'none',
+                        padding: '4px 8px',
+                        fontSize: '0.75rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}
+                      title="මුදලින් ගෙවීමක් ලෙස වෙනස් කරන්න (භාණ්ඩ වල අඩු කළ මුදල් මිල අදාළ වේ)"
+                    >
+                      <FiDollarSign /> මුදලින් (Cash)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod('credit');
+                        if (!selectedDebtor) {
+                          setCheckoutModal(true);
+                        }
+                      }}
+                      style={{
+                        background: paymentMethod === 'credit' ? '#d97706' : '#fff',
+                        color: paymentMethod === 'credit' ? '#fff' : '#374151',
+                        border: 'none',
+                        borderLeft: '1px solid #d1d5db',
+                        padding: '4px 8px',
+                        fontSize: '0.75rem',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}
+                      title="ණය ගෙවීමක් ලෙස වෙනස් කරන්න (MRP / ලකුණු කළ මිල අදාළ වේ)"
+                    >
+                      <FiCreditCard /> ණය (Credit)
+                    </button>
+                  </div>
+                  {paymentMethod === 'credit' && selectedDebtor && (
+                    <span style={{ fontWeight: '700', color: '#d97706', fontSize: '0.78rem' }}>
+                      #{selectedDebtor.debtorNo || '-'} {selectedDebtor.name}
+                    </span>
+                  )}
                 </div>
                 <button
                   type="button"
                   onClick={() => setCheckoutModal(true)}
                   style={{
-                    background: '#d97706',
+                    background: '#f59e0b',
                     color: '#fff',
                     border: 'none',
                     borderRadius: '6px',
@@ -2095,8 +2199,9 @@ export default function Sales() {
                     fontWeight: '700',
                     cursor: 'pointer'
                   }}
+                  title="ණයගැතියා වෙනස් කිරීමට හෝ ගෙවූ මුදල සටහන් කිරීමට"
                 >
-                  මාරු කරන්න (Change)
+                  ණයගැතියා / වැඩිදුර
                 </button>
               </div>
             </div>
@@ -2202,25 +2307,37 @@ export default function Sales() {
                       {item.isCustom && <span style={{ background: 'rgba(34, 197, 94, 0.2)', color: '#22c55e', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>✏️ Custom</span>}
                       {item.isMilling && <span style={{ background: 'rgba(234, 179, 8, 0.2)', color: '#eab308', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: 'bold' }}>⚙️ කෙටීම</span>}
                     </span>
-                    <div className="cart-item-price-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '3px' }}>
-                      <span style={{ fontWeight: 800, fontSize: '15px', color: 'var(--primary-400, #7c3aed)' }}>
-                        Rs. {((Number(item.quantity) || 0) * (Number(item.sellPrice) || 0)).toFixed(2)}
-                      </span>
-                      {item.itemType === 'weighed' || item.isMilling ? (
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', background: 'rgba(124, 58, 237, 0.08)', padding: '2px 7px', borderRadius: '6px', border: '1px solid rgba(124, 58, 237, 0.18)' }}>
-                          @ Rs. {Number(item.sellPrice || 0).toFixed(2)}/kg
-                        </span>
-                      ) : Number(item.quantity) > 1 ? (
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', background: 'rgba(124, 58, 237, 0.08)', padding: '2px 7px', borderRadius: '6px', border: '1px solid rgba(124, 58, 237, 0.18)' }}>
-                          @ Rs. {Number(item.sellPrice || 0).toFixed(2)} × {item.quantity}
-                        </span>
-                      ) : null}
-                      {item.markedPrice && Number(item.markedPrice) > Number(item.sellPrice) && (
-                        <span style={{ fontSize: '11px', color: '#94a3b8', textDecoration: 'line-through' }}>
-                          Rs. {Number(item.markedPrice).toFixed(2)}
-                        </span>
-                      )}
-                    </div>
+                    {(() => {
+                      const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
+                      const cPrice = item.cashPrice !== undefined ? Number(item.cashPrice) : Number(item.sellPrice);
+                      const itemEffPrice = (isCreditMode && mPrice > cPrice) ? mPrice : cPrice;
+                      return (
+                        <div className="cart-item-price-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '3px' }}>
+                          <span style={{ fontWeight: 800, fontSize: '15px', color: 'var(--primary-400, #7c3aed)' }}>
+                            Rs. {((Number(item.quantity) || 0) * itemEffPrice).toFixed(2)}
+                          </span>
+                          {item.itemType === 'weighed' || item.isMilling ? (
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', background: 'rgba(124, 58, 237, 0.08)', padding: '2px 7px', borderRadius: '6px', border: '1px solid rgba(124, 58, 237, 0.18)' }}>
+                              @ Rs. {itemEffPrice.toFixed(2)}/kg
+                            </span>
+                          ) : Number(item.quantity) > 1 ? (
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', background: 'rgba(124, 58, 237, 0.08)', padding: '2px 7px', borderRadius: '6px', border: '1px solid rgba(124, 58, 237, 0.18)' }}>
+                              @ Rs. {itemEffPrice.toFixed(2)} × {item.quantity}
+                            </span>
+                          ) : null}
+                          {!isCreditMode && mPrice > cPrice && (
+                            <span style={{ fontSize: '11px', color: '#94a3b8', textDecoration: 'line-through' }} title="MRP (සඳහන් මිල)">
+                              Rs. {mPrice.toFixed(2)}
+                            </span>
+                          )}
+                          {isCreditMode && mPrice > cPrice && (
+                            <span style={{ fontSize: '10.5px', color: '#d97706', background: 'rgba(245, 158, 11, 0.12)', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                              ණය මිල (MRP)
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="cart-item-actions">
                     {!item.isReload && (
@@ -2449,18 +2566,23 @@ export default function Sales() {
                 </tr>
               </thead>
               <tbody>
-                {cart.map((item, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '6px 0', fontWeight: '600', color: '#0f172a' }}>{item.name}</td>
-                    <td style={{ padding: '6px 0', textAlign: 'center', color: '#475569', fontWeight: '600' }}>
-                      {formatBillQty(item)}
-                    </td>
-                    <td style={{ padding: '6px 0', textAlign: 'right', color: '#475569' }}>Rs. {item.sellPrice.toFixed(2)}</td>
-                    <td style={{ padding: '6px 0', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>
-                      Rs. {(item.sellPrice * item.quantity).toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
+                {cart.map((item, idx) => {
+                  const mPrice = item.markedPrice ? Number(item.markedPrice) : Number(item.sellPrice);
+                  const cPrice = item.cashPrice !== undefined ? Number(item.cashPrice) : Number(item.sellPrice);
+                  const itemEffPrice = (isCreditMode && mPrice > cPrice) ? mPrice : cPrice;
+                  return (
+                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '6px 0', fontWeight: '600', color: '#0f172a' }}>{item.name}</td>
+                      <td style={{ padding: '6px 0', textAlign: 'center', color: '#475569', fontWeight: '600' }}>
+                        {formatBillQty(item)}
+                      </td>
+                      <td style={{ padding: '6px 0', textAlign: 'right', color: '#475569' }}>Rs. {itemEffPrice.toFixed(2)}</td>
+                      <td style={{ padding: '6px 0', textAlign: 'right', fontWeight: '700', color: '#0f172a' }}>
+                        Rs. {(itemEffPrice * item.quantity).toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
 
@@ -2655,7 +2777,12 @@ export default function Sales() {
           <div className="payment-method-toggle">
             <button
               className={paymentMethod === 'cash' ? 'active cash-active' : ''}
-              onClick={() => setPaymentMethod('cash')}
+              onClick={() => {
+                setPaymentMethod('cash');
+                if (editingBill && (!tenderedAmount || parseFloat(tenderedAmount) <= 0)) {
+                  setTenderedAmount(String(subtotal));
+                }
+              }}
             >
               <FiDollarSign /> {t('sales.cash')}
             </button>
@@ -2790,7 +2917,7 @@ export default function Sales() {
                 }
               }}
               loading={actionLoading}
-              disabled={paymentMethod === 'cash' && (!tenderedAmount || Math.round((parseFloat(tenderedAmount) || 0) * 100) < Math.round(subtotal * 100))}
+              disabled={!editingBill && paymentMethod === 'cash' && (!tenderedAmount || Math.round((parseFloat(tenderedAmount) || 0) * 100) < Math.round(subtotal * 100))}
               icon={<FiCheckCircle />}
               style={editingBill ? { background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff', fontWeight: 'bold' } : undefined}
             >
@@ -3115,8 +3242,8 @@ export default function Sales() {
                       // 2. Debtor credit deduction if credit bill
                       const isCreditBill = selectedBill.paymentMethod === 'credit';
                       const creditToDeduct = selectedBill.creditAmount !== undefined
-                        ? Number(selectedBill.creditAmount)
-                        : (isCreditBill ? Math.max(0, Number(selectedBill.total || 0) - Number(selectedBill.paidAmount || selectedBill.tenderedAmount || 0)) : 0);
+                        ? Math.floor(Number(selectedBill.creditAmount))
+                        : (isCreditBill ? Math.floor(Math.max(0, Number(selectedBill.total || 0) - Number(selectedBill.paidAmount || selectedBill.tenderedAmount || 0))) : 0);
                       if (isCreditBill && selectedBill.debtorId && creditToDeduct > 0) {
                         const debtorRef = doc(db, 'debtors', selectedBill.debtorId);
                         batch.set(debtorRef, { totalOwed: increment(-creditToDeduct) }, { merge: true });
