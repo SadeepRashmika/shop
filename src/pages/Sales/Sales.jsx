@@ -620,6 +620,12 @@ export default function Sales() {
           window.history.replaceState({}, document.title);
         }
 
+        // Initialize edit bill if navigating with editBill from Ledger or other screens
+        if (location.state?.editBill) {
+          handleOpenEditBill(location.state.editBill, loadedItems, loadedDebtors);
+          window.history.replaceState({}, document.title);
+        }
+
       } catch (err) {
         console.error(err);
       } finally {
@@ -1566,14 +1572,16 @@ export default function Sales() {
     }
   };
 
-  const handleOpenEditBill = (bill) => {
+  const handleOpenEditBill = (bill, customItems = null, customDebtors = null) => {
     setSelectedBill(bill);
     setCustomerName(bill.customerName || bill.debtorName || '');
     setTenderedAmount(bill.tenderedAmount !== undefined && bill.tenderedAmount !== null ? String(bill.tenderedAmount) : '');
+    const inventoryItems = customItems || items;
+    const debtorList = customDebtors || debtors;
     // Map bill items to cart format so they load directly into the main Cart UI
     const isCreditBill = bill.paymentMethod === 'credit';
     const cartItems = (bill.items || []).map((bItem, idx) => {
-      const matched = items.find(i => 
+      const matched = inventoryItems.find(i => 
         (bItem.id && i.id === bItem.id) || 
         (bItem.itemNo && i.itemNo && i.itemNo === bItem.itemNo) ||
         (bItem.name && i.name && i.name.trim().toLowerCase() === bItem.name.trim().toLowerCase())
@@ -1628,8 +1636,8 @@ export default function Sales() {
       };
     });
 
-    const matchingDebtor = (bill.debtorId && debtors.find(d => d.id === bill.debtorId)) ||
-                          (bill.debtorName && debtors.find(d => (d.name || '').trim().toLowerCase() === (bill.debtorName || '').trim().toLowerCase())) ||
+    const matchingDebtor = (bill.debtorId && debtorList.find(d => d.id === bill.debtorId)) ||
+                          (bill.debtorName && debtorList.find(d => (d.name || '').trim().toLowerCase() === (bill.debtorName || '').trim().toLowerCase())) ||
                           null;
 
     setCart(cartItems);

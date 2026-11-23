@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp, increment, writeBatch, query, where } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 import { db } from '../../services/firebase';
@@ -7,10 +8,11 @@ import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
+import BillModal from '../../components/common/BillModal';
 import { 
   FiPlus, FiSearch, FiEdit2, FiTrash2, FiUser, FiPhone, FiCreditCard, 
   FiDownload, FiDollarSign, FiList, FiUsers, FiAlertTriangle, FiX, FiClock,
-  FiArrowUpRight, FiArrowDownLeft, FiShoppingBag, FiSmartphone, FiCheckCircle, FiFileText
+  FiArrowUpRight, FiArrowDownLeft, FiShoppingBag, FiSmartphone, FiCheckCircle, FiFileText, FiEye
 } from 'react-icons/fi';
 import JsBarcode from 'jsbarcode';
 import * as XLSX from 'xlsx';
@@ -19,11 +21,13 @@ import './Debtors.css';
 export default function Debtors() {
   const { t } = useTranslation();
   const { userData } = useAuth();
+  const navigate = useNavigate();
   const [debtors, setDebtors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('no_asc'); // Default to 'no_asc' (By Debtor No. 1, 2, 3...)
   const [filterType, setFilterType] = useState('all'); // 'all', 'with_debt', 'no_debt'
+  const [viewingBillTxn, setViewingBillTxn] = useState(null);
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -437,6 +441,59 @@ export default function Debtors() {
      } finally {
        setLedgerLoading(false);
      }
+  };
+
+  const handleLedgerItemClick = (item) => {
+    // If it's a bill transaction or has bill data
+    if (item._source === 'transactions' || (item.items && item.items.length > 0) || item.billNumber) {
+      setViewingBillTxn(item);
+    } else if (item.isReload) {
+      // Reload record
+      setViewingBillTxn({
+        id: item.id,
+        billNumber: item.billNumber || null,
+        items: [{
+          name: `Reload (${(item.network || '').toUpperCase()}) - ${item.phone || ''}`,
+          quantity: 1,
+          sellPrice: Number(item.amount || 0),
+          subtotal: Number(item.amount || 0)
+        }],
+        total: Number(item.amount || 0),
+        creditAmount: Number(item.amount || 0),
+        paymentMethod: 'credit',
+        cashierName: item.cashierName || 'Cashier',
+        debtorName: item.debtorName || ledgerDebtor?.name || null,
+        customerName: item.customerName || item.debtorName || ledgerDebtor?.name || null,
+        date: item.timestamp || item.date || new Date()
+      });
+    } else if (item.type === 'payment' || item.type === 'loan' || item.type === 'opening') {
+      // Payment or Loan or Opening balance
+      setViewingBillTxn({
+        id: item.id,
+        billNumber: item.billNumber || null,
+        items: [{
+          name: item.note || (item.type === 'payment' ? 'ණය ගෙවීම (Debt Payment)' : (item.type === 'loan' ? 'අතින් එකතු කළ ණය (Manual Loan)' : 'ආරම්භක ණය (Opening Balance)')),
+          quantity: 1,
+          sellPrice: Number(item.amount || 0),
+          subtotal: Number(item.amount || 0)
+        }],
+        total: Number(item.amount || 0),
+        creditAmount: item.type === 'payment' ? 0 : Number(item.amount || 0),
+        tenderedAmount: item.type === 'payment' ? Number(item.amount || 0) : 0,
+        paidAmount: item.type === 'payment' ? Number(item.amount || 0) : 0,
+        paymentMethod: item.type === 'payment' ? 'cash' : 'credit',
+        cashierName: item.cashierName || 'Cashier',
+        debtorName: item.debtorName || ledgerDebtor?.name || null,
+        customerName: item.debtorName || ledgerDebtor?.name || null,
+        date: item.timestamp || item.date || new Date()
+      });
+    }
+  };
+
+  const handleEditBillInSales = (bill) => {
+    setIsLedgerOpen(false);
+    setViewingBillTxn(null);
+    navigate('/sales', { state: { editBill: bill } });
   };
 
   const handleRequestDeleteTransaction = (item, calculatedAmount, label) => {
@@ -1476,7 +1533,13 @@ export default function Debtors() {
                      }
 
                      return (
-                       <div key={h.id} className={`ledger-item ${itemClass}`}>
+                       <div 
+                         key={h.id} 
+                         className={`ledger-item ${itemClass}`}
+                         onClick={() => handleLedgerItemClick(h)}
+                         style={{ cursor: 'pointer' }}
+                         title="බිල්පත බලන්න / Load කරන්න (Click to view/load bill)"
+                       >
                          <div className="ledger-item-icon-col">
                            <div className={`ledger-type-icon ${itemClass}`}>
                              {itemIcon}
@@ -1485,6 +1548,21 @@ export default function Debtors() {
                          <div className="ledger-item-content">
                             <div className="ledger-item-headline">
                               <span className="ledger-item-label">{label}</span>
+                              {(h._source === 'transactions' || h.billNumber) && (
+                                <span style={{
+                                  fontSize: '11px',
+                                  background: 'rgba(59, 130, 246, 0.1)',
+                                  color: '#2563eb',
+                                  padding: '2px 7px',
+                                  borderRadius: '4px',
+                                  fontWeight: 700,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}>
+                                  <FiEye size={11} /> බිල බලන්න
+                                </span>
+                              )}
                               {h.note && !isOpening && (
                                 <span className="ledger-note-tag">{h.note}</span>
                               )}
@@ -1699,6 +1777,14 @@ export default function Debtors() {
           </div>
         </form>
       </Modal>
+
+      {/* VIEW BILL MODAL */}
+      <BillModal
+        isOpen={!!viewingBillTxn}
+        onClose={() => setViewingBillTxn(null)}
+        billData={viewingBillTxn}
+        onEdit={handleEditBillInSales}
+      />
 
     </div>
   );

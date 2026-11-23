@@ -1,12 +1,12 @@
 import React from 'react';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
-import { FiPrinter, FiX, FiCheckCircle } from 'react-icons/fi';
+import { FiPrinter, FiX, FiCheckCircle, FiEdit3 } from 'react-icons/fi';
 import { getShopInfo, formatBillQty, generateBillPDF } from '../../services/receiptService';
 import { formatSriLankaDateTime } from '../../services/timeService';
 import './BillModal.css';
 
-export default function BillModal({ isOpen, onClose, billData }) {
+export default function BillModal({ isOpen, onClose, billData, onEdit }) {
   if (!billData) return null;
 
   const shopInfo = getShopInfo();
@@ -178,6 +178,19 @@ export default function BillModal({ isOpen, onClose, billData }) {
         >
           වසන්න (Close)
         </Button>
+        {onEdit && billData?.items && billData?.items?.length > 0 && (
+          <Button
+            type="button"
+            onClick={() => {
+              onClose();
+              onEdit(billData);
+            }}
+            icon={<FiEdit3 />}
+            style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none', color: '#fff', fontWeight: 700 }}
+          >
+            ✏️ බිල Load / Edit කරන්න
+          </Button>
+        )}
         <Button
           type="button"
           variant="primary"

@@ -137,6 +137,8 @@
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid var(--border-color, #e2e8f0);
